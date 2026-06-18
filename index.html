@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#02161A" />
+  <title>Snake Cryptotem</title>
+  <link rel="icon" href="assets/logo.png" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Aire de jeu -->
+    <canvas id="game"></canvas>
+
+    <!-- HUD -->
+    <header id="hud" class="hidden">
+      <div class="hud-left">
+        <img src="assets/logo.png" alt="Cryptotem" class="hud-logo" />
+        <span class="hud-name">CRYPTOTEM</span>
+      </div>
+      <div class="hud-center">
+        <div class="hud-level">NIVEAU <b id="lvlNum">1</b></div>
+        <div class="hud-progress">
+          <div class="hud-bar"><i id="progFill"></i></div>
+          <div class="hud-count"><b id="batCount">0</b><span>/</span><span id="batNeed">10</span> 🔋</div>
+        </div>
+        <div class="hud-score">⚡ <b id="scoreVal">0</b> <span>·</span> RECORD <b id="bestVal">0</b></div>
+      </div>
+      <div class="hud-right">
+        <button id="muteBtn" class="icon-btn" title="Son">🔊</button>
+        <button id="pauseBtn" class="icon-btn" title="Pause">⏸</button>
+      </div>
+    </header>
+
+    <!-- Écran d'accueil -->
+    <div id="startScreen" class="overlay">
+      <div class="brand">
+        <img src="assets/logo.png" alt="Cryptotem" class="brand-logo" />
+        <h1 class="title">SNAKE <span>CRYPTOTEM</span></h1>
+        <p class="tagline">Rechargez la ville. Attrapez les batteries. ⚡</p>
+      </div>
+      <button id="playBtn" class="btn-primary">JOUER</button>
+      <p class="record">🏆 Record : <b id="startBest">0</b></p>
+      <div id="startBoard" class="start-board"></div>
+      <ul class="howto">
+        <li>🔋 Attrapez les batteries pour allonger votre câble USB-C</li>
+        <li>🌀 Traversez les bords : vous ressortez de l'autre côté !</li>
+        <li>🎯 Atteignez l'objectif pour terminer le niveau</li>
+        <li>⚠️ Évitez les obstacles… et votre propre câble</li>
+      </ul>
+      <div class="menu-btns">
+        <button id="labBtn" class="btn-ghost">🔬 Laboratoire</button>
+        <button id="achBtn" class="btn-ghost">🏆 Succès</button>
+        <button id="statsBtn" class="btn-ghost">📊 Stats</button>
+      </div>
+      <p class="controls-hint">Flèches&nbsp;·&nbsp;WASD&nbsp;·&nbsp;Swipe&nbsp;·&nbsp;D-pad</p>
+      <button id="musicBtn" class="btn-ghost music-btn">🎵 Musique : Off</button>
+    </div>
+
+    <!-- Laboratoire (R&D) -->
+    <div id="labScreen" class="overlay hidden">
+      <h2 class="overlay-title lab-title">🔬 LABORATOIRE</h2>
+      <p class="lab-intro">Dépense tes batteries &amp; points pour rechercher des améliorations permanentes.</p>
+      <div class="lab-wallet">🔋 <b id="walletBat">0</b><span>·</span>⚡ <b id="walletPts">0</b></div>
+      <div id="labResearch" class="lab-research hidden"></div>
+      <div id="labList" class="lab-list"></div>
+      <button id="labResetBtn" class="btn-ghost lab-reset">Réinitialiser le Labo</button>
+      <button id="labCloseBtn" class="btn-primary">RETOUR</button>
+    </div>
+
+    <!-- Succès / Trophées -->
+    <div id="achScreen" class="overlay hidden">
+      <h2 class="overlay-title lab-title">🏆 SUCCÈS</h2>
+      <p class="lab-intro">Débloque des trophées en jouant. <b id="achCount">0/0</b></p>
+      <div id="achList" class="ach-list"></div>
+      <button id="achCloseBtn" class="btn-primary">RETOUR</button>
+    </div>
+
+    <!-- Statistiques (stats cumulées) -->
+    <div id="statsScreen" class="overlay hidden">
+      <h2 class="overlay-title lab-title">📊 STATISTIQUES</h2>
+      <p class="lab-intro">Tes records et totaux cumulés sur cette borne.</p>
+      <div id="statsGrid" class="stats-grid"></div>
+      <button id="statsCloseBtn" class="btn-primary">RETOUR</button>
+    </div>
+
+    <!-- Notification de succès débloqué -->
+    <div id="achToast" class="ach-toast"></div>
+
+    <!-- Pause -->
+    <div id="pauseScreen" class="overlay hidden">
+      <h2 class="overlay-title">PAUSE</h2>
+      <p id="pauseStats" class="over-stats"></p>
+      <div class="pause-toggles">
+        <button id="pauseSoundBtn" class="btn-ghost">🔊 Son</button>
+        <button id="pauseMusicBtn" class="btn-ghost">🎵 Musique</button>
+      </div>
+      <button id="resumeBtn" class="btn-primary">REPRENDRE</button>
+      <button id="quitBtn" class="btn-ghost">MENU</button>
+    </div>
+
+    <!-- Game over -->
+    <div id="overScreen" class="overlay hidden">
+      <h2 class="overlay-title danger">BATTERIE DÉCHARGÉE</h2>
+      <p id="overStats" class="over-stats"></p>
+
+      <div class="lb">
+        <div class="lb-name">
+          <span>Pseudo</span>
+          <input id="nameInput" type="text" maxlength="14" placeholder="Ton pseudo" autocomplete="off" />
+        </div>
+        <div class="lb-tabs">
+          <button class="lb-tab active" data-scope="weekly">📅 Semaine</button>
+          <button class="lb-tab" data-scope="global">🌍 Global</button>
+        </div>
+        <ol id="lbList" class="lb-list"></ol>
+        <p id="lbRank" class="lb-rank"></p>
+        <p class="lb-perso">🏅 Ton record : <b id="persoBest">0</b></p>
+      </div>
+
+      <div class="cta">
+        <img src="assets/logo.png" alt="Cryptotem" class="cta-logo" />
+        <p class="cta-title">⚡ Plus de batterie ? Pas de panique.</p>
+        <p class="cta-sub">Une borne <b>Cryptotem</b> vous attend dans votre bar, ciné, bowling ou club préféré. Rechargez en quelques secondes.</p>
+        <div class="cta-qr">
+          <canvas id="ctaQr" class="cta-qr-canvas" aria-label="QR code Cryptotem"></canvas>
+          <span class="cta-qr-cap">📲 Scanne pour trouver une borne</span>
+        </div>
+      </div>
+      <button id="retryBtn" class="btn-primary">REJOUER</button>
+      <button id="overLabBtn" class="btn-ghost">🔬 Laboratoire</button>
+      <button id="menuBtn" class="btn-ghost">MENU</button>
+    </div>
+
+    <!-- UI cinématique (le visuel est dessiné sur le canvas) -->
+    <div id="cineUi" class="overlay overlay-clear hidden">
+      <button id="continueBtn" class="btn-primary hidden">NIVEAU SUIVANT ▸</button>
+    </div>
+
+    <!-- D-pad tactile -->
+    <div id="dpad" class="hidden">
+      <button class="dpad-btn up" data-dir="up" aria-label="Haut">▲</button>
+      <button class="dpad-btn left" data-dir="left" aria-label="Gauche">◀</button>
+      <button class="dpad-btn right" data-dir="right" aria-label="Droite">▶</button>
+      <button class="dpad-btn down" data-dir="down" aria-label="Bas">▼</button>
+    </div>
+  </div>
+
+  <!-- Ordre de chargement important (namespace window.CT) -->
+  <script src="js/config.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/input.js"></script>
+  <script src="js/scoring-rules.js"></script>
+  <script src="js/leaderboard.js"></script>
+  <script src="js/lab.js"></script>
+  <script src="js/achievements.js"></script>
+  <script src="js/qrcode.js"></script>
+  <script src="js/cinematics.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

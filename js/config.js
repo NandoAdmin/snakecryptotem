@@ -1,0 +1,135 @@
+/* ============================================================
+   config.js — point unique de vérité : thème, grille, niveaux.
+   Tout est attaché à window.CT.
+   ============================================================ */
+window.CT = window.CT || {};
+
+CT.CONFIG = {
+  /* URL encodée dans le QR code de l'écran de fin (charge publicitaire).
+     ⚠️ PLACEHOLDER — remplacer par l'URL exacte fournie par le client Cryptotem
+     (site, page « trouver une borne », ou lien de campagne avec tracking). */
+  cryptotemUrl: 'https://cryptotem.fr',
+
+  /* Grille (carrée). Plus c'est grand, plus le serpent paraît rapide. */
+  cols: 24,
+  rows: 24,
+
+  /* Vitesse */
+  minStep: 72,             // intervalle le plus court (ms) — plancher de vitesse
+  speedupPerBattery: 4.5,  // ms retirés par batterie ramassée
+
+  /* Durée de la bannière d'intro de niveau (s) — serpent figé le temps de l'annonce */
+  introDuration: 1.7,
+
+  /* Power-ups à durée limitée (batterie dorée « charge rapide » ou bouclier bleu) */
+  bonus: {
+    every: 4,            // tentative d'apparition toutes les N batteries normales
+    chance: 0.7,         // probabilité d'apparition à chaque tentative
+    life: 6,             // durée de vie à l'écran (s)
+    points: 250,         // points « charge rapide » (× niveau)
+    slowDuration: 3,     // durée de la « surcharge » (ralenti) accordée (s)
+    slowFactor: 1.6,     // multiplicateur d'intervalle pendant la surcharge (plus lent)
+    shieldChance: 0.32,  // proba qu'un power-up soit un bouclier
+    shieldDuration: 5,   // durée d'invulnérabilité du bouclier (s)
+    shieldPoints: 120,   // points bouclier (× niveau)
+    magnetChance: 0.24,  // proba qu'un power-up soit un aimant (sinon charge rapide)
+    magnetDuration: 5,   // durée d'attraction de l'aimant (s)
+    magnetPoints: 150,   // points aimant (× niveau)
+    doubleChance: 0.20,  // proba qu'un power-up soit « double points »
+    doubleDuration: 6,   // durée du ×2 points (s)
+    doublePoints: 200,   // points à la prise (× niveau) — ≤ points (plafond anti-triche)
+  },
+
+  /* Thème — couleurs de jeu. Rebrander = changer ces valeurs. */
+  theme: {
+    bg0:      '#02161a',
+    bg1:      '#05242a',
+    grid:     'rgba(255,255,255,0.035)',
+    tealDeep: '#063c40',
+    tealMid:  '#0b7e80',
+    teal:     '#13b5b8',
+    cyan:     '#26e0e0',
+    glow:     '#2bf0d8',
+    blue:     '#2f7bff',   // LED des power banks de la station
+    violet:   '#9d6bff',   // power-up aimant
+    charge:   '#19e3b0',   // remplissage de charge
+    danger:   '#ff5b6e',   // obstacles / game over
+    amber:    '#ffc24b',
+    pink:     '#ff5bb0',   // teinte serpent (cycle de couleurs)
+    lime:     '#7cff5b',   // teinte serpent (cycle de couleurs)
+    text:     '#eafbfb',
+    textDim:  '#7fb5b8',
+  },
+
+  /* Couleurs successives du serpent : il en change à CHAQUE batterie ramassée
+     (le câble « se charge »). Liste de clés de CONFIG.theme → reste rebrandable.
+     Le niveau démarre toujours sur la 1ʳᵉ (cyan). */
+  snakePalette: ['cyan', 'charge', 'blue', 'violet', 'amber', 'pink', 'lime', 'glow'],
+
+  /* Niveaux conçus à la main. Au-delà → génération procédurale (getLevel). */
+  levels: [
+    { needed: 10, step: 168, obstacles: 0,  pattern: 'none'    },
+    { needed: 13, step: 156, obstacles: 5,  pattern: 'corners' },
+    { needed: 16, step: 146, obstacles: 9,  pattern: 'bars'    },
+    { needed: 20, step: 136, obstacles: 13, pattern: 'cross'   },
+    { needed: 24, step: 126, obstacles: 18, pattern: 'pillars' },
+    { needed: 28, step: 116, obstacles: 22, pattern: 'maze'    },
+  ],
+};
+
+/* Renvoie la config du niveau n (1-based), avec génération au-delà du tableau. */
+CT.getLevel = function (n) {
+  const L = CT.CONFIG.levels;
+  if (n >= 1 && n <= L.length) {
+    return Object.assign({ index: n }, L[n - 1]);
+  }
+  const last = L[L.length - 1];
+  const extra = n - L.length;            // nb de niveaux au-delà du tableau
+  return {
+    index: n,
+    needed: last.needed + extra * 4,
+    step: Math.max(CT.CONFIG.minStep + 18, last.step - extra * 6),
+    obstacles: Math.min(40, last.obstacles + extra * 4),
+    pattern: 'maze',
+  };
+};
+
+/* Petits utilitaires partagés (math + dessin). */
+CT.util = {
+  clamp(v, a, b) { return v < a ? a : v > b ? b : v; },
+  lerp(a, b, t) { return a + (b - a) * t; },
+  ease(t) { return 1 - Math.pow(1 - t, 3); },          // easeOutCubic
+  easeInOut(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; },
+  /* PRNG ensemençable (mulberry32) → aléa gameplay reproductible depuis un seed.
+     Base du rejeu déterministe anti-triche (cf. docs/anti-cheat.md). */
+  makeRng(seed) {
+    let a = seed >>> 0;
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  },
+  /* Tracé d'un rectangle arrondi (fallback si roundRect absent). */
+  rr(ctx, x, y, w, h, r) {
+    if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); return; }
+    const rad = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + rad, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rad);
+    ctx.arcTo(x + w, y + h, x, y + h, rad);
+    ctx.arcTo(x, y + h, x, y, rad);
+    ctx.arcTo(x, y, x + w, y, rad);
+    ctx.closePath();
+  },
+};
+
+/* Variantes de cinématiques disponibles (détail dans cinematics.js). */
+CT.CINEMATICS = ['express', 'confetti', 'pulse', 'turbo', 'totem', 'ville', 'reseau'];
+
+/* Choisit une variante différente de la précédente. */
+CT.pickCinematic = function (lastVariant) {
+  const pool = CT.CINEMATICS.filter((v) => v !== lastVariant);
+  return pool[(Math.random() * pool.length) | 0];
+};

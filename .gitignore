@@ -1,0 +1,12 @@
+# Config locale Claude Code (propre à la machine — ne pas versionner)
+.claude/
+
+# macOS
+.DS_Store
+
+# Dépendances éventuelles (le projet n'en a pas, mais au cas où)
+node_modules/
+
+# Logs / fichiers temporaires
+*.log
+*.tmp
