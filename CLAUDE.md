@@ -84,6 +84,14 @@ précédente et la case courante (`t = acc / stepInterval`) → mouvement fluide
 câble. Chaque segment garde `prev` + `cur` ; les index sont stables (le segment
 `i` suit le segment `i-1`).
 
+### Direction / entrées (file de virages)
+`setDir` empile les virages dans `dirQueue` (file, **max 2**) ; chaque `step()` en
+défile **un** (`this.dir = dirQueue.shift()`). Le test anti-demi-tour se fait par
+rapport au **dernier virage en file** (sinon `this.dir`), ce qui permet d'enchaîner
+deux quarts de tour serrés (ex. ↑ puis ←) sans perdre le 2ᵉ — sans jamais autoriser
+le demi-tour direct. La file plafonne à 2 pour rester réactive. L'IA démo écrit aussi
+dans `dirQueue` (un virage recalculé par pas).
+
 ### Vitesse
 `stepInterval = max(minStep, level.step - batteriesRamassées * speedupPerBattery)`.
 
@@ -91,6 +99,18 @@ câble. Chaque segment garde `prev` + `cur` ; les index sont stables (le segment
 Au début de chaque niveau (jeu réel), une bannière **« NIVEAU X — Objectif : N
 batteries »** s'affiche pendant `CONFIG.introDuration` s ; le serpent est **figé**
 le temps de l'annonce (`introUntil`), ce qui laisse voir la map avant de jouer.
+
+### Objectif proche
+Quand il reste **≤ 2 batteries** avant la fin du niveau, `updateHud` ajoute la classe
+`near-goal` sur `.hud-progress` → barre de progression qui **pulse** (glow) + compteur en
+couleur `glow` (monte la tension vers la cinématique). Animation CSS, désactivée sous
+`prefers-reduced-motion` (glow statique à la place).
+
+### Reprise après pause (3·2·1)
+À la reprise depuis la pause (`togglePause` : paused → playing), `resumeUntil = time + 1.5`
+fige le serpent (même mécanisme que l'intro : `acc = 0` tant que `time < introUntil ||
+time < resumeUntil`) et `drawResumeCountdown` affiche un **compte à rebours 3·2·1** centré,
+le temps que le joueur se repositionne. `resumeUntil` est remis à zéro dans `reset`.
 
 ### Bords traversables (plateau toroïdal)
 Les **murs ne tuent pas** : en sortant par un bord, le serpent **réapparaît en
@@ -139,10 +159,12 @@ bords sont dessinés en pointillé « portail ».
   Garantit qu'aucune batterie n'est jamais enfermée (map toujours jouable).
 
 ### Cinématiques (`js/cinematics.js`)
-7 **variantes** (recharge express, confettis, pulse néon, surcharge turbo, totem
+9 **variantes** (recharge express, confettis, pulse néon, surcharge turbo, totem
 pixel, **la ville se recharge** — skyline dont les fenêtres s'allument au rythme de
-la charge — et **le réseau s'allume** — maillage de stations Cryptotem dont les
-nœuds et liens s'allument avec la charge). `CT.pickCinematic(lastVariant)` choisit une variante **différente de la
+la charge —, **le réseau s'allume** — maillage de stations Cryptotem dont les
+nœuds et liens s'allument avec la charge —, **aurore énergétique** — rideaux d'aurore
+boréale néon qui ondulent et s'intensifient avec la charge — et **vortex néon** — spirale
+d'énergie qui tourne et s'étend avec la charge). `CT.pickCinematic(lastVariant)` choisit une variante **différente de la
 précédente** (liste : `CT.CINEMATICS`). Timeline en phases : `enter` → `connect` →
 `charge` → `celebrate` (boucle jusqu'au clic « Niveau suivant »). Chaque variante a
 sa spec (`accent`, `title`, entrée `from`), son fond (`_drawBackground`) et ses
@@ -152,7 +174,17 @@ particules de célébration (`_emitCelebrate`) ; téléphone + power bank + câb
 - `points` : score chiffré. Gain par batterie = `(50 + niveau*10) * combo`.
 - `combo` : ×N si on ramasse une batterie < 2,6 s après la précédente (max ×9).
 - `best` : record perso, chargé depuis `CT.Leaderboard` (async) et affiché sur
-  l'accueil, le HUD et l'écran de fin (« Nouveau record ! »).
+  l'accueil, le HUD et l'écran de fin (« Nouveau record ! »). ⚠️ `best` est **bumpé en
+  cours de partie** pour suivre `points` (affichage HUD) ; le vrai record à battre est figé
+  dans `recordToBeat` (rempli par `loadPersonalBest`).
+- **Bannière « 🏆 RECORD BATTU ! »** : quand `points` dépasse `recordToBeat` en cours de
+  partie (une seule fois, jamais en démo, jamais si pas de record à battre), `_scored()`
+  déclenche une bannière transitoire (`drawRecordBanner`, ~1,8 s) + fanfare
+  `CT.Audio.achievement()` + haptique/shake. `_scored()` centralise le bump de `best` et
+  ce test (appelé par `onEat` et `_awardBonus`).
+- **Récap de fin** (`die`) : l'écran de game over affiche, sous le score, une ligne récap
+  `⏱ temps de survie · ⚡ power-ups · 🔥 meilleur combo` (`maxComboRun`, suivi dans `onEat`,
+  remis à zéro dans `reset`). Style `.over-recap`.
 
 ### Classement (`js/leaderboard.js`)
 `CT.Leaderboard` — 3 vues : **record perso**, **record de la semaine**,
@@ -200,11 +232,13 @@ Méta-progression de collection persistante (localStorage `ct_ach`) → rejouabi
   combo, level, score, durationMs, bankPts, game})` (depuis `game._ach`, **jamais en démo**) ;
   le module met à jour cumuls/maxima et renvoie les succès **nouvellement** débloqués.
   `CT.Achievements.stats()` renvoie une copie des stats cumulées (utilisé par l'écran Statistiques).
-- **9 succès** (`DEFS`) : Premier câble (10 🔋), Centurion (100 🔋), Explorateur (niv 5),
-  Vétéran (niv 10), Combo Roi (×9), Branché (25 power-ups), Increvable (3 min), Haute
-  Tension (5 000 pts), Mécène du Labo (5 000 pts versés).
+- **12 succès** (`DEFS`) : Premier câble (10 🔋), Centurion (100 🔋), Explorateur (niv 5),
+  Vétéran (niv 10), Ascension (niv 15), Combo Roi (×9), Branché (25 power-ups), Increvable
+  (3 min), Marathonien (5 min), Haute Tension (5 000 pts), Mécène du Labo (5 000 pts versés),
+  Habitué (10 parties jouées).
 - **UI** (câblée dans `main.js`) : écran « 🏆 Succès » (bouton accueil) — liste des
-  trophées (verrouillés grisés 🔒 / débloqués ✅) + compteur `X/9`. À chaque déblocage en
+  trophées (verrouillés grisés 🔒 / débloqués ✅) + compteur `X/12` (dynamique via `count()`).
+  À chaque déblocage en
   jeu, `game.onAchievement(def)` affiche une **notification toast** (file d'attente si
   plusieurs tombent d'un coup, jingle dédié `CT.Audio.achievement()`).
   `CT.Achievements.reset()` remet à zéro.
@@ -213,7 +247,7 @@ Méta-progression de collection persistante (localStorage `ct_ach`) → rejouabi
 Écran « 📊 Stats » (bouton accueil) qui **affiche** les stats cumulées déjà suivies par
 `CT.Achievements` : grille de cartes (parties jouées, batteries totales, power-ups,
 meilleur score, niveau max, combo max, meilleure survie `mm:ss`, points versés au Labo,
-succès `X/9`). Lecture seule via `CT.Achievements.stats()` + `count()`. Le compteur
+succès `X/12`). Lecture seule via `CT.Achievements.stats()` + `count()`. Le compteur
 **parties jouées** (`stats.games`) est incrémenté à la mort (`game._ach({game:1})`).
 
 ### Mode démo / attract (`G.startDemo` + `G.autopilot`)
@@ -255,6 +289,9 @@ par le Labo).
 ### Audio
 - **SFX** synthétisés (WebAudio, aucun fichier) ; préférence **mute** persistée
   (`ct_mute`).
+- **Son de ramassage combo-réactif** : `CT.Audio.pickup(combo)` monte la hauteur de
+  +1 demi-ton par palier de combo (plafonné à ×9 → +8 demi-tons) → un enchaînement
+  « sonne » de plus en plus haut. Appelé par `onEat` avec `this.combo || 1` (1 en démo).
 - **Musique d'ambiance** optionnelle (`CT.Audio.toggleMusic`) : pad génératif
   doux (3 voix + sub, filtre lowpass + LFO lent, accords qui évoluent), **faible
   volume**, **désactivée par défaut**, persistée (`ct_music`), toggle « 🎵 Musique »
@@ -308,9 +345,10 @@ complet : Reed-Solomon GF(256), sélection de masque par pénalité, BCH format/
 ## 🗺️ Pistes / TODO
 
 - [x] Vérifier le rendu dans un navigateur (preview).
-- [x] 7 variantes de cinématiques distinctes (express, confetti, pulse, turbo, totem,
+- [x] 9 variantes de cinématiques distinctes (express, confetti, pulse, turbo, totem,
       ville — la ville se recharge, fenêtres qui s'allument ; reseau — le réseau de
-      stations Cryptotem qui s'allume, nœuds + liens).
+      stations Cryptotem qui s'allume, nœuds + liens ; aurora — aurore boréale néon ;
+      galaxie — vortex d'énergie en spirale).
 - [x] Score + combo + meilleur score persistant (localStorage).
 - [x] Mode « attract / démo » qui tourne tout seul (écrans en bar).
 - [x] Call-to-action Cryptotem sur l'écran de fin.
@@ -333,7 +371,7 @@ complet : Reed-Solomon GF(256), sélection de masque par pénalité, BCH format/
 - [x] Musique d'ambiance optionnelle (pad génératif WebAudio, opt-in, persistée).
 - [x] **Laboratoire / R&D** : banque batteries+points, recherches chronométrées,
       6 améliorations permanentes (durée de vie / méta-progression).
-- [x] **Succès / Trophées** : 9 succès persistants (stats cumulées), écran « 🏆 Succès »
+- [x] **Succès / Trophées** : 12 succès persistants (stats cumulées), écran « 🏆 Succès »
       (liste verrouillés/débloqués + compteur) et notification toast au déblocage.
 - [x] **Écran Statistiques** (« 📊 Stats ») : grille de cartes des stats cumulées
       (parties, batteries, power-ups, meilleur score, niveau/combo max, survie, Labo, succès).

@@ -56,6 +56,7 @@ window.CT = window.CT || {};
       bat: document.getElementById('batCount'),
       need: document.getElementById('batNeed'),
       fill: document.getElementById('progFill'),
+      progress: document.querySelector('.hud-progress'),
       score: document.getElementById('scoreVal'),
       best: document.getElementById('bestVal'),
       startBest: document.getElementById('startBest'),
@@ -72,7 +73,7 @@ window.CT = window.CT || {};
     this.snake = null;
     this.prev = null;
     this.dir = DIRS.right;
-    this.nextDir = DIRS.right;
+    this.dirQueue = [];      // virages bufferisés (max 2) → tournants serrés fiables
     this.food = null;
     this.obstacles = [];
     this.obstacleSet = new Set();
@@ -80,11 +81,15 @@ window.CT = window.CT || {};
     this.score = 0;          // total batteries livrées sur la partie
     this.points = 0;         // score chiffré (avec combos)
     this.best = 0;           // record perso (chargé depuis le classement, async)
+    this.recordToBeat = 0;   // record perso à battre, figé (≠ this.best qui suit les points en jeu)
+    this.recordBeaten = false; // bannière « record battu » déjà déclenchée cette partie ?
+    this.recordBannerUntil = 0;
     this.runStart = 0;       // horodatage (s) du début de partie (pour la durée)
     this.seed = (Math.random() * 4294967295) >>> 0;  // graine de partie
     this.rng = CT.util.makeRng(this.seed);           // aléa gameplay déterministe
     this.bonusCount = 0;     // nb de power-ups ramassés (métadonnée anti-triche)
     this.combo = 0;
+    this.maxComboRun = 0;    // meilleur combo de la partie (récap de fin)
     this.lastEat = -10;
     this.levelNum = 1;
     this.stepInterval = 0.16;
@@ -97,6 +102,7 @@ window.CT = window.CT || {};
     this.magnetUntil = 0;    // aimant (attire la batterie) actif tant que time < magnetUntil
     this.doubleUntil = 0;    // double points actif tant que time < doubleUntil
     this.introUntil = 0;     // bannière d'intro de niveau (serpent figé) tant que time < introUntil
+    this.resumeUntil = 0;    // compte à rebours « 3·2·1 » à la reprise après pause (serpent figé)
     this.fx = [];
     this.toast = null;
     this.flash = 0;
@@ -117,7 +123,10 @@ window.CT = window.CT || {};
   // Charge le record perso depuis le classement (async, compatible backend distant).
   G.loadPersonalBest = function () {
     CT.Leaderboard.fetchBoards().then((b) => {
-      if (b && b.personal > this.best) { this.best = b.personal; this.updateHud(); }
+      if (b) {
+        this.recordToBeat = b.personal || 0;   // record figé à battre (pour la bannière « record battu »)
+        if (b.personal > this.best) { this.best = b.personal; this.updateHud(); }
+      }
     });
   };
 
@@ -170,7 +179,7 @@ window.CT = window.CT || {};
       { x: cx, y: cy }, { x: cx - 1, y: cy }, { x: cx - 2, y: cy }, { x: cx - 3, y: cy },
     ];
     this.prev = this.snake.map((s) => ({ x: s.x, y: s.y }));
-    this.dir = DIRS.right; this.nextDir = DIRS.right;
+    this.dir = DIRS.right; this.dirQueue = [];
 
     this.generateObstacles();
     this.spawnFood();
@@ -206,7 +215,10 @@ window.CT = window.CT || {};
 
   G.togglePause = function () {
     if (this.state === 'playing') this.setState('paused');
-    else if (this.state === 'paused') this.setState('playing');
+    else if (this.state === 'paused') {
+      this.resumeUntil = this.time + 1.5;   // 3·2·1 avant de relancer le serpent (le joueur se repositionne)
+      this.setState('playing');
+    }
   };
 
   G.toMenu = function () {
@@ -219,10 +231,13 @@ window.CT = window.CT || {};
     if (this.state !== 'playing') return;
     const nd = DIRS[name];
     if (!nd) return;
-    // interdit le demi-tour direct
-    if (nd.x === -this.dir.x && nd.y === -this.dir.y) return;
-    if (nd.x === this.nextDir.x && nd.y === this.nextDir.y) return;
-    this.nextDir = nd;
+    // référence = dernier virage en file (sinon la direction courante) → permet d'enchaîner
+    // deux quarts de tour serrés (ex. ↑ puis ←) sans que le 2ᵉ soit rejeté à tort comme demi-tour
+    const ref = this.dirQueue.length ? this.dirQueue[this.dirQueue.length - 1] : this.dir;
+    if (nd.x === -ref.x && nd.y === -ref.y) return;   // interdit le demi-tour (relatif à la file)
+    if (nd.x === ref.x && nd.y === ref.y) return;     // déjà cette direction → ignore
+    if (this.dirQueue.length >= 2) return;            // file courte = réactivité (max 2 virages)
+    this.dirQueue.push(nd);
     CT.Audio.turn();
   };
 
@@ -260,7 +275,7 @@ window.CT = window.CT || {};
       s += Math.random() * 0.4;                               // un peu d'aléa
       if (s > bestScore) { bestScore = s; best = d; }
     }
-    if (best) this.nextDir = best;
+    this.dirQueue = best ? [best] : [];
   };
 
   /* ---------------- monde ---------------- */
@@ -409,7 +424,7 @@ window.CT = window.CT || {};
 
   /* ---------------- pas logique ---------------- */
   G.step = function () {
-    this.dir = this.nextDir;
+    if (this.dirQueue.length) this.dir = this.dirQueue.shift();   // applique un virage par pas
     const head = this.snake[0];
     const nh = { x: head.x + this.dir.x, y: head.y + this.dir.y };
     const len = this.snake.length;
@@ -494,7 +509,6 @@ window.CT = window.CT || {};
     this.snakeColorTarget = hexRgb(PALETTE[this.batteries % PALETTE.length]);
     this.spawnFx(this.food.x, this.food.y);
     this.flash = 0.6; this.flashColor = T.charge;
-    CT.Audio.pickup();
     this.haptic(12);
     this.stepInterval = Math.max(
       CT.CONFIG.minStep / 1000,
@@ -506,14 +520,16 @@ window.CT = window.CT || {};
       this.score++;
       const comboWindow = 2.6 + this.mods.comboWindowBonus;          // Labo : combo facile
       this.combo = (this.time - this.lastEat < comboWindow) ? Math.min(this.combo + 1, 9) : 1;
+      this.maxComboRun = Math.max(this.maxComboRun, this.combo);
       this.lastEat = this.time;
       const dbl = this.time < this.doubleUntil ? 2 : 1;             // power-up double points
       const gain = Math.round((50 + this.levelNum * 10) * this.combo * this.mods.pointMult * dbl); // Labo : surtension
       this.points += gain;
-      if (this.points > this.best) this.best = this.points;   // affichage ; persistance au game over
+      this._scored();
       this.spawnToast('+' + gain + (this.combo > 1 ? '  x' + this.combo : ''), this.food.x, this.food.y);
       this._ach({ bat: 1, combo: this.combo });
     }
+    CT.Audio.pickup(this.combo || 1);   // son de ramassage : hauteur ↑ avec le combo (1 en démo)
     this.updateHud();
 
     if (this.batteries >= this.level.needed) {
@@ -579,6 +595,19 @@ window.CT = window.CT || {};
     this.toast = { text, x: gx, y: gy, life: 0.9, max: 0.9 };
   };
 
+  // Mise à jour du score affiché + déclenche la bannière « RECORD BATTU ! » au franchissement
+  // du record perso (une seule fois par partie ; jamais en démo, jamais si pas de record à battre).
+  G._scored = function () {
+    if (this.points > this.best) this.best = this.points;   // affichage ; persistance au game over
+    if (!this.demo && !this.recordBeaten && this.recordToBeat > 0 && this.points > this.recordToBeat) {
+      this.recordBeaten = true;
+      this.recordBannerUntil = this.time + 1.8;
+      if (CT.Audio.achievement) CT.Audio.achievement();   // fanfare cristalline
+      this.haptic([0, 40, 50, 40]);
+      if (!this.reduce) this.shake = Math.max(this.shake, 0.4);
+    }
+  };
+
   G.die = function () {
     // En démo, on ne meurt pas : on relance simplement le tableau.
     if (this.demo) { this.restartDemo(); return; }
@@ -607,11 +636,15 @@ window.CT = window.CT || {};
     this._ach({ score: this.points, durationMs: this.lastEntry.durationMs, bankPts: this.points, game: 1 });
 
     if (this.dom.overStats) {
+      const totalS = Math.floor(this.lastEntry.durationMs / 1000);
+      const dur = Math.floor(totalS / 60) + ':' + String(totalS % 60).padStart(2, '0');
       let html =
         'Niveau atteint : <b>' + this.levelNum + '</b><br>' +
         'Batteries livrées : <b>' + this.score + '</b><br>' +
         'Score : <b>' + this.points + '</b>' +
-        (isRecord ? ' &nbsp;🏆 <b>Nouveau record !</b>' : '');
+        (isRecord ? ' &nbsp;🏆 <b>Nouveau record !</b>' : '') +
+        '<span class="over-recap">⏱ ' + dur + ' &nbsp;·&nbsp; ⚡ ' + this.bonusCount +
+        ' power-up' + (this.bonusCount > 1 ? 's' : '') + ' &nbsp;·&nbsp; 🔥 combo ×' + this.maxComboRun + '</span>';
       if (CT.Lab && (this.score > 0 || this.points > 0)) {
         const w = CT.Lab.wallet();
         html += '<br><span class="lab-gain">🔬 +' + this.score + ' 🔋 +' + this.points +
@@ -662,6 +695,10 @@ window.CT = window.CT || {};
     if (this.dom.bat) this.dom.bat.textContent = this.batteries;
     if (this.dom.need && this.level) this.dom.need.textContent = this.level.needed;
     if (this.dom.fill && this.level) this.dom.fill.style.width = (100 * this.batteries / this.level.needed) + '%';
+    if (this.dom.progress && this.level) {
+      const remaining = this.level.needed - this.batteries;   // « objectif proche » : pulse sur les 2 dernières
+      this.dom.progress.classList.toggle('near-goal', !this.demo && remaining > 0 && remaining <= 2);
+    }
     if (this.dom.score) this.dom.score.textContent = this.points;
     if (this.dom.best) this.dom.best.textContent = this.best;
     if (this.dom.startBest) this.dom.startBest.textContent = this.best;
@@ -683,7 +720,7 @@ window.CT = window.CT || {};
       if (this.demo) this.autopilot();
       const slow = this.time < this.slowUntil;
       this.effInterval = this.stepInterval * (slow ? CT.CONFIG.bonus.slowFactor : 1);
-      const intro = !this.demo && this.time < this.introUntil;   // serpent figé pendant l'annonce
+      const intro = !this.demo && (this.time < this.introUntil || this.time < this.resumeUntil);   // figé : annonce de niveau OU reprise (3·2·1)
       if (intro) {
         this.acc = 0;
       } else {
@@ -748,7 +785,9 @@ window.CT = window.CT || {};
     this.drawFx();
     this.drawToast();
     this.drawSurcharge();
+    this.drawRecordBanner();
     this.drawIntro();
+    this.drawResumeCountdown();
     ctx.restore();   // fin du screen-shake
 
     this.drawEffects();   // chips d'effets actifs (hors shake, style HUD)
@@ -869,6 +908,44 @@ window.CT = window.CT || {};
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.font = '800 ' + (cell * 0.85).toFixed(0) + 'px -apple-system, system-ui, sans-serif';
     ctx.fillText('⚡ SURCHARGE', W / 2, cell * 1.3);
+    ctx.restore();
+  };
+
+  // Compte à rebours « 3 · 2 · 1 » à la reprise après pause (serpent figé le temps de se repositionner).
+  G.drawResumeCountdown = function () {
+    if (this.demo || this.time >= this.resumeUntil) return;
+    const ctx = this.ctx, W = this.W, H = this.H, S = Math.min(W, H);
+    const remaining = this.resumeUntil - this.time;
+    const n = U.clamp(Math.ceil(remaining / 0.5), 1, 3);   // 1,5 s → 3 · 2 · 1
+    const frac = remaining / 0.5 - (n - 1);                // 1 → 0 dans le chiffre courant
+    const a = U.clamp(frac * 1.4, 0, 1);
+    const scale = 1.5 - 0.5 * frac;                        // le chiffre grossit en s'estompant
+    ctx.save();
+    ctx.globalAlpha = 0.35 * U.clamp(remaining / 0.4, 0, 1);   // voile (se lève à la fin)
+    ctx.fillStyle = '#02161a'; ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = a;
+    ctx.translate(W / 2, H * 0.44); ctx.scale(scale, scale);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = T.cyan; ctx.shadowColor = T.glow; ctx.shadowBlur = 24;
+    ctx.font = '900 ' + Math.round(S * 0.18) + 'px -apple-system, system-ui, sans-serif';
+    ctx.fillText(String(n), 0, 0);
+    ctx.restore();
+  };
+
+  // Bannière « RECORD BATTU ! » (transitoire) quand le score dépasse le record perso en cours de partie.
+  G.drawRecordBanner = function () {
+    if (this.time >= this.recordBannerUntil) return;
+    const ctx = this.ctx, W = this.W, H = this.H, S = Math.min(W, H);
+    const total = 1.8, remaining = this.recordBannerUntil - this.time, elapsed = total - remaining;
+    const a = Math.min(U.clamp(elapsed / 0.25, 0, 1), U.clamp(remaining / 0.5, 0, 1));  // fondu entrée/sortie
+    const pop = 1 + 0.05 * Math.sin(this.time * 16);
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.translate(W / 2, H * 0.30); ctx.scale(pop, pop);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = T.amber; ctx.shadowColor = T.amber; ctx.shadowBlur = 24;
+    ctx.font = '900 ' + Math.round(S * 0.085) + 'px -apple-system, system-ui, sans-serif';
+    ctx.fillText('🏆 RECORD BATTU !', 0, 0);
     ctx.restore();
   };
 

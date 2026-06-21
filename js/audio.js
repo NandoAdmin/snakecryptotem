@@ -122,9 +122,11 @@ CT.Audio = (function () {
       return musicOn;
     },
 
-    pickup() {            // batterie ramassée
-      tone(740, 0.09, 'square', 0.12);
-      tone(1180, 0.12, 'square', 0.10, 0.05);
+    pickup(combo) {       // batterie ramassée — la hauteur monte avec le combo (+1 demi-ton/palier)
+      const step = Math.min(Math.max((combo || 1) - 1, 0), 8);   // 0..8 (combo max ×9)
+      const mul = Math.pow(2, step / 12);
+      tone(740 * mul, 0.09, 'square', 0.12);
+      tone(1180 * mul, 0.12, 'square', 0.10, 0.05);
     },
     turn() {              // léger clic de direction (discret)
       tone(420, 0.03, 'sine', 0.04);

@@ -14,11 +14,14 @@ CT.Achievements = (function () {
     { id: 'centurion', icon: '🔋', name: 'Centurion',     desc: 'Ramasser 100 batteries (au total)', test: (s) => s.totalBat >= 100 },
     { id: 'lvl5',      icon: '🗺️', name: 'Explorateur',   desc: 'Atteindre le niveau 5',            test: (s) => s.maxLevel >= 5 },
     { id: 'lvl10',     icon: '🏅', name: 'Vétéran',       desc: 'Atteindre le niveau 10',           test: (s) => s.maxLevel >= 10 },
+    { id: 'lvl15',     icon: '🚀', name: 'Ascension',     desc: 'Atteindre le niveau 15',           test: (s) => s.maxLevel >= 15 },
     { id: 'combo9',    icon: '🔥', name: 'Combo Roi',     desc: 'Atteindre un combo ×9',            test: (s) => s.maxCombo >= 9 },
     { id: 'bonus25',   icon: '⚡', name: 'Branché',       desc: 'Ramasser 25 power-ups',            test: (s) => s.totalBonus >= 25 },
     { id: 'survive',   icon: '⏱️', name: 'Increvable',    desc: 'Survivre 3 min en une partie',     test: (s) => s.maxDurationMs >= 180000 },
+    { id: 'survive5',  icon: '🏃', name: 'Marathonien',   desc: 'Survivre 5 min en une partie',     test: (s) => s.maxDurationMs >= 300000 },
     { id: 'score5k',   icon: '💯', name: 'Haute Tension', desc: '5 000 points en une partie',       test: (s) => s.bestScore >= 5000 },
     { id: 'mecene',    icon: '🔬', name: 'Mécène du Labo', desc: 'Verser 5 000 points au Labo (cumul)', test: (s) => s.bankedPts >= 5000 },
+    { id: 'games10',   icon: '🎰', name: 'Habitué',       desc: 'Jouer 10 parties',                 test: (s) => (s.games || 0) >= 10 },
   ];
 
   function load() { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { return {}; } }

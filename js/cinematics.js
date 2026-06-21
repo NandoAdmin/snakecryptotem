@@ -1,7 +1,7 @@
 /* ============================================================
    cinematics.js — animations de fin de niveau (mode cinématique).
    Dessine sur le canvas principal. Plusieurs variantes distinctes :
-   express · confetti · pulse · turbo · totem · ville · reseau
+   express · confetti · pulse · turbo · totem · ville · reseau · aurora · galaxie
    Timeline (s) : enter(0→0.7) · connect(0.7→1.1) · charge(1.1→2.3) · celebrate(2.3→…)
    ============================================================ */
 window.CT = window.CT || {};
@@ -33,6 +33,8 @@ CT.Cinematic = function (ctx) {
       case 'totem':    return { accent: T.teal,   title: 'TOTEM PIXEL',       from: 'pixel'  };
       case 'ville':    return { accent: T.glow,   title: 'LA VILLE SE RECHARGE', from: 'bottom' };
       case 'reseau':   return { accent: T.violet, title: 'LE RÉSEAU S’ALLUME',   from: 'top'    };
+      case 'aurora':   return { accent: T.charge, title: 'AURORE ÉNERGÉTIQUE',   from: 'zoom'   };
+      case 'galaxie':  return { accent: T.cyan,   title: 'VORTEX NÉON',          from: 'zoom'   };
       case 'express':
       default:         return { accent: T.blue,   title: 'RECHARGE EXPRESS',  from: 'left'   };
     }
@@ -104,6 +106,14 @@ CT.Cinematic = function (ctx) {
           size: 3 + Math.random() * 5, rot: 0, vr: (Math.random() - 0.5) * 4,
           life: 1.7, max: 1.7, kind: 'rect',
           color: [acc, T.charge, T.glow, T.amber][(Math.random() * 4) | 0],
+        });
+      } else if (v === 'aurora') {       // poussière scintillante qui s'élève doucement
+        this.particles.push({
+          x: Math.random() * W, y: H * (0.45 + Math.random() * 0.5),
+          vx: (Math.random() - 0.5) * 26, vy: -(35 + Math.random() * 80), g: -6,
+          size: 2 + Math.random() * 4, rot: 0, vr: 0,
+          life: 1.9, max: 1.9, kind: 'rect',
+          color: [T.charge, T.cyan, T.violet, T.glow][(Math.random() * 4) | 0],
         });
       } else { // express / totem → carrés pixel (motif logo)
         const cx = W / 2, cy = H * 0.46;
@@ -234,6 +244,61 @@ CT.Cinematic = function (ctx) {
         U.rr(ctx, nd.x - s / 2, nd.y - s / 2, s, s, 2); ctx.fill();
       }
       ctx.shadowBlur = 0;
+    } else if (this.variant === 'aurora') {       // aurore boréale : rideaux de lumière qui ondulent et s'intensifient avec la charge
+      const litFrac = U.clamp((t - P.connectEnd) / (P.chargeEnd - P.connectEnd), 0, 1);
+      // étoiles (fond) qui scintillent
+      ctx.fillStyle = '#bfeef0';
+      for (let i = 0; i < 36; i++) {
+        const sx = ((i * 97 + 11) % 100) / 100 * W;
+        const sy = ((i * 53 + 7) % 100) / 100 * H * 0.5;
+        ctx.globalAlpha = 0.12 + 0.22 * Math.abs(Math.sin(t * 1.5 + i));
+        ctx.fillRect(sx, sy, 2, 2);
+      }
+      // rideaux additifs (couleurs néon qui défilent)
+      ctx.globalCompositeOperation = 'lighter';
+      const cols = [T.charge, T.cyan, T.violet, T.glow];
+      for (let b = 0; b < 4; b++) {
+        const col = cols[b % cols.length];
+        const baseY = H * (0.14 + b * 0.10);
+        const amp = H * 0.05;
+        const phase = t * (0.5 + b * 0.18) + b * 1.3;
+        ctx.globalAlpha = 0.08 + 0.16 * litFrac;
+        const grad = ctx.createLinearGradient(0, baseY - amp - H * 0.12, 0, baseY + H * 0.16);
+        grad.addColorStop(0, 'rgba(0,0,0,0)');
+        grad.addColorStop(0.45, col);
+        grad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.moveTo(0, H);
+        for (let x = 0; x <= W; x += 14) {
+          const y = baseY + Math.sin(x * 0.012 + phase) * amp + Math.sin(x * 0.031 - phase * 1.7) * amp * 0.45;
+          ctx.lineTo(x, y);
+        }
+        ctx.lineTo(W, H); ctx.closePath(); ctx.fill();
+      }
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1;
+    } else if (this.variant === 'galaxie') {      // vortex d'énergie : spirale qui tourne et s'étend avec la charge
+      ctx.globalAlpha = 1;
+      const litFrac = U.clamp((t - P.connectEnd) / (P.chargeEnd - P.connectEnd), 0, 1);
+      const cx = W / 2, cy = H * 0.46;
+      const arms = 2, perArm = 64;
+      ctx.globalCompositeOperation = 'lighter';
+      for (let arm = 0; arm < arms; arm++) {
+        for (let k = 0; k < perArm; k++) {
+          const frac = k / perArm;
+          const ang = frac * 6.0 + arm * Math.PI + t * (1.0 + litFrac * 1.6);   // spirale qui tourne
+          const rad = frac * Math.min(W, H) * 0.5 * (0.22 + 0.78 * litFrac);     // s'étend avec la charge
+          const x = cx + Math.cos(ang) * rad;
+          const y = cy + Math.sin(ang) * rad * 0.72;                            // léger aplatissement
+          ctx.globalAlpha = (1 - frac) * (0.22 + 0.55 * litFrac);
+          const s = 2 + (1 - frac) * 3.5;
+          ctx.fillStyle = acc; ctx.shadowColor = acc; ctx.shadowBlur = 8;
+          ctx.fillRect(x - s / 2, y - s / 2, s, s);
+        }
+      }
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1; ctx.shadowBlur = 0;
     }
     ctx.restore();
   };
