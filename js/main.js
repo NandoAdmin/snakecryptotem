@@ -212,7 +212,14 @@
   const labList = document.getElementById('labList');
   let labTimer = null;
 
-  function fmtTime(ms) { const s = Math.ceil(ms / 1000), m = (s / 60) | 0, ss = s % 60; return m + ':' + (ss < 10 ? '0' : '') + ss; }
+  // Durée lisible : 45s · 9min · 9min30s · 2h · 2h05 · 1j · 1j6h
+  function fmtTime(ms) {
+    let s = Math.max(0, Math.ceil(ms / 1000));
+    if (s < 60) return s + 's';
+    if (s < 3600) { const m = (s / 60) | 0, ss = s % 60; return ss ? m + 'min' + (ss < 10 ? '0' : '') + ss : m + 'min'; }
+    if (s < 86400) { const h = (s / 3600) | 0, m = ((s % 3600) / 60) | 0; return m ? h + 'h' + (m < 10 ? '0' : '') + m : h + 'h'; }
+    const d = (s / 86400) | 0, h = ((s % 86400) / 3600) | 0; return h ? d + 'j' + h + 'h' : d + 'j';
+  }
 
   function renderWallet() { const w = CT.Lab.wallet(); walletBat.textContent = w.bat; walletPts.textContent = w.pts; }
 

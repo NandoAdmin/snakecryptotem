@@ -115,7 +115,7 @@ window.CT = window.CT || {};
     this.demo = false;
     // modificateurs issus du Laboratoire (R&D), figés au début de la partie
     this.mods = (window.CT && CT.Lab && CT.Lab.effects) ? CT.Lab.effects()
-      : { pointMult: 1, shieldBonus: 0, slowBonus: 0, magnetBonus: 0, doubleBonus: 0, comboWindowBonus: 0, bonusEveryDelta: 0 };
+      : { pointMult: 1, shieldBonus: 0, slowBonus: 0, magnetBonus: 0, doubleBonus: 0, comboWindowBonus: 0, bonusEveryDelta: 0, bankMult: 1, startShield: 0 };
     this.updateHud();
     this.loadPersonalBest();
   };
@@ -190,6 +190,8 @@ window.CT = window.CT || {};
     this.demo = false;
     this.setupLevel(n);
     this.introUntil = this.time + CT.CONFIG.introDuration;   // annonce le niveau
+    // Labo « Départ protégé » : bouclier de grâce après l'annonce de niveau
+    if (this.mods && this.mods.startShield) this.shieldUntil = this.introUntil + this.mods.startShield;
     this._ach({ level: n });
     this.setState('playing');
   };

@@ -217,12 +217,21 @@ Méta-progression persistante (localStorage `ct_lab`) qui donne de la durée de 
 - **Recherches** : on dépense **batteries + points** pour lancer **une** recherche
   qui prend du **temps réel** (`endsAt`, persiste même hors-jeu). Une seule à la
   fois. À la fin → bouton « Récupérer » (`claim`) qui applique le niveau.
-- **7 améliorations** (`CT.Lab.UPGRADES`, plusieurs niveaux) : Surtension (+10 %
+- **Temps de recherche** : barème partagé `RESEARCH_TIME_S` indexé sur le **niveau
+  visé** (`researchTimeMs(l+1)`, utilisé par tous les upgrades) : 30 s · 1 min · 3 min
+  · 5 min · 10 min · 30 min · 1 h · 2 h · 4 h · 8 h · 12 h · 16 h · 24 h · 30 h · 36 h …
+  puis **+6 h par niveau** au-delà (idle / retour différé).
+- **9 améliorations** (`CT.Lab.UPGRADES`, plusieurs niveaux) : Surtension (+10 %
   points/batterie), Bouclier renforcé (+1 s), Surcharge prolongée (+1 s), Aimant
   longue portée (+1 s), Double prolongé (+1 s de double points), Combo facile
-  (+0,5 s de fenêtre), R&D power-ups (fréquence).
+  (+0,5 s de fenêtre), R&D power-ups (fréquence), **Rendement R&D** (+5 %/niv de
+  ressources versées, max 15 → couvre tout le barème jusqu'à 36 h), **Départ protégé**
+  (+1 s/niv de bouclier en début de niveau).
 - **Effets** : `CT.Lab.effects()` → `game.mods` (figé au `startRun`), appliqué dans
-  `onEat` (points/combo/fréquence) et `onEatBonus` (durées). Neutre par défaut.
+  `onEat` (points/combo/fréquence), `onEatBonus` (durées) et `startLevel`
+  (`startShield` → bouclier de grâce). `bankMult` est appliqué dans `bank()`. Neutre
+  par défaut. **UI** : `fmtTime` (main.js) formate les durées en unités lisibles
+  (s · min · h · j).
 - **UI** : écran « 🔬 Laboratoire » (bouton sur l'accueil) — portefeuille, recherche
   active (barre + compte à rebours + Récupérer), cartes d'amélioration (coût
   🔋+⚡ + temps, niveau, désactivées si labo occupé / ressources insuffisantes).
@@ -381,8 +390,9 @@ complet : Reed-Solomon GF(256), sélection de masque par pénalité, BCH format/
 - [ ] **Rejeu déterministe (suite)** : journal d'inputs + moteur de rejeu côté serveur.
 - [x] Power-up « Aimant » (batterie violette → attire la batterie vers le serpent).
 - [x] Musique d'ambiance optionnelle (pad génératif WebAudio, opt-in, persistée).
-- [x] **Laboratoire / R&D** : banque batteries+points, recherches chronométrées,
-      6 améliorations permanentes (durée de vie / méta-progression).
+- [x] **Laboratoire / R&D** : banque batteries+points, recherches chronométrées
+      (barème de temps par niveau visé, jusqu'à 36 h+), 9 améliorations permanentes
+      dont Rendement R&D & Départ protégé (durée de vie / méta-progression).
 - [x] **Succès / Trophées** : 12 succès persistants (stats cumulées), écran « 🏆 Succès »
       (liste verrouillés/débloqués + compteur) et notification toast au déblocage.
 - [x] **Écran Statistiques** (« 📊 Stats ») : grille de cartes des stats cumulées

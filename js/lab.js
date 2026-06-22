@@ -12,42 +12,63 @@ window.CT = window.CT || {};
 CT.Lab = (function () {
   const KEY = 'ct_lab';
 
-  // Arbre d'améliorations. cost(l)/time(l) = coût/temps pour passer du niveau l à l+1.
+  // Temps de recherche selon le NIVEAU visé (secondes) : 30s · 1min · 3min · 5min · 10min
+  // · 30min · 1h · 2h · 4h · 8h · 12h · 16h · 24h · 30h · 36h … puis +6 h par niveau au-delà.
+  const RESEARCH_TIME_S = [30, 60, 180, 300, 600, 1800, 3600, 7200, 14400, 28800, 43200, 57600, 86400, 108000, 129600];
+  function researchTimeMs(targetLevel) {
+    const last = RESEARCH_TIME_S.length - 1, i = Math.max(0, targetLevel - 1);
+    const s = i <= last ? RESEARCH_TIME_S[i] : RESEARCH_TIME_S[last] + (i - last) * 21600;
+    return s * 1000;
+  }
+
+  // Arbre d'améliorations. cost(l) = coût pour passer du niveau l à l+1 ; le TEMPS dépend
+  // du NIVEAU visé (l+1) via le barème partagé RESEARCH_TIME_S.
   const UPGRADES = {
     surtension: {
       name: 'Surtension', icon: '⚡', max: 5,
       desc: (l) => '+' + (l * 10) + '% de points par batterie',
-      cost: (l) => ({ bat: 15 * (l + 1), pts: 600 * (l + 1) }), time: (l) => (20 + l * 25) * 1000,
+      cost: (l) => ({ bat: 15 * (l + 1), pts: 600 * (l + 1) }), time: (l) => researchTimeMs(l + 1),
     },
     bouclier: {
       name: 'Bouclier renforcé', icon: '🛡️', max: 5,
       desc: (l) => '+' + l + ' s de bouclier',
-      cost: (l) => ({ bat: 12 * (l + 1), pts: 500 * (l + 1) }), time: (l) => (30 + l * 30) * 1000,
+      cost: (l) => ({ bat: 12 * (l + 1), pts: 500 * (l + 1) }), time: (l) => researchTimeMs(l + 1),
     },
     surcharge: {
       name: 'Surcharge prolongée', icon: '🌀', max: 5,
       desc: (l) => '+' + l + ' s de surcharge (ralenti)',
-      cost: (l) => ({ bat: 12 * (l + 1), pts: 500 * (l + 1) }), time: (l) => (30 + l * 30) * 1000,
+      cost: (l) => ({ bat: 12 * (l + 1), pts: 500 * (l + 1) }), time: (l) => researchTimeMs(l + 1),
     },
     aimant: {
       name: 'Aimant longue portée', icon: '🧲', max: 5,
       desc: (l) => '+' + l + ' s d\'aimant',
-      cost: (l) => ({ bat: 12 * (l + 1), pts: 500 * (l + 1) }), time: (l) => (30 + l * 30) * 1000,
+      cost: (l) => ({ bat: 12 * (l + 1), pts: 500 * (l + 1) }), time: (l) => researchTimeMs(l + 1),
     },
     double: {
       name: 'Double prolongé', icon: '×2', max: 5,
       desc: (l) => '+' + l + ' s de double points',
-      cost: (l) => ({ bat: 14 * (l + 1), pts: 600 * (l + 1) }), time: (l) => (35 + l * 30) * 1000,
+      cost: (l) => ({ bat: 14 * (l + 1), pts: 600 * (l + 1) }), time: (l) => researchTimeMs(l + 1),
     },
     combo: {
       name: 'Combo facile', icon: '🔥', max: 4,
       desc: (l) => '+' + (l * 0.5) + ' s de fenêtre de combo',
-      cost: (l) => ({ bat: 18 * (l + 1), pts: 700 * (l + 1) }), time: (l) => (40 + l * 40) * 1000,
+      cost: (l) => ({ bat: 18 * (l + 1), pts: 700 * (l + 1) }), time: (l) => researchTimeMs(l + 1),
     },
     frequence: {
       name: 'R&D power-ups', icon: '🔬', max: 3,
       desc: (l) => 'power-ups +' + l + ' en fréquence',
-      cost: (l) => ({ bat: 25 * (l + 1), pts: 1000 * (l + 1) }), time: (l) => (60 + l * 60) * 1000,
+      cost: (l) => ({ bat: 25 * (l + 1), pts: 1000 * (l + 1) }), time: (l) => researchTimeMs(l + 1),
+    },
+    // — nouvelles fonctionnalités —
+    rendement: {
+      name: 'Rendement R&D', icon: '📈', max: 15,
+      desc: (l) => '+' + (l * 5) + '% de ressources versées au Labo',
+      cost: (l) => ({ bat: 30 * (l + 1), pts: 1200 * (l + 1) }), time: (l) => researchTimeMs(l + 1),
+    },
+    depart: {
+      name: 'Départ protégé', icon: '🦺', max: 5,
+      desc: (l) => '+' + l + ' s de bouclier en début de niveau',
+      cost: (l) => ({ bat: 20 * (l + 1), pts: 800 * (l + 1) }), time: (l) => researchTimeMs(l + 1),
     },
   };
 
@@ -64,11 +85,12 @@ CT.Lab = (function () {
   function level(key) { return state().up[key] || 0; }
   function wallet() { return state().wallet; }
 
-  // Verse les ressources d'une partie dans la banque.
+  // Verse les ressources d'une partie dans la banque (× rendement R&D).
   function bank(run) {
     const s = state();
-    s.wallet.bat += Math.max(0, run.batteries || 0);
-    s.wallet.pts += Math.max(0, run.points || 0);
+    const m = 1 + 0.05 * (s.up.rendement || 0);   // Rendement R&D : +5 %/niveau
+    s.wallet.bat += Math.round(Math.max(0, run.batteries || 0) * m);
+    s.wallet.pts += Math.round(Math.max(0, run.points || 0) * m);
     save(s);
   }
 
@@ -116,6 +138,8 @@ CT.Lab = (function () {
       doubleBonus: level('double'),
       comboWindowBonus: 0.5 * level('combo'),
       bonusEveryDelta: level('frequence'),
+      bankMult: 1 + 0.05 * level('rendement'),   // (informatif : appliqué dans bank())
+      startShield: level('depart'),              // s de bouclier au début de chaque niveau
     };
   }
 
@@ -124,7 +148,7 @@ CT.Lab = (function () {
 
   // Modificateurs neutres (avant chargement / fallback).
   function neutral() {
-    return { pointMult: 1, shieldBonus: 0, slowBonus: 0, magnetBonus: 0, doubleBonus: 0, comboWindowBonus: 0, bonusEveryDelta: 0 };
+    return { pointMult: 1, shieldBonus: 0, slowBonus: 0, magnetBonus: 0, doubleBonus: 0, comboWindowBonus: 0, bonusEveryDelta: 0, bankMult: 1, startShield: 0 };
   }
 
   return {
