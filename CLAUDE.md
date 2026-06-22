@@ -221,17 +221,20 @@ Méta-progression persistante (localStorage `ct_lab`) qui donne de la durée de 
   visé** (`researchTimeMs(l+1)`, utilisé par tous les upgrades) : 30 s · 1 min · 3 min
   · 5 min · 10 min · 30 min · 1 h · 2 h · 4 h · 8 h · 12 h · 16 h · 24 h · 30 h · 36 h …
   puis **+6 h par niveau** au-delà (idle / retour différé).
-- **9 améliorations** (`CT.Lab.UPGRADES`, plusieurs niveaux) : Surtension (+10 %
+- **11 améliorations** (`CT.Lab.UPGRADES`, plusieurs niveaux) : Surtension (+10 %
   points/batterie), Bouclier renforcé (+1 s), Surcharge prolongée (+1 s), Aimant
   longue portée (+1 s), Double prolongé (+1 s de double points), Combo facile
   (+0,5 s de fenêtre), R&D power-ups (fréquence), **Rendement R&D** (+5 %/niv de
-  ressources versées, max 15 → couvre tout le barème jusqu'à 36 h), **Départ protégé**
-  (+1 s/niv de bouclier en début de niveau).
+  ressources versées, max 15), **Départ protégé** (+1 s/niv de bouclier en début de
+  niveau), **Inflation** (+5 %/niv de pièces par objet ; coûte **uniquement des pièces**
+  ⚡ : 100·250·500·750…), **Coup de chance** (+5 %/niv de proba, à chaque objet, de
+  **×2 pièces + batterie** de ce ramassage).
 - **Effets** : `CT.Lab.effects()` → `game.mods` (figé au `startRun`), appliqué dans
-  `onEat` (points/combo/fréquence), `onEatBonus` (durées) et `startLevel`
-  (`startShield` → bouclier de grâce). `bankMult` est appliqué dans `bank()`. Neutre
-  par défaut. **UI** : `fmtTime` (main.js) formate les durées en unités lisibles
-  (s · min · h · j).
+  `onEat` (points/combo/fréquence + `pointMult` = surtension + inflation + proc
+  `luckChance` via `Math.random` pour ne pas décaler l'aléa des spawns), `onEatBonus`
+  (durées) et `startLevel` (`startShield` → bouclier de grâce). `bankMult` est appliqué
+  dans `bank()`. Neutre par défaut. **UI** : `fmtTime` (main.js) formate les durées en
+  unités lisibles (s · min · h · j) ; le coût masque 🔋 quand il est nul (pièces seules).
 - **UI** : écran « 🔬 Laboratoire » (bouton sur l'accueil) — portefeuille, recherche
   active (barre + compte à rebours + Récupérer), cartes d'amélioration (coût
   🔋+⚡ + temps, niveau, désactivées si labo occupé / ressources insuffisantes).

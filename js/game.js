@@ -115,7 +115,7 @@ window.CT = window.CT || {};
     this.demo = false;
     // modificateurs issus du Laboratoire (R&D), figés au début de la partie
     this.mods = (window.CT && CT.Lab && CT.Lab.effects) ? CT.Lab.effects()
-      : { pointMult: 1, shieldBonus: 0, slowBonus: 0, magnetBonus: 0, doubleBonus: 0, comboWindowBonus: 0, bonusEveryDelta: 0, bankMult: 1, startShield: 0 };
+      : { pointMult: 1, shieldBonus: 0, slowBonus: 0, magnetBonus: 0, doubleBonus: 0, comboWindowBonus: 0, bonusEveryDelta: 0, bankMult: 1, startShield: 0, luckChance: 0 };
     this.updateHud();
     this.loadPersonalBest();
   };
@@ -553,11 +553,15 @@ window.CT = window.CT || {};
       this.maxComboRun = Math.max(this.maxComboRun, this.combo);
       this.lastEat = this.time;
       const dbl = this.time < this.doubleUntil ? 2 : 1;             // power-up double points
-      const gain = Math.round((50 + this.levelNum * 10) * this.combo * this.mods.pointMult * dbl); // Labo : surtension
+      let gain = Math.round((50 + this.levelNum * 10) * this.combo * this.mods.pointMult * dbl); // Labo : surtension + inflation
+      // Labo « Coup de chance » : proba de doubler pièces + batterie de ce ramassage.
+      // (Math.random, pas this.rng → ne décale pas l'aléa déterministe des spawns.)
+      const lucky = this.mods.luckChance > 0 && Math.random() < 0.05 * this.mods.luckChance;
+      if (lucky) { gain *= 2; this.score++; this.flash = 0.85; this.flashColor = T.amber; }
       this.points += gain;
       this._scored();
-      this.spawnToast('+' + gain + (this.combo > 1 ? '  x' + this.combo : ''), this.food.x, this.food.y);
-      this._ach({ bat: 1, combo: this.combo });
+      this.spawnToast((lucky ? '🍀 ' : '') + '+' + gain + (this.combo > 1 ? '  x' + this.combo : ''), this.food.x, this.food.y);
+      this._ach({ bat: lucky ? 2 : 1, combo: this.combo });
     }
     CT.Audio.pickup(this.combo || 1);   // son de ramassage : hauteur ↑ avec le combo (1 en démo)
     this.updateHud();

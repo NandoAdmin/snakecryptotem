@@ -70,6 +70,17 @@ CT.Lab = (function () {
       desc: (l) => '+' + l + ' s de bouclier en début de niveau',
       cost: (l) => ({ bat: 20 * (l + 1), pts: 800 * (l + 1) }), time: (l) => researchTimeMs(l + 1),
     },
+    inflation: {
+      name: 'Inflation', icon: '🪙', max: 15,
+      desc: (l) => '+' + (l * 5) + '% de pièces par objet ramassé',
+      // coûte UNIQUEMENT des pièces (⚡) : 100 · 250 · 500 · 750 · 1000 …
+      cost: (l) => ({ bat: 0, pts: l === 0 ? 100 : 250 * l }), time: (l) => researchTimeMs(l + 1),
+    },
+    chance: {
+      name: 'Coup de chance', icon: '🍀', max: 10,
+      desc: (l) => (l * 5) + '% de chance de ×2 (pièces + batterie) par objet',
+      cost: (l) => ({ bat: 20 * (l + 1), pts: 1000 * (l + 1) }), time: (l) => researchTimeMs(l + 1),
+    },
   };
 
   function load() { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { return {}; } }
@@ -131,7 +142,7 @@ CT.Lab = (function () {
   // Modificateurs de gameplay dérivés des niveaux d'améliorations.
   function effects() {
     return {
-      pointMult: 1 + 0.10 * level('surtension'),
+      pointMult: 1 + 0.10 * level('surtension') + 0.05 * level('inflation'),
       shieldBonus: level('bouclier'),
       slowBonus: level('surcharge'),
       magnetBonus: level('aimant'),
@@ -140,6 +151,7 @@ CT.Lab = (function () {
       bonusEveryDelta: level('frequence'),
       bankMult: 1 + 0.05 * level('rendement'),   // (informatif : appliqué dans bank())
       startShield: level('depart'),              // s de bouclier au début de chaque niveau
+      luckChance: level('chance'),               // ×5 % proba de ×2 (pièces+batterie) par objet
     };
   }
 
@@ -148,7 +160,7 @@ CT.Lab = (function () {
 
   // Modificateurs neutres (avant chargement / fallback).
   function neutral() {
-    return { pointMult: 1, shieldBonus: 0, slowBonus: 0, magnetBonus: 0, doubleBonus: 0, comboWindowBonus: 0, bonusEveryDelta: 0, bankMult: 1, startShield: 0 };
+    return { pointMult: 1, shieldBonus: 0, slowBonus: 0, magnetBonus: 0, doubleBonus: 0, comboWindowBonus: 0, bonusEveryDelta: 0, bankMult: 1, startShield: 0, luckChance: 0 };
   }
 
   return {

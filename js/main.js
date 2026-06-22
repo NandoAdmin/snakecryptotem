@@ -266,7 +266,7 @@
       desc.textContent = 'Prochain : ' + u.desc(l + 1);
       const c = u.cost(l); const afford = w.bat >= c.bat && w.pts >= c.pts;
       const cost = document.createElement('div'); cost.className = 'lu-cost ' + (afford ? 'afford' : 'poor');
-      cost.textContent = '🔋 ' + c.bat + '   ⚡ ' + c.pts;
+      cost.textContent = (c.bat ? '🔋 ' + c.bat + '   ' : '') + '⚡ ' + c.pts;   // 🔋 masqué si coût en pièces seules
       const tm = document.createElement('div'); tm.className = 'lu-time'; tm.textContent = '⏱ ' + fmtTime(u.time(l));
       const btn = document.createElement('button');
       btn.textContent = researching ? 'Labo occupé' : 'Rechercher';
