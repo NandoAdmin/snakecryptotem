@@ -269,8 +269,12 @@ En démo : pas de score, pas de game over (relance auto), cycle des niveaux 1→
 
 ### Power-ups (`CONFIG.bonus`)
 Un power-up apparaît périodiquement (toutes les `bonus.every` batteries, proba
-`bonus.chance`), avec un **anneau de minuterie** (durée `bonus.life`). Quatre
-types (`bonus.type`), tirés à l'apparition (`shieldChance` / `magnetChance` /
+`bonus.chance`), avec un **anneau de minuterie** (durée `bonus.life`) qui, dans son
+**dernier tiers de vie** (`frac < 0.3`), **clignote et vire au rouge** (`mix(ring, danger)`)
+pour signaler l'urgence. À l'apparition, `spawnBonus` joue une **annonce** : éclat de
+particules de la couleur du type + petit son `CT.Audio.appear()` (attire l'œil sur ce
+bonus à durée limitée).
+Quatre types (`bonus.type`), tirés à l'apparition (`shieldChance` / `magnetChance` /
 `doubleChance`, sinon charge rapide) :
 - **Charge Rapide** (batterie dorée) : `bonus.points × niveau`, particules
   dorées, et **« Surcharge »** = ralenti temporaire (`bonus.slowFactor` sur

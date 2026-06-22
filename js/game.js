@@ -301,6 +301,11 @@ window.CT = window.CT || {};
           : r < B.shieldChance + B.magnetChance ? 'magnet'
           : r < B.shieldChance + B.magnetChance + B.doubleChance ? 'double' : 'fast';
         this.bonus = { x, y, life: B.life, max: B.life, type };
+        // annonce de l'apparition (power-up à durée limitée → attire l'œil)
+        const col = type === 'shield' ? T.blue : type === 'magnet' ? T.violet
+          : type === 'double' ? T.pink : T.amber;
+        this.spawnFx(x, y, [col, '#ffffff', T.glow], 14);   // éclat « pop » (réduit si reduce-motion)
+        if (!this.demo && CT.Audio.appear) CT.Audio.appear();
         return;
       }
     } while (++tries < 200);
@@ -859,11 +864,14 @@ window.CT = window.CT || {};
     const cx = (b.x + 0.5) * cell, cy = (b.y + 0.5) * cell;
     const frac = U.clamp(b.life / b.max, 0, 1);
     const pulse = 0.5 + 0.5 * Math.sin(this.time * 9);
+    const expiring = frac < 0.3;                                   // dernier tiers de vie → alerte « vite ! »
+    const ringCol = expiring ? mix(ring, T.danger, 0.6) : ring;    // l'anneau vire au rouge
     ctx.save();
     ctx.translate(cx, cy);
+    if (expiring) ctx.globalAlpha = 0.45 + 0.55 * Math.abs(Math.sin(this.time * 14));  // clignotement
     // anneau de minuterie
-    ctx.shadowColor = ring; ctx.shadowBlur = 18 + pulse * 12;
-    ctx.strokeStyle = ring; ctx.lineWidth = 2.5;
+    ctx.shadowColor = ringCol; ctx.shadowBlur = 18 + pulse * 12;
+    ctx.strokeStyle = ringCol; ctx.lineWidth = 2.5;
     ctx.beginPath();
     ctx.arc(0, 0, cell * 0.52, -Math.PI / 2, -Math.PI / 2 + frac * Math.PI * 2);
     ctx.stroke();

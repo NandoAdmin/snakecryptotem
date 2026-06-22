@@ -131,6 +131,10 @@ CT.Audio = (function () {
     turn() {              // léger clic de direction (discret)
       tone(420, 0.03, 'sine', 0.04);
     },
+    appear() {            // apparition d'un power-up : petit « ding » discret (attire l'œil)
+      tone(880, 0.05, 'sine', 0.06);
+      tone(1320, 0.07, 'sine', 0.05, 0.04);
+    },
     connect() {           // câble qui se branche (cinématique)
       tone(300, 0.06, 'square', 0.14);
       sweep(300, 900, 0.18, 'sawtooth', 0.12);
