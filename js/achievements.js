@@ -1,40 +1,59 @@
 /* ============================================================
-   achievements.js — Succès / Trophées (CT.Achievements).
-   Persistant (localStorage `ct_ach`). Donne des objectifs de collection
-   → rejouabilité. Le jeu pousse des stats cumulées via update({...}) ;
-   le module débloque les succès atteints et renvoie les nouveaux.
+   achievements.js — Quêtes à paliers (CT.Achievements).
+   Persistant (localStorage `ct_ach`). Chaque quête garde son thème mais
+   compte 5 PALIERS de difficulté croissante (1 étoile chacun) :
+     Bronze · Argent · Or · Platine · Diamant.
+   Le jeu pousse des stats cumulées via update({...}) ; le module renvoie
+   les paliers nouvellement franchis (pour la notification toast).
    ============================================================ */
 window.CT = window.CT || {};
 
 CT.Achievements = (function () {
   const KEY = 'ct_ach';
 
-  const DEFS = [
-    { id: 'cable',     icon: '🔌', name: 'Premier câble', desc: 'Ramasser 10 batteries (au total)', test: (s) => s.totalBat >= 10 },
-    { id: 'centurion', icon: '🔋', name: 'Centurion',     desc: 'Ramasser 100 batteries (au total)', test: (s) => s.totalBat >= 100 },
-    { id: 'lvl5',      icon: '🗺️', name: 'Explorateur',   desc: 'Atteindre le niveau 5',            test: (s) => s.maxLevel >= 5 },
-    { id: 'lvl10',     icon: '🏅', name: 'Vétéran',       desc: 'Atteindre le niveau 10',           test: (s) => s.maxLevel >= 10 },
-    { id: 'lvl15',     icon: '🚀', name: 'Ascension',     desc: 'Atteindre le niveau 15',           test: (s) => s.maxLevel >= 15 },
-    { id: 'combo9',    icon: '🔥', name: 'Combo Roi',     desc: 'Atteindre un combo ×9',            test: (s) => s.maxCombo >= 9 },
-    { id: 'bonus25',   icon: '⚡', name: 'Branché',       desc: 'Ramasser 25 power-ups',            test: (s) => s.totalBonus >= 25 },
-    { id: 'survive',   icon: '⏱️', name: 'Increvable',    desc: 'Survivre 3 min en une partie',     test: (s) => s.maxDurationMs >= 180000 },
-    { id: 'survive5',  icon: '🏃', name: 'Marathonien',   desc: 'Survivre 5 min en une partie',     test: (s) => s.maxDurationMs >= 300000 },
-    { id: 'score5k',   icon: '💯', name: 'Haute Tension', desc: '5 000 points en une partie',       test: (s) => s.bestScore >= 5000 },
-    { id: 'mecene',    icon: '🔬', name: 'Mécène du Labo', desc: 'Verser 5 000 points au Labo (cumul)', test: (s) => s.bankedPts >= 5000 },
-    { id: 'games10',   icon: '🎰', name: 'Habitué',       desc: 'Jouer 10 parties',                 test: (s) => (s.games || 0) >= 10 },
+  // Médailles = nom du palier (index 0→4 = palier 1→5 = nombre d'étoiles).
+  const MEDALS = ['Bronze', 'Argent', 'Or', 'Platine', 'Diamant'];
+
+  // Formateurs de valeur (affichage).
+  const fNum = (v) => (v || 0).toLocaleString('fr-FR');
+  const fMin = (ms) => {
+    const m = (ms || 0) / 60000;
+    return (Number.isInteger(m) ? m : Math.round(m * 10) / 10) + ' min';
+  };
+  const fCombo = (v) => '×' + (v || 0);
+
+  // Quêtes : { id, icon, name, metric (clé de stats), tiers[5] croissants, fmt }.
+  const QUESTS = [
+    { id: 'batteries', icon: '🔋', name: 'Batteries ramassées', metric: 'totalBat',     tiers: [50, 250, 1000, 5000, 15000],            fmt: fNum },
+    { id: 'niveau',    icon: '🗺️', name: 'Niveau atteint',      metric: 'maxLevel',     tiers: [5, 10, 15, 20, 30],                      fmt: fNum },
+    { id: 'combo',     icon: '🔥', name: 'Combo max',           metric: 'maxCombo',     tiers: [3, 5, 7, 8, 9],                          fmt: fCombo },
+    { id: 'powerups',  icon: '⚡', name: 'Power-ups ramassés',  metric: 'totalBonus',   tiers: [25, 100, 300, 750, 2000],                fmt: fNum },
+    { id: 'survie',    icon: '⏱️', name: 'Survie en une partie', metric: 'maxDurationMs', tiers: [60000, 180000, 300000, 600000, 1200000], fmt: fMin },
+    { id: 'score',     icon: '💯', name: 'Meilleur score',      metric: 'bestScore',    tiers: [5000, 25000, 75000, 200000, 500000],     fmt: fNum },
+    { id: 'labo',      icon: '🔬', name: 'Mécène du Labo',      metric: 'bankedPts',    tiers: [5000, 50000, 200000, 1000000, 5000000],  fmt: fNum },
+    { id: 'parties',   icon: '🎰', name: 'Parties jouées',      metric: 'games',        tiers: [10, 50, 150, 400, 1000],                 fmt: fNum },
   ];
+  const TIERS_PER_QUEST = 5;
+
+  function tierOf(q, st) {
+    const v = st[q.metric] || 0;
+    let t = 0;
+    for (let i = 0; i < q.tiers.length; i++) if (v >= q.tiers[i]) t = i + 1;
+    return t;
+  }
 
   function load() { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { return {}; } }
   function save(s) { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (e) {} }
   function state() {
     const s = load();
     s.stats = s.stats || { totalBat: 0, totalBonus: 0, maxCombo: 0, maxLevel: 1, bestScore: 0, maxDurationMs: 0, bankedPts: 0, games: 0 };
-    if (s.stats.games == null) s.stats.games = 0; // rétro-compat anciennes sauvegardes
-    s.unlocked = s.unlocked || {};
+    if (s.stats.games == null) s.stats.games = 0; // rétro-compat
+    // Paliers déjà atteints : initialisés depuis les stats existantes (sans toast à la 1ʳᵉ fois).
+    if (!s.tiers) { s.tiers = {}; QUESTS.forEach((q) => { s.tiers[q.id] = tierOf(q, s.stats); }); }
     return s;
   }
 
-  // Met à jour les stats (delta cumulés / maxima) et renvoie les succès nouvellement débloqués.
+  // Met à jour les stats (cumuls / maxima) et renvoie les PALIERS nouvellement franchis.
   function update(delta) {
     const s = state(), st = s.stats;
     if (delta.bat) st.totalBat += delta.bat;
@@ -46,15 +65,47 @@ CT.Achievements = (function () {
     if (delta.bankPts) st.bankedPts += delta.bankPts;
     if (delta.game) st.games += delta.game;
     const newly = [];
-    DEFS.forEach((d) => { if (!s.unlocked[d.id] && d.test(st)) { s.unlocked[d.id] = Date.now(); newly.push(d); } });
+    QUESTS.forEach((q) => {
+      const cur = s.tiers[q.id] || 0;
+      const nt = tierOf(q, st);
+      for (let t = cur + 1; t <= nt; t++) {
+        newly.push({ id: q.id, icon: q.icon, name: q.name + ' — ' + MEDALS[t - 1], medal: MEDALS[t - 1], tier: t });
+      }
+      if (nt > cur) s.tiers[q.id] = nt;
+    });
     save(s);
     return newly;
   }
 
-  function all() { const s = state(); return DEFS.map((d) => ({ id: d.id, icon: d.icon, name: d.name, desc: d.desc, unlocked: !!s.unlocked[d.id] })); }
-  function count() { const s = state(); return { unlocked: Object.keys(s.unlocked).length, total: DEFS.length }; }
-  function stats() { return Object.assign({}, state().stats); } // copie des stats cumulées (écran Statistiques)
+  // État de chaque quête pour l'UI (palier atteint, médaille, prochain seuil).
+  function all() {
+    const s = state();
+    return QUESTS.map((q) => {
+      const tier = s.tiers[q.id] || 0;
+      const v = s.stats[q.metric] || 0;
+      const done = tier >= TIERS_PER_QUEST;
+      return {
+        id: q.id, icon: q.icon, name: q.name,
+        tier, max: TIERS_PER_QUEST,
+        medal: tier > 0 ? MEDALS[tier - 1] : null,
+        nextMedal: done ? null : MEDALS[tier],
+        valueFmt: q.fmt(v),
+        nextDesc: done ? null : q.fmt(q.tiers[tier]),
+        done,
+      };
+    });
+  }
+
+  // Total d'étoiles gagnées / total possible (toutes quêtes × 5 paliers).
+  function count() {
+    const s = state();
+    let earned = 0;
+    QUESTS.forEach((q) => { earned += (s.tiers[q.id] || 0); });
+    return { unlocked: earned, total: QUESTS.length * TIERS_PER_QUEST };
+  }
+
+  function stats() { return Object.assign({}, state().stats); } // stats cumulées (écran Statistiques)
   function reset() { try { localStorage.removeItem(KEY); } catch (e) {} }
 
-  return { DEFS, update, all, count, stats, reset };
+  return { QUESTS, MEDALS, update, all, count, stats, reset };
 })();

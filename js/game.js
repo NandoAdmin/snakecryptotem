@@ -486,6 +486,9 @@ window.CT = window.CT || {};
 
     const willEat = this.food && nh.x === this.food.x && nh.y === this.food.y;
 
+    // Bouclier actif : heurter un mur le DÉTRUIT (+ bonus pièces) ; le bouclier reste actif.
+    if (this.time < this.shieldUntil && this.obstacleSet.has(this.cellKey(nh.x, nh.y))) this.smashWall(nh.x, nh.y);
+
     // collisions mortelles (obstacles + corps + serpent ennemi) — ignorées pendant le bouclier
     if (this.time >= this.shieldUntil) {
       if (this.obstacleSet.has(this.cellKey(nh.x, nh.y))) return this.die();
@@ -521,6 +524,29 @@ window.CT = window.CT || {};
     if (this.enemy && this.state === 'playing') {
       this.stepEnemy();
       if (this.time >= this.shieldUntil && this.enemyHits(nh.x, nh.y)) return this.die();
+    }
+  };
+
+  // Bouclier : détruit un mur heurté (+ bonus pièces) sans consommer le bouclier.
+  G.smashWall = function (x, y) {
+    const k = this.cellKey(x, y);
+    if (!this.obstacleSet.has(k)) return;
+    this.obstacleSet.delete(k);
+    const idx = this.obstacles.findIndex((o) => o.x === x && o.y === y);
+    if (idx >= 0) this.obstacles.splice(idx, 1);
+    // feedback d'impact (cosmétique, même en démo)
+    this.spawnFx(x, y, [T.danger, T.amber, '#ffffff', T.blue], 18);   // éclats du mur
+    this.flash = Math.max(this.flash, 0.5); this.flashColor = T.blue;
+    if (!this.reduce) this.shake = Math.max(this.shake, 0.4);
+    this.haptic(20);
+    if (CT.Audio.smash) CT.Audio.smash();
+    // bonus en pièces (points × niveau) — jeu réel uniquement
+    if (!this.demo) {
+      const gain = (CT.CONFIG.bonus.wallPoints || 60) * this.levelNum;
+      this.points += gain;
+      this._scored();
+      this.spawnToast('🧱 +' + gain, x, y);
+      this.updateHud();
     }
   };
 

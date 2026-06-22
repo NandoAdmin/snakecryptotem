@@ -31,7 +31,7 @@ CT.Lab = (function () {
     },
     bouclier: {
       name: 'Bouclier renforcé', icon: '🛡️', max: 5,
-      desc: (l) => '+' + l + ' s de bouclier',
+      desc: (l) => '+' + (l * 0.5) + ' s de bouclier',
       cost: (l) => ({ bat: 12 * (l + 1), pts: 500 * (l + 1) }), time: (l) => researchTimeMs(l + 1),
     },
     surcharge: {
@@ -67,7 +67,7 @@ CT.Lab = (function () {
     },
     depart: {
       name: 'Départ protégé', icon: '🦺', max: 5,
-      desc: (l) => '+' + l + ' s de bouclier en début de niveau',
+      desc: (l) => '+' + (l * 0.5) + ' s de bouclier en début de niveau',
       cost: (l) => ({ bat: 20 * (l + 1), pts: 800 * (l + 1) }), time: (l) => researchTimeMs(l + 1),
     },
     inflation: {
@@ -143,14 +143,14 @@ CT.Lab = (function () {
   function effects() {
     return {
       pointMult: 1 + 0.10 * level('surtension') + 0.05 * level('inflation'),
-      shieldBonus: level('bouclier'),
+      shieldBonus: 0.5 * level('bouclier'),
       slowBonus: level('surcharge'),
       magnetBonus: level('aimant'),
       doubleBonus: level('double'),
       comboWindowBonus: 0.5 * level('combo'),
       bonusEveryDelta: level('frequence'),
       bankMult: 1 + 0.05 * level('rendement'),   // (informatif : appliqué dans bank())
-      startShield: level('depart'),              // s de bouclier au début de chaque niveau
+      startShield: 0.5 * level('depart'),        // s de bouclier au début de chaque niveau (0,5/niv)
       luckChance: level('chance'),               // ×5 % proba de ×2 (pièces+batterie) par objet
     };
   }

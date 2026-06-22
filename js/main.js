@@ -321,16 +321,25 @@
   function renderAch() {
     const all = CT.Achievements.all();
     const c = CT.Achievements.count();
-    achCountEl.textContent = c.unlocked + '/' + c.total;
+    achCountEl.textContent = '★ ' + c.unlocked + '/' + c.total;
     achListEl.innerHTML = '';
-    all.forEach((a) => {
-      const row = document.createElement('div'); row.className = 'ach-row' + (a.unlocked ? '' : ' locked');
-      const ic = document.createElement('span'); ic.className = 'ach-ic'; ic.textContent = a.icon;
+    all.forEach((q) => {
+      const row = document.createElement('div'); row.className = 'ach-row' + (q.tier === 0 ? ' locked' : '');
+      const ic = document.createElement('span'); ic.className = 'ach-ic'; ic.textContent = q.icon;
       const tx = document.createElement('div'); tx.className = 'ach-tx';
-      const nm = document.createElement('div'); nm.className = 'ach-nm'; nm.textContent = a.name;
-      const ds = document.createElement('div'); ds.className = 'ach-ds'; ds.textContent = a.desc;
+      const nm = document.createElement('div'); nm.className = 'ach-nm';
+      nm.textContent = q.name;
+      if (q.medal) {
+        const b = document.createElement('span'); b.className = 'ach-medal m-' + q.tier; b.textContent = q.medal;
+        nm.appendChild(b);
+      }
+      const ds = document.createElement('div'); ds.className = 'ach-ds';
+      ds.textContent = q.done
+        ? 'Complété ✦ ' + q.valueFmt
+        : 'Vers ' + q.nextMedal + ' : ' + q.valueFmt + ' / ' + q.nextDesc;
       tx.append(nm, ds);
-      const st = document.createElement('span'); st.className = 'ach-st'; st.textContent = a.unlocked ? '✅' : '🔒';
+      const st = document.createElement('span'); st.className = 'ach-st ach-stars';
+      st.textContent = '★'.repeat(q.tier) + '☆'.repeat(q.max - q.tier);
       row.append(ic, tx, st);
       achListEl.appendChild(row);
     });
@@ -368,7 +377,7 @@
       { ic: '🔥', label: 'Combo max',          val: '×' + (st.maxCombo || 0) },
       { ic: '⏱️', label: 'Meilleure survie',   val: fmtDuration(st.maxDurationMs) },
       { ic: '🔬', label: 'Versé au Labo',      val: (st.bankedPts || 0).toLocaleString('fr-FR') + ' ⚡' },
-      { ic: '🏅', label: 'Succès',             val: c.unlocked + '/' + c.total },
+      { ic: '🏅', label: 'Quêtes (★)',         val: c.unlocked + '/' + c.total },
     ];
     statsGridEl.innerHTML = '';
     cards.forEach((c2) => {
@@ -403,7 +412,7 @@
     achToast.innerHTML = '';
     const ic = document.createElement('span'); ic.className = 'at-ic'; ic.textContent = d.icon;
     const tx = document.createElement('div');
-    const h = document.createElement('div'); h.className = 'at-h'; h.textContent = 'SUCCÈS DÉBLOQUÉ';
+    const h = document.createElement('div'); h.className = 'at-h'; h.textContent = 'PALIER ATTEINT';
     const n = document.createElement('div'); n.className = 'at-n'; n.textContent = d.name;
     tx.append(h, n);
     achToast.append(ic, tx);

@@ -59,7 +59,7 @@ Snake Cryptotem/
 │   ├── scoring-rules.js# CT.ScoringRules — validation anti-triche PARTAGÉE navigateur ↔ Node
 │   ├── leaderboard.js  # CT.Leaderboard — classement perso/semaine/global (délègue à ScoringRules)
 │   ├── lab.js          # CT.Lab — Laboratoire : banque + recherches chronométrées + upgrades permanents
-│   ├── achievements.js # CT.Achievements — succès/trophées persistants (stats cumulées → déblocages)
+│   ├── achievements.js # CT.Achievements — quêtes à 5 paliers (Bronze→Diamant) sur stats cumulées
 │   ├── qrcode.js       # CT.QR — générateur de QR code autonome (octet/UTF-8, niveau M) pour la CTA
 │   ├── cinematics.js   # CT.Cinematic — animations de fin de niveau (plusieurs variantes)
 │   ├── game.js         # CT.Game — machine à états, boucle, rendu monde, collisions
@@ -255,28 +255,30 @@ Méta-progression persistante (localStorage `ct_lab`) qui donne de la durée de 
   confirmation) → `CT.Lab.reset()` efface toute la progression — utile sur une
   borne partagée en bar.
 
-### Succès / Trophées (`js/achievements.js` → `CT.Achievements`)
-Méta-progression de collection persistante (localStorage `ct_ach`) → rejouabilité.
+### Quêtes à paliers (`js/achievements.js` → `CT.Achievements`)
+Méta-progression persistante (localStorage `ct_ach`) → rejouabilité longue durée.
 - **Stats cumulées** : le jeu pousse des deltas via `CT.Achievements.update({bat, bonus,
   combo, level, score, durationMs, bankPts, game})` (depuis `game._ach`, **jamais en démo**) ;
-  le module met à jour cumuls/maxima et renvoie les succès **nouvellement** débloqués.
-  `CT.Achievements.stats()` renvoie une copie des stats cumulées (utilisé par l'écran Statistiques).
-- **12 succès** (`DEFS`) : Premier câble (10 🔋), Centurion (100 🔋), Explorateur (niv 5),
-  Vétéran (niv 10), Ascension (niv 15), Combo Roi (×9), Branché (25 power-ups), Increvable
-  (3 min), Marathonien (5 min), Haute Tension (5 000 pts), Mécène du Labo (5 000 pts versés),
-  Habitué (10 parties jouées).
-- **UI** (câblée dans `main.js`) : écran « 🏆 Succès » (bouton accueil) — liste des
-  trophées (verrouillés grisés 🔒 / débloqués ✅) + compteur `X/12` (dynamique via `count()`).
-  À chaque déblocage en
-  jeu, `game.onAchievement(def)` affiche une **notification toast** (file d'attente si
-  plusieurs tombent d'un coup, jingle dédié `CT.Audio.achievement()`).
+  le module met à jour cumuls/maxima et renvoie les **paliers nouvellement franchis**.
+  `CT.Achievements.stats()` renvoie une copie des stats cumulées (écran Statistiques).
+- **8 quêtes × 5 paliers** (`QUESTS`) — chaque quête garde son thème mais a 5 seuils
+  croissants → médailles **Bronze · Argent · Or · Platine · Diamant** (1 étoile/palier,
+  **40 étoiles** au total). Quêtes : Batteries ramassées, Niveau atteint, Combo max,
+  Power-ups ramassés, Survie, Meilleur score, Mécène du Labo, Parties jouées. Le palier
+  courant = nb de seuils franchis (`tierOf`) ; `s.tiers` est initialisé depuis les stats
+  existantes **sans toast** à la 1ʳᵉ fois (pas de rafale au chargement).
+- **UI** (câblée dans `main.js`) : écran « 🏆 Quêtes » (bouton accueil) — pour chaque
+  quête : médaille courante, **★ pleines/☆ vides**, et progression vers le palier suivant
+  (`valeur / prochain seuil`) ; compteur `★ X/40` (dynamique via `count()`). À chaque
+  palier franchi en jeu, `game.onAchievement(def)` affiche une **notification toast**
+  (« PALIER ATTEINT », file d'attente, jingle `CT.Audio.achievement()`).
   `CT.Achievements.reset()` remet à zéro.
 
 ### Statistiques (`#statsScreen`, câblé dans `main.js`)
 Écran « 📊 Stats » (bouton accueil) qui **affiche** les stats cumulées déjà suivies par
 `CT.Achievements` : grille de cartes (parties jouées, batteries totales, power-ups,
 meilleur score, niveau max, combo max, meilleure survie `mm:ss`, points versés au Labo,
-succès `X/12`). Lecture seule via `CT.Achievements.stats()` + `count()`. Le compteur
+quêtes `★ X/40`). Lecture seule via `CT.Achievements.stats()` + `count()`. Le compteur
 **parties jouées** (`stats.games`) est incrémenté à la mort (`game._ach({game:1})`).
 
 ### Mode démo / attract (`G.startDemo` + `G.autopilot`)
@@ -303,8 +305,11 @@ Quatre types (`bonus.type`), tirés à l'apparition (`shieldChance` / `magnetCha
   dorées, et **« Surcharge »** = ralenti temporaire (`bonus.slowFactor` sur
   l'intervalle pendant `bonus.slowDuration` s) → bandeau « ⚡ SURCHARGE ».
 - **Bouclier** (batterie bleue) : `bonus.shieldPoints × niveau`, et
-  **invulnérabilité** pendant `bonus.shieldDuration` s (traverse obstacles **et**
-  son propre câble) → aura bleue pulsée autour de la tête (`shieldUntil`).
+  **invulnérabilité** pendant `bonus.shieldDuration` s (traverse le **propre câble** et
+  le **serpent ennemi**) → aura bleue pulsée autour de la tête (`shieldUntil`).
+  ⚡ **Heurter un mur sous bouclier le DÉTRUIT** (`smashWall`) + bonus pièces
+  (`bonus.wallPoints × niveau`) ; le **bouclier reste actif** → on peut casser
+  plusieurs murs tant qu'il dure (éclats + secousse + son `CT.Audio.smash`).
 - **Aimant** (batterie violette) : `bonus.magnetPoints × niveau`, et **attire la
   batterie** d'une case vers la tête à chaque pas pendant `bonus.magnetDuration`
   s (`pullFood`, sans aléa → déterministe) → anneaux violets autour de la batterie.
@@ -407,8 +412,8 @@ complet : Reed-Solomon GF(256), sélection de masque par pénalité, BCH format/
 - [x] **Laboratoire / R&D** : banque batteries+points, recherches chronométrées
       (barème de temps par niveau visé, jusqu'à 36 h+), 9 améliorations permanentes
       dont Rendement R&D & Départ protégé (durée de vie / méta-progression).
-- [x] **Succès / Trophées** : 12 succès persistants (stats cumulées), écran « 🏆 Succès »
-      (liste verrouillés/débloqués + compteur) et notification toast au déblocage.
+- [x] **Quêtes à paliers** : 8 quêtes × 5 paliers (Bronze→Diamant, 40 ★), écran « 🏆 Quêtes »
+      (médaille + étoiles + progression) et notification toast à chaque palier franchi.
 - [x] **Écran Statistiques** (« 📊 Stats ») : grille de cartes des stats cumulées
       (parties, batteries, power-ups, meilleur score, niveau/combo max, survie, Labo, succès).
 - [x] **Serpent qui change de couleur** à chaque batterie (cycle `CONFIG.snakePalette`,

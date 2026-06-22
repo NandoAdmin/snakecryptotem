@@ -135,6 +135,10 @@ CT.Audio = (function () {
       tone(880, 0.05, 'sine', 0.06);
       tone(1320, 0.07, 'sine', 0.05, 0.04);
     },
+    smash() {             // mur détruit au bouclier : impact court et sec
+      tone(180, 0.08, 'square', 0.14);
+      tone(90, 0.13, 'sawtooth', 0.12, 0.02);
+    },
     connect() {           // câble qui se branche (cinématique)
       tone(300, 0.06, 'square', 0.14);
       sweep(300, 900, 0.18, 'sawtooth', 0.12);

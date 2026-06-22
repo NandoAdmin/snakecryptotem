@@ -38,6 +38,7 @@ CT.CONFIG = {
     doubleChance: 0.20,  // proba qu'un power-up soit « double points »
     doubleDuration: 6,   // durée du ×2 points (s)
     doublePoints: 200,   // points à la prise (× niveau) — ≤ points (plafond anti-triche)
+    wallPoints: 60,      // bonus pièces (× niveau) par mur détruit au bouclier
   },
 
   /* Serpent ennemi : rôde sur la map à partir du niveau `fromLevel`. Mortel si notre

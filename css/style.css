@@ -245,12 +245,23 @@ html, body {
   padding: 10px 14px; border-radius: 12px;
   background: var(--glass); border: 1px solid var(--glass-brd);
 }
-.ach-row.locked { opacity: 0.5; filter: grayscale(0.8); }
+.ach-row.locked { opacity: 0.6; filter: grayscale(0.6); }
 .ach-row .ach-ic { font-size: 24px; width: 30px; text-align: center; }
 .ach-row .ach-tx { flex: 1; }
-.ach-row .ach-nm { font-size: 14px; font-weight: 800; color: var(--text); }
+.ach-row .ach-nm { font-size: 14px; font-weight: 800; color: var(--text); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .ach-row .ach-ds { font-size: 12px; color: var(--text-dim); }
 .ach-row .ach-st { font-size: 18px; }
+/* étoiles de palier (★ pleines / ☆ vides) */
+.ach-stars { letter-spacing: 1px; color: var(--amber); white-space: nowrap;
+  text-shadow: 0 0 6px rgba(255, 194, 75, 0.5); }
+/* badge médaille du palier courant */
+.ach-medal { font-size: 10px; font-weight: 800; letter-spacing: 0.5px; padding: 1px 7px;
+  border-radius: 99px; color: #06181c; }
+.ach-medal.m-1 { background: #cd7f32; }                 /* Bronze */
+.ach-medal.m-2 { background: #cdd3d8; }                 /* Argent */
+.ach-medal.m-3 { background: var(--amber); }            /* Or */
+.ach-medal.m-4 { background: #8fe8ff; }                 /* Platine */
+.ach-medal.m-5 { background: linear-gradient(90deg, #c9b3ff, var(--glow)); } /* Diamant */
 
 /* Statistiques */
 .stats-grid {
