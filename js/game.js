@@ -97,6 +97,7 @@ window.CT = window.CT || {};
     this.acc = 0;
     this.bonus = null;       // power-up à l'écran (ou null) — { x, y, life, max, type }
     this.sinceBonus = 0;     // batteries normales depuis le dernier bonus
+    this.enemy = null;       // serpent ennemi (niv 4+) — { body, prev, dir } ou null
     this.slowUntil = 0;      // surcharge/ralenti actif tant que time < slowUntil
     this.shieldUntil = 0;    // bouclier (invulnérabilité) actif tant que time < shieldUntil
     this.magnetUntil = 0;    // aimant (attire la batterie) actif tant que time < magnetUntil
@@ -183,7 +184,27 @@ window.CT = window.CT || {};
 
     this.generateObstacles();
     this.spawnFood();
+    // serpent ennemi à partir du niveau configuré (jamais en démo : 1→3)
+    this.enemy = null;
+    const ec = CT.CONFIG.enemy;
+    if (ec && n >= ec.fromLevel) this.spawnEnemy();
     this.updateHud();
+  };
+
+  // Place le serpent ennemi sur une case libre, loin du spawn du joueur (centre).
+  G.spawnEnemy = function () {
+    const ec = CT.CONFIG.enemy;
+    const cx = Math.floor(COLS / 2), cy = Math.floor(ROWS / 2);
+    let x = 2, y = 2, tries = 0;
+    do {
+      x = 1 + ((this.rng() * (COLS - 2)) | 0);
+      y = 1 + ((this.rng() * (ROWS - 2)) | 0);
+    } while (++tries < 200 && (this.obstacleSet.has(this.cellKey(x, y)) ||
+             (Math.abs(x - cx) + Math.abs(y - cy)) < 7));   // démarre loin du joueur
+    const body = [];
+    for (let i = 0; i < ec.length; i++) body.push({ x, y });   // empilé → se déploie en bougeant
+    const dirs = [DIRS.up, DIRS.down, DIRS.left, DIRS.right];
+    this.enemy = { body, prev: body.map((s) => ({ x: s.x, y: s.y })), dir: dirs[(this.rng() * 4) | 0] };
   };
 
   G.startLevel = function (n) {
@@ -465,13 +486,14 @@ window.CT = window.CT || {};
 
     const willEat = this.food && nh.x === this.food.x && nh.y === this.food.y;
 
-    // collisions mortelles (obstacles + corps) — ignorées pendant le bouclier
+    // collisions mortelles (obstacles + corps + serpent ennemi) — ignorées pendant le bouclier
     if (this.time >= this.shieldUntil) {
       if (this.obstacleSet.has(this.cellKey(nh.x, nh.y))) return this.die();
       for (let i = 1; i < len; i++) {
         if (i === len - 1 && !willEat) continue; // la queue va libérer sa case
         if (this.snake[i].x === nh.x && this.snake[i].y === nh.y) return this.die();
       }
+      if (this.enemyHits(nh.x, nh.y)) return this.die();   // on fonce dans l'ennemi (niv 4+)
     }
 
     // déplacement (index stables : segment i suit i-1)
@@ -494,6 +516,49 @@ window.CT = window.CT || {};
 
     // aimant : attire la batterie d'une case vers la tête (déterministe, sans aléa)
     if (this.time < this.magnetUntil) this.pullFood();
+
+    // serpent ennemi (niv 4+) : il se déplace, puis on reteste le contact avec la tête
+    if (this.enemy && this.state === 'playing') {
+      this.stepEnemy();
+      if (this.time >= this.shieldUntil && this.enemyHits(nh.x, nh.y)) return this.die();
+    }
+  };
+
+  // Vrai si (x,y) est sur un segment du serpent ennemi.
+  G.enemyHits = function (x, y) {
+    if (!this.enemy) return false;
+    const b = this.enemy.body;
+    for (let i = 0; i < b.length; i++) if (b[i].x === x && b[i].y === y) return true;
+    return false;
+  };
+
+  // Déplace le serpent ennemi d'une case : marche aléatoire avec inertie, évite
+  // demi-tour / obstacles / son propre corps ; bords toroïdaux. Aléa déterministe (this.rng).
+  G.stepEnemy = function () {
+    const e = this.enemy; if (!e) return;
+    const head = e.body[0];
+    const opts = [];
+    for (const k in DIRS) {
+      const d = DIRS[k];
+      if (d.x === -e.dir.x && d.y === -e.dir.y) continue;           // pas de demi-tour
+      const nx = (head.x + d.x + COLS) % COLS, ny = (head.y + d.y + ROWS) % ROWS;
+      if (this.obstacleSet.has(this.cellKey(nx, ny))) continue;     // évite les obstacles
+      let onSelf = false;
+      for (let i = 0; i < e.body.length - 1; i++) if (e.body[i].x === nx && e.body[i].y === ny) { onSelf = true; break; }
+      if (onSelf) continue;
+      opts.push(d);
+    }
+    let nd = e.dir;
+    if (opts.length) {
+      const straight = opts.find((d) => d.x === e.dir.x && d.y === e.dir.y);
+      const turn = this.rng() < CT.CONFIG.enemy.turnChance;
+      nd = (straight && !turn) ? straight : opts[(this.rng() * opts.length) | 0];
+    }
+    e.dir = nd;
+    const nx = (head.x + nd.x + COLS) % COLS, ny = (head.y + nd.y + ROWS) % ROWS;
+    e.prev = e.body.map((s) => ({ x: s.x, y: s.y }));
+    for (let i = e.body.length - 1; i >= 1; i--) { e.body[i].x = e.prev[i - 1].x; e.body[i].y = e.prev[i - 1].y; }
+    e.body[0] = { x: nx, y: ny };
   };
 
   // Rapproche la batterie d'une case de la tête (chemin toroïdal, sans traverser
@@ -815,6 +880,7 @@ window.CT = window.CT || {};
     this.drawObstacles();
     if (this.food) this.drawFood();
     if (this.bonus) this.drawBonus();
+    if (this.enemy) this.drawEnemy();
     if (this.snake) this.drawSnake();
     this.drawFx();
     this.drawToast();
@@ -1074,6 +1140,41 @@ window.CT = window.CT || {};
     ctx.lineTo(bw * 0.16, -bh * 0.02); ctx.lineTo(bw * 0.02, -bh * 0.02);
     ctx.closePath(); ctx.fill();
     ctx.restore();
+  };
+
+  // Serpent ennemi : chaîne de petits carrés rouges (tête à yeux), interpolés + glow « danger ».
+  G.drawEnemy = function () {
+    const e = this.enemy; if (!e) return;
+    const ctx = this.ctx, cell = this.cell;
+    const moving = this.state === 'playing' || (this.state === 'start' && this.demo);
+    const t = moving ? U.clamp(this.acc / this.effInterval, 0, 1) : 0;
+    const pulse = 0.5 + 0.5 * Math.sin(this.time * 8);
+    const bodyCol = mix(T.danger, '#2a0a12', 0.4);
+    for (let i = e.body.length - 1; i >= 0; i--) {
+      const cur = e.body[i], pv = (e.prev && e.prev[i]) || cur;
+      let dx = cur.x - pv.x; if (dx > 1) dx -= COLS; else if (dx < -1) dx += COLS;   // court chemin toroïdal
+      let dy = cur.y - pv.y; if (dy > 1) dy -= ROWS; else if (dy < -1) dy += ROWS;
+      const gx = pv.x + dx * t, gy = pv.y + dy * t;
+      const head = i === 0;
+      const s = cell * (head ? 0.62 : 0.46);
+      const seg = (cgx, cgy) => {
+        const x = (cgx + 0.5) * cell, y = (cgy + 0.5) * cell;
+        ctx.fillStyle = head ? T.danger : bodyCol;
+        ctx.shadowColor = T.danger; ctx.shadowBlur = head ? (10 + pulse * 10) : 6;
+        U.rr(ctx, x - s / 2, y - s / 2, s, s, s * 0.32); ctx.fill();
+        if (head) {                                   // yeux
+          ctx.shadowBlur = 0; ctx.fillStyle = '#fff';
+          ctx.fillRect(x - s * 0.24, y - s * 0.14, s * 0.16, s * 0.16);
+          ctx.fillRect(x + s * 0.08, y - s * 0.14, s * 0.16, s * 0.16);
+        }
+      };
+      ctx.save();
+      seg(gx, gy);                                     // image principale + doubles aux bords (traversée)
+      if (gx < 0) seg(gx + COLS, gy); else if (gx > COLS - 1) seg(gx - COLS, gy);
+      if (gy < 0) seg(gx, gy + ROWS); else if (gy > ROWS - 1) seg(gx, gy - ROWS);
+      ctx.restore();
+    }
+    ctx.shadowBlur = 0;
   };
 
   G.drawSnake = function () {

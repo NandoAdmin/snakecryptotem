@@ -40,6 +40,10 @@ CT.CONFIG = {
     doublePoints: 200,   // points à la prise (× niveau) — ≤ points (plafond anti-triche)
   },
 
+  /* Serpent ennemi : rôde sur la map à partir du niveau `fromLevel`. Mortel si notre
+     tête le touche (sauf bouclier). Se déplace d'une case par pas (même vitesse). */
+  enemy: { fromLevel: 4, length: 4, turnChance: 0.25 },
+
   /* Thème — couleurs de jeu. Rebrander = changer ces valeurs. */
   theme: {
     bg0:      '#02161a',

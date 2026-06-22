@@ -123,6 +123,17 @@ plateau), et tête/queue sont **dupliquées** de l'autre côté pendant la trave
 (`_forEachWrap`). L'IA démo et la distance utilisées sont **toroïdales**. Les
 bords sont dessinés en pointillé « portail ».
 
+### Serpent ennemi (`CONFIG.enemy`, dès le niveau `fromLevel` = 4)
+Un **mini serpent rouge** (`this.enemy = { body, prev, dir }`, longueur `length`) rôde
+sur la map à partir du niveau 4 (`spawnEnemy` dans `setupLevel`, loin du spawn joueur,
+jamais en démo qui cycle 1→3). Il avance d'**une case par pas** (`stepEnemy`, appelé
+dans `step()`) : marche aléatoire avec inertie (`turnChance`), évite demi-tour /
+obstacles / son corps, bords **toroïdaux**, aléa **déterministe** (`this.rng`). **Mortel
+si notre tête le touche** (`enemyHits` → `die()`), testé avant ET après son déplacement,
+**sauf bouclier** (même invuln. que obstacles/câble). Rendu `drawEnemy` : carrés rouges
+interpolés + glow « danger », tête à yeux, duplication aux bords (traversée). Dessiné
+**sous** le serpent joueur.
+
 ---
 
 ## 🎨 Identité visuelle (d'après logo.png + Station.jpeg)
