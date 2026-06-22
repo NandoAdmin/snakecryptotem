@@ -179,6 +179,7 @@
   document.getElementById('retryBtn').addEventListener('click', begin);
   document.getElementById('continueBtn').addEventListener('click', nextLevel);
   document.getElementById('resumeBtn').addEventListener('click', () => game.togglePause());
+  document.getElementById('restartBtn').addEventListener('click', begin);   // pause → repartir au niveau 1
   document.getElementById('pauseBtn').addEventListener('click', () => {
     if (game.state === 'playing' || game.state === 'paused') game.togglePause();
   });

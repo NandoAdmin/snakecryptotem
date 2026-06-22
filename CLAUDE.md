@@ -74,8 +74,9 @@ Snake Cryptotem/
 ### Machine à états (`CT.Game.state`)
 `start` → `playing` ⇄ `paused` → `cinematic` → (niveau suivant) `playing` …
 et `over` (game over) → `playing`. L'écran **pause** affiche les stats de la
-partie (niveau / score / objectif) + des raccourcis son & musique
-(`syncAudioButtons` garde tous les boutons audio synchronisés).
+partie (niveau / score / objectif), des raccourcis son & musique
+(`syncAudioButtons` garde tous les boutons audio synchronisés), et les boutons
+**Reprendre** / **Recommencer** (`restartBtn` → `begin` → repart au niveau 1) / **Menu**.
 
 ### Boucle de jeu
 `requestAnimationFrame` + accumulateur de temps. Le serpent avance d'**une case**
@@ -150,9 +151,14 @@ bords sont dessinés en pointillé « portail ».
 - `CONFIG.cols` / `CONFIG.rows` : taille de la grille (carrée).
 - `CONFIG.minStep` : intervalle le plus rapide (ms) — plancher de vitesse.
 - `CONFIG.speedupPerBattery` : ms retirés par batterie.
-- `CONFIG.levels[]` : `{ needed, step, obstacles, pattern }` par niveau.
+- `CONFIG.levels[]` : `{ needed, step, obstacles, pattern }` par niveau. Motifs
+  d'obstacles, **tous visuellement distincts** : `none`, `corners` (amas dans les
+  coins), `bars` (segments aléatoires), `cross` (croix « + » centrée, centre dégagé),
+  `pillars` (cases éparses), `diamond` (anneau en losange), `maze` (murs courts sur une
+  grille pas-3 → allure labyrinthe).
 - `CT.getLevel(n)` : renvoie le niveau `n` (génère proceduralement au-delà du
-  tableau — objectif/obstacles ↑, `step` ↓).
+  tableau — objectif/obstacles ↑, `step` ↓ ; le **motif alterne** sur les niveaux
+  procéduraux — `corners`/`bars`/`cross`/`pillars`/`diamond`/`maze` — pour la variété).
 - **Anti-blocage** : après placement, `ensureConnected()` vérifie par flood-fill
   toroïdal (`floodFree`) que **toutes** les cases libres sont accessibles depuis
   le spawn ; sinon `openNear` retire un obstacle frontière jusqu'à connexité.
@@ -307,7 +313,9 @@ par le Labo).
   bords vides), seul le plateau tremble.
 - **Accessibilité** (`game.reduce`) : respecte `prefers-reduced-motion` de l'OS
   (écouté en direct) → **pas de screen-shake**, flash atténué, particules réduites
-  (~35 %). Important pour un jeu public (confort / sensibilité au mouvement).
+  (~35 %). Important pour un jeu public (confort / sensibilité au mouvement). Côté
+  **CSS**, le même média désactive les animations décoratives continues (logo qui
+  flotte, respiration des boutons, fondu d'overlay, pulse « objectif proche »).
 
 ### Call-to-action Cryptotem
 L'écran de game over affiche un encart promo (logo + message « Une borne

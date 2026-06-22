@@ -409,3 +409,12 @@ html, body {
   .overlay-title { font-size: clamp(22px, 6vw, 38px); }
   .start-board { display: none; }   /* on gagne de la place sur écran court */
 }
+
+/* Accessibilité : calme les animations décoratives continues si l'OS demande
+   « moins de mouvement » (le canvas est déjà géré par game.reduce). Important
+   pour une borne publique / confort visuel. */
+@media (prefers-reduced-motion: reduce) {
+  .brand-logo { animation: none; }   /* logo qui flotte */
+  .btn-primary { animation: none; }  /* respiration lumineuse des boutons */
+  .overlay { animation: none; }      /* fondu d'entrée → instantané */
+}

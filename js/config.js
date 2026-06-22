@@ -85,12 +85,14 @@ CT.getLevel = function (n) {
   }
   const last = L[L.length - 1];
   const extra = n - L.length;            // nb de niveaux au-delà du tableau
+  // les niveaux procéduraux alternent les motifs (variété en jeu prolongé, au lieu de « maze » partout)
+  const procPatterns = ['corners', 'bars', 'cross', 'pillars', 'diamond', 'maze'];
   return {
     index: n,
     needed: last.needed + extra * 4,
     step: Math.max(CT.CONFIG.minStep + 18, last.step - extra * 6),
     obstacles: Math.min(40, last.obstacles + extra * 4),
-    pattern: 'maze',
+    pattern: procPatterns[(extra - 1) % procPatterns.length],
   };
 };
 

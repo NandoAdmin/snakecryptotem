@@ -352,7 +352,30 @@ window.CT = window.CT || {};
         const c = corners[(this.rng() * 4) | 0];
         add(c[0], c[1]); add(c[0] + (c[0] < COLS / 2 ? 1 : -1), c[1]);
         add(c[0], c[1] + (c[1] < ROWS / 2 ? 1 : -1));
-      } else { // bars / cross / maze
+      } else if (pattern === 'diamond') {
+        // anneau en losange : cases dont la distance de Manhattan au centre ≈ R
+        const cx = (COLS / 2) | 0, cy = (ROWS / 2) | 0;
+        const R = Math.floor(Math.min(COLS, ROWS) * 0.32);
+        const x = 1 + ((this.rng() * (COLS - 2)) | 0);
+        const y = 1 + ((this.rng() * (ROWS - 2)) | 0);
+        if (Math.abs((Math.abs(x - cx) + Math.abs(y - cy)) - R) <= 1) add(x, y);
+      } else if (pattern === 'maze') {
+        // murs courts alignés sur une grille (pas 3) → allure labyrinthe, couloirs réguliers
+        const gx = 2 + 3 * ((this.rng() * Math.floor((COLS - 4) / 3)) | 0);
+        const gy = 2 + 3 * ((this.rng() * Math.floor((ROWS - 4) / 3)) | 0);
+        add(gx, gy);
+        if ((gx + gy) % 2 === 0) add(gx + 1, gy); else add(gx, gy + 1);
+      } else if (pattern === 'cross') {
+        // croix « + » : bandes centrale verticale/horizontale, centre dégagé (spawn protégé)
+        const cx = (COLS / 2) | 0, cy = (ROWS / 2) | 0, clear = 4;
+        if (this.rng() < 0.5) {                       // bande verticale (x = cx)
+          const y = 1 + ((this.rng() * (ROWS - 2)) | 0);
+          if (Math.abs(y - cy) > clear) add(cx, y);
+        } else {                                       // bande horizontale (y = cy)
+          const x = 1 + ((this.rng() * (COLS - 2)) | 0);
+          if (Math.abs(x - cx) > clear) add(x, cy);
+        }
+      } else { // bars : segments aléatoires
         const horiz = this.rng() < 0.5;
         const len = 3 + ((this.rng() * 2) | 0);
         let x = 2 + ((this.rng() * (COLS - 4)) | 0);
