@@ -10,3 +10,6 @@ node_modules/
 # Logs / fichiers temporaires
 *.log
 *.tmp
+
+# Données runtime du serveur de classement (généré au démarrage, pas à versionner)
+server/scores.json

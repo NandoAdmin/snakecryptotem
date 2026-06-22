@@ -10,6 +10,18 @@ CT.CONFIG = {
      (site, page « trouver une borne », ou lien de campagne avec tracking). */
   cryptotemUrl: 'https://cryptotem.fr',
 
+  /* Classement EN LIGNE (records partagés → tout le monde se compare).
+     Le jeu POST les scores sur {url}/scores et lit les classements via {url}/boards
+     (sans slash final dans `url` : le code ajoute les chemins).
+     Serveur de référence fourni : server/leaderboard-server.js (Node, sans dépendance).
+     - `url` renseignée  → records enregistrés sur le SERVEUR (avec repli local hors-ligne) ;
+     - `url` vide ('')   → stockage 100 % local (mode hors-ligne / borne isolée).
+     Pour tester en local : 'http://localhost:8124' (lancer le serveur de référence). */
+  leaderboard: {
+    url: 'https://cryptotem.fr/snake',  // endpoint du serveur de classement (→ /scores, /boards, /relabel)
+    token: '',                          // jeton Bearer optionnel (auth serveur, si activée)
+  },
+
   /* Grille (carrée). Plus c'est grand, plus le serpent paraît rapide. */
   cols: 24,
   rows: 24,

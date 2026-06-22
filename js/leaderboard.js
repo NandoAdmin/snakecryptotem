@@ -89,22 +89,51 @@ CT.Leaderboard = (function () {
     },
   };
 
-  /* ---- backend distant (futur) : le serveur valide + horodate + classe ---- */
+  /* ---- backend distant : le serveur valide + horodate + classe (source de vérité) ----
+     Robustesse borne/bar : si le serveur est injoignable, on ne PERD jamais un score —
+     il est mis dans une file d'attente locale (`ct_pending`) et renvoyé dès qu'on
+     recapte le réseau ; les classements affichés tombent en repli sur le local. Un
+     score REFUSÉ par le serveur (triche) n'est pas mis en file (la raison remonte). */
+  const PENDING = 'ct_pending';
+  function loadPending() { try { return JSON.parse(localStorage.getItem(PENDING) || '[]'); } catch (e) { return []; } }
+  function savePending(a) { try { localStorage.setItem(PENDING, JSON.stringify(a.slice(-50))); } catch (e) {} }
+
   function makeRemote(endpoint, token) {
     const headers = Object.assign({ 'Content-Type': 'application/json' }, token ? { Authorization: 'Bearer ' + token } : {});
+    const post = (path, body) => fetch(endpoint + path, { method: 'POST', headers, body: JSON.stringify(body) }).then((r) => r.json());
+
+    // Vide la file d'attente (best-effort, séquentiel, silencieux).
+    function flushPending() {
+      const a = loadPending();
+      if (!a.length) return Promise.resolve();
+      return post('/scores', a[0])
+        .then((res) => { if (res && res.ok) { savePending(a.slice(1)); return flushPending(); } })
+        .catch(() => {});
+    }
+
     return {
       submit(entry) {
-        return fetch(endpoint + '/scores', { method: 'POST', headers, body: JSON.stringify(entry) })
-          .then((r) => r.json()).catch(() => ({ ok: false, reason: 'réseau' }));
+        return post('/scores', entry)
+          .then((res) => {
+            if (res && res.ok) { flushPending(); return res; }          // accepté par le serveur
+            if (res && res.reason) return res;                          // refusé (triche) : ne pas mettre en file
+            throw new Error('réponse inattendue');
+          })
+          .catch(() => {                                                // serveur injoignable → file + repli local
+            const a = loadPending(); a.push(entry); savePending(a);
+            return local.submit(entry).then((r) => Object.assign({ offline: true }, r));
+          });
       },
       relabelLast(name) {
-        return fetch(endpoint + '/relabel', { method: 'POST', headers, body: JSON.stringify({ name }) })
-          .then((r) => r.json()).catch(() => ({ ok: false, reason: 'réseau' }));
+        local.relabelLast(name);                                        // garde le repli local cohérent
+        return post('/relabel', { name }).catch(() => ({ ok: false, reason: 'réseau' }));
       },
       boards(me) {
+        flushPending();                                                 // tente de synchroniser au passage
         const q = me ? '?name=' + encodeURIComponent(me.name || '') : '';
         return fetch(endpoint + '/boards' + q, { headers })
-          .then((r) => r.json()).catch(() => ({ personal: 0, weekly: [], global: [], weeklyRank: 0, globalRank: 0 }));
+          .then((r) => r.json())
+          .catch(() => local.boards(me));                               // serveur injoignable : classement local
       },
     };
   }

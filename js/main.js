@@ -7,6 +7,11 @@
   const ctx = canvas.getContext('2d');
   const game = new CT.Game(ctx);
 
+  // Classement EN LIGNE : si un serveur est configuré, les records s'enregistrent
+  // dessus (partagés entre toutes les bornes) ; sinon stockage local. Voir CONFIG.leaderboard.
+  const lbCfg = CT.CONFIG.leaderboard;
+  if (lbCfg && lbCfg.url) CT.Leaderboard.useRemote(lbCfg.url, lbCfg.token);
+
   // Overlays
   const overlays = {
     start: document.getElementById('startScreen'),
@@ -68,7 +73,11 @@
   }
 
   function renderLeaderboard() {
-    CT.Leaderboard.fetchBoards(game.lastEntry).then((b) => {
+    // attend la fin de la soumission (serveur) avant de relire les classements,
+    // pour que le score qu'on vient d'envoyer y figure déjà.
+    Promise.resolve(game.lastSubmit).then((sub) =>
+      CT.Leaderboard.fetchBoards(game.lastEntry).then((b) => ({ b, sub }))
+    ).then(({ b, sub }) => {
       persoBest.textContent = b.personal;
       const list = lbScope === 'weekly' ? b.weekly : b.global;
       const rank = lbScope === 'weekly' ? b.weeklyRank : b.globalRank;
@@ -89,7 +98,11 @@
           lbList.appendChild(li);
         });
       }
-      lbRank.textContent = (rank > 5 && game.lastEntry && game.lastEntry.score > 0) ? 'Ton rang : #' + rank : '';
+      const rankTxt = (rank > 5 && game.lastEntry && game.lastEntry.score > 0) ? 'Ton rang : #' + rank : '';
+      // hors-ligne : le score est enregistré localement et sera synchronisé au retour du réseau
+      lbRank.textContent = (sub && sub.offline)
+        ? (rankTxt ? rankTxt + ' · ' : '') + '📡 hors-ligne — synchro à la reconnexion'
+        : rankTxt;
     });
   }
 

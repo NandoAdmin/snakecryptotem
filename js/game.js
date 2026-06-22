@@ -755,7 +755,8 @@ window.CT = window.CT || {};
       seed: this.seed,
       ts: Date.now(),
     };
-    if (this.points > 0) CT.Leaderboard.submit(this.lastEntry);
+    // soumet au classement (serveur si configuré) ; l'UI attend cette promesse avant de relire les boards
+    this.lastSubmit = this.points > 0 ? CT.Leaderboard.submit(this.lastEntry) : Promise.resolve({ ok: true });
     // verse les ressources de la partie dans la banque du Laboratoire
     if (CT.Lab) CT.Lab.bank({ batteries: this.score, points: this.points });
     // succès liés à la fin de partie (+ comptage des parties jouées)
