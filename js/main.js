@@ -377,6 +377,7 @@
       { ic: '🔥', label: 'Combo max',          val: '×' + (st.maxCombo || 0) },
       { ic: '⏱️', label: 'Meilleure survie',   val: fmtDuration(st.maxDurationMs) },
       { ic: '🔬', label: 'Versé au Labo',      val: (st.bankedPts || 0).toLocaleString('fr-FR') + ' ⚡' },
+      { ic: '🧱', label: 'Murs brisés',        val: (st.wallsSmashed || 0).toLocaleString('fr-FR') },
       { ic: '🏅', label: 'Quêtes (★)',         val: c.unlocked + '/' + c.total },
     ];
     statsGridEl.innerHTML = '';

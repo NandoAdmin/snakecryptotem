@@ -546,6 +546,7 @@ window.CT = window.CT || {};
       this.points += gain;
       this._scored();
       this.spawnToast('🧱 +' + gain, x, y);
+      this._ach({ walls: 1 });
       this.updateHud();
     }
   };
@@ -1174,31 +1175,81 @@ window.CT = window.CT || {};
     const ctx = this.ctx, cell = this.cell;
     const moving = this.state === 'playing' || (this.state === 'start' && this.demo);
     const t = moving ? U.clamp(this.acc / this.effInterval, 0, 1) : 0;
-    const pulse = 0.5 + 0.5 * Math.sin(this.time * 8);
-    const bodyCol = mix(T.danger, '#2a0a12', 0.4);
+    const pulse = this.reduce ? 0.5 : 0.5 + 0.5 * Math.sin(this.time * 8);
+    const bodyCol = mix(T.danger, '#16030a', 0.55);    // rouge sang très sombre
+    const edgeCol = mix(T.danger, '#ffffff', 0.4);     // arête chaude, presque incandescente
+    const ang = Math.atan2(e.dir.y, e.dir.x);          // oriente la tête vers la direction
+
+    // Segment de corps : losange « épine dorsale » dentelée + arête vive (plus chaude vers la tête).
+    const bodySeg = (x, y, s, f) => {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(Math.PI / 4);                         // carré → losange (pointes agressives)
+      const h = s / 2;
+      ctx.shadowColor = T.danger; ctx.shadowBlur = 6 + pulse * 5;
+      ctx.fillStyle = bodyCol;
+      ctx.fillRect(-h, -h, s, s);
+      ctx.shadowBlur = 0;
+      ctx.lineWidth = Math.max(1, s * 0.14);
+      ctx.strokeStyle = mix(edgeCol, bodyCol, f);      // f petit = proche tête = arête plus chaude
+      ctx.strokeRect(-h, -h, s, s);
+      ctx.restore();
+    };
+
+    // Tête : crâne en pointe de lance, sourcils froncés, yeux ardents et crocs.
+    const headSeg = (x, y, s) => {
+      const h = s / 2;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(ang);
+      // crâne (pointe de lance vers +x = direction)
+      ctx.shadowColor = T.danger; ctx.shadowBlur = 14 + pulse * 16;
+      ctx.fillStyle = T.danger;
+      ctx.beginPath();
+      ctx.moveTo(-0.92 * h, -0.80 * h);
+      ctx.lineTo( 0.18 * h, -1.00 * h);
+      ctx.lineTo( 1.18 * h,  0);
+      ctx.lineTo( 0.18 * h,  1.00 * h);
+      ctx.lineTo(-0.92 * h,  0.80 * h);
+      ctx.closePath(); ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.lineWidth = Math.max(1, s * 0.08);
+      ctx.strokeStyle = edgeCol; ctx.stroke();
+      // crocs (triangles blancs au museau)
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.moveTo(0.52 * h, -0.30 * h); ctx.lineTo(1.06 * h, -0.10 * h); ctx.lineTo(0.55 * h, 0.02 * h); ctx.closePath();
+      ctx.moveTo(0.52 * h,  0.30 * h); ctx.lineTo(1.06 * h,  0.10 * h); ctx.lineTo(0.55 * h, -0.02 * h); ctx.closePath();
+      ctx.fill();
+      // yeux fâchés : fentes obliques incandescentes (sourcils froncés vers l'avant)
+      ctx.shadowColor = T.amber; ctx.shadowBlur = 5 + pulse * 6;
+      ctx.fillStyle = mix(T.amber, '#ffffff', 0.35);
+      ctx.beginPath();
+      ctx.moveTo(-0.06 * h, -0.30 * h); ctx.lineTo(0.46 * h, -0.54 * h); ctx.lineTo(0.54 * h, -0.34 * h); ctx.lineTo(0.04 * h, -0.14 * h); ctx.closePath();
+      ctx.moveTo(-0.06 * h,  0.30 * h); ctx.lineTo(0.46 * h,  0.54 * h); ctx.lineTo(0.54 * h,  0.34 * h); ctx.lineTo(0.04 * h,  0.14 * h); ctx.closePath();
+      ctx.fill();
+      // pupilles ardentes (rouge profond)
+      ctx.shadowBlur = 0; ctx.fillStyle = mix(T.danger, '#000000', 0.25);
+      ctx.fillRect(0.20 * h, -0.44 * h, 0.13 * h, 0.13 * h);
+      ctx.fillRect(0.20 * h,  0.31 * h, 0.13 * h, 0.13 * h);
+      ctx.restore();
+    };
+
     for (let i = e.body.length - 1; i >= 0; i--) {
       const cur = e.body[i], pv = (e.prev && e.prev[i]) || cur;
       let dx = cur.x - pv.x; if (dx > 1) dx -= COLS; else if (dx < -1) dx += COLS;   // court chemin toroïdal
       let dy = cur.y - pv.y; if (dy > 1) dy -= ROWS; else if (dy < -1) dy += ROWS;
       const gx = pv.x + dx * t, gy = pv.y + dy * t;
       const head = i === 0;
-      const s = cell * (head ? 0.62 : 0.46);
+      const f = i / Math.max(1, e.body.length - 1);    // 0 = tête, 1 = queue
+      const s = cell * (head ? 0.72 : 0.56 * (1 - 0.28 * f));   // queue qui s'affine en pointe
       const seg = (cgx, cgy) => {
         const x = (cgx + 0.5) * cell, y = (cgy + 0.5) * cell;
-        ctx.fillStyle = head ? T.danger : bodyCol;
-        ctx.shadowColor = T.danger; ctx.shadowBlur = head ? (10 + pulse * 10) : 6;
-        U.rr(ctx, x - s / 2, y - s / 2, s, s, s * 0.32); ctx.fill();
-        if (head) {                                   // yeux
-          ctx.shadowBlur = 0; ctx.fillStyle = '#fff';
-          ctx.fillRect(x - s * 0.24, y - s * 0.14, s * 0.16, s * 0.16);
-          ctx.fillRect(x + s * 0.08, y - s * 0.14, s * 0.16, s * 0.16);
-        }
+        if (head) headSeg(x, y, s); else bodySeg(x, y, s, f);
       };
-      ctx.save();
       seg(gx, gy);                                     // image principale + doubles aux bords (traversée)
       if (gx < 0) seg(gx + COLS, gy); else if (gx > COLS - 1) seg(gx - COLS, gy);
       if (gy < 0) seg(gx, gy + ROWS); else if (gy > ROWS - 1) seg(gx, gy - ROWS);
-      ctx.restore();
     }
     ctx.shadowBlur = 0;
   };

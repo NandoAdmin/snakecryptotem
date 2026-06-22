@@ -32,6 +32,7 @@ CT.Achievements = (function () {
     { id: 'score',     icon: '💯', name: 'Meilleur score',      metric: 'bestScore',    tiers: [5000, 25000, 75000, 200000, 500000],     fmt: fNum },
     { id: 'labo',      icon: '🔬', name: 'Mécène du Labo',      metric: 'bankedPts',    tiers: [5000, 50000, 200000, 1000000, 5000000],  fmt: fNum },
     { id: 'parties',   icon: '🎰', name: 'Parties jouées',      metric: 'games',        tiers: [10, 50, 150, 400, 1000],                 fmt: fNum },
+    { id: 'casse',     icon: '🧱', name: 'Ralph la Casse',      metric: 'wallsSmashed', tiers: [5, 25, 100, 250, 500],                   fmt: fNum },
   ];
   const TIERS_PER_QUEST = 5;
 
@@ -46,8 +47,9 @@ CT.Achievements = (function () {
   function save(s) { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (e) {} }
   function state() {
     const s = load();
-    s.stats = s.stats || { totalBat: 0, totalBonus: 0, maxCombo: 0, maxLevel: 1, bestScore: 0, maxDurationMs: 0, bankedPts: 0, games: 0 };
+    s.stats = s.stats || { totalBat: 0, totalBonus: 0, maxCombo: 0, maxLevel: 1, bestScore: 0, maxDurationMs: 0, bankedPts: 0, games: 0, wallsSmashed: 0 };
     if (s.stats.games == null) s.stats.games = 0; // rétro-compat
+    if (s.stats.wallsSmashed == null) s.stats.wallsSmashed = 0; // rétro-compat
     // Paliers déjà atteints : initialisés depuis les stats existantes (sans toast à la 1ʳᵉ fois).
     if (!s.tiers) { s.tiers = {}; QUESTS.forEach((q) => { s.tiers[q.id] = tierOf(q, s.stats); }); }
     return s;
@@ -64,6 +66,7 @@ CT.Achievements = (function () {
     if (delta.durationMs) st.maxDurationMs = Math.max(st.maxDurationMs, delta.durationMs);
     if (delta.bankPts) st.bankedPts += delta.bankPts;
     if (delta.game) st.games += delta.game;
+    if (delta.walls) st.wallsSmashed += delta.walls;
     const newly = [];
     QUESTS.forEach((q) => {
       const cur = s.tiers[q.id] || 0;
