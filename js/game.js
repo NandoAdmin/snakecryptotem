@@ -97,7 +97,7 @@ window.CT = window.CT || {};
     this.acc = 0;
     this.bonus = null;       // power-up à l'écran (ou null) — { x, y, life, max, type }
     this.sinceBonus = 0;     // batteries normales depuis le dernier bonus
-    this.enemy = null;       // serpent ennemi (niv 4+) — { body, prev, dir } ou null
+    this.enemy = null;       // serpent ennemi (niv 3+) — { body, prev, dir } ou null
     this.slowUntil = 0;      // surcharge/ralenti actif tant que time < slowUntil
     this.shieldUntil = 0;    // bouclier (invulnérabilité) actif tant que time < shieldUntil
     this.magnetUntil = 0;    // aimant (attire la batterie) actif tant que time < magnetUntil
@@ -116,7 +116,7 @@ window.CT = window.CT || {};
     this.demo = false;
     // modificateurs issus du Laboratoire (R&D), figés au début de la partie
     this.mods = (window.CT && CT.Lab && CT.Lab.effects) ? CT.Lab.effects()
-      : { pointMult: 1, shieldBonus: 0, slowBonus: 0, magnetBonus: 0, doubleBonus: 0, comboWindowBonus: 0, bonusEveryDelta: 0, bankMult: 1, startShield: 0, luckChance: 0 };
+      : { pointMult: 1, shieldBonus: 0, slowBonus: 0, magnetBonus: 0, doubleBonus: 0, comboWindowBonus: 0, bonusEveryDelta: 0, bankMult: 1, startShield: 0, luckChance: 0, cutDoubleChance: 0 };
     this.updateHud();
     this.loadPersonalBest();
   };
@@ -184,10 +184,11 @@ window.CT = window.CT || {};
 
     this.generateObstacles();
     this.spawnFood();
-    // serpent ennemi à partir du niveau configuré (jamais en démo : 1→3)
+    // serpent ennemi à partir du niveau configuré ; jamais en démo (qui cycle 1→3
+    // et recouvre désormais fromLevel=3 → garde `!this.demo` indispensable)
     this.enemy = null;
     const ec = CT.CONFIG.enemy;
-    if (ec && n >= ec.fromLevel) this.spawnEnemy();
+    if (ec && !this.demo && n >= ec.fromLevel) this.spawnEnemy();
     this.updateHud();
   };
 
@@ -320,13 +321,15 @@ window.CT = window.CT || {};
       if (this.isFree(x, y)) {
         const B = CT.CONFIG.bonus;
         const r = this.rng();
+        const cumD = B.shieldChance + B.magnetChance + B.doubleChance;
         const type = r < B.shieldChance ? 'shield'
           : r < B.shieldChance + B.magnetChance ? 'magnet'
-          : r < B.shieldChance + B.magnetChance + B.doubleChance ? 'double' : 'fast';
+          : r < cumD ? 'double'
+          : r < cumD + B.cutChance ? 'cut' : 'fast';
         this.bonus = { x, y, life: B.life, max: B.life, type };
         // annonce de l'apparition (power-up à durée limitée → attire l'œil)
         const col = type === 'shield' ? T.blue : type === 'magnet' ? T.violet
-          : type === 'double' ? T.pink : T.amber;
+          : type === 'double' ? T.pink : type === 'cut' ? T.lime : T.amber;
         this.spawnFx(x, y, [col, '#ffffff', T.glow], 14);   // éclat « pop » (réduit si reduce-motion)
         if (!this.demo && CT.Audio.appear) CT.Audio.appear();
         return;
@@ -496,7 +499,9 @@ window.CT = window.CT || {};
         if (i === len - 1 && !willEat) continue; // la queue va libérer sa case
         if (this.snake[i].x === nh.x && this.snake[i].y === nh.y) return this.die();
       }
-      if (this.enemyHits(nh.x, nh.y)) return this.die();   // on fonce dans l'ennemi (niv 4+)
+      if (this.enemyHits(nh.x, nh.y)) return this.die();   // on fonce dans l'ennemi (niv 3+)
+    } else if (this.enemy) {
+      this.biteEnemy(nh.x, nh.y);   // BOUCLIER : on mord le Snakator (tête-à-tête = destruction)
     }
 
     // déplacement (index stables : segment i suit i-1)
@@ -520,11 +525,51 @@ window.CT = window.CT || {};
     // aimant : attire la batterie d'une case vers la tête (déterministe, sans aléa)
     if (this.time < this.magnetUntil) this.pullFood();
 
-    // serpent ennemi (niv 4+) : il se déplace, puis on reteste le contact avec la tête
+    // serpent ennemi (niv 3+) : il se déplace, puis on reteste le contact avec la tête
     if (this.enemy && this.state === 'playing') {
       this.stepEnemy();
-      if (this.time >= this.shieldUntil && this.enemyHits(nh.x, nh.y)) return this.die();
+      if (this.time >= this.shieldUntil) {
+        if (this.enemyHits(nh.x, nh.y)) return this.die();
+      } else {
+        this.biteEnemy(nh.x, nh.y);   // BOUCLIER : l'ennemi a foncé sur notre tête → on le mord
+      }
     }
+  };
+
+  // Bouclier : MORD le serpent ennemi à la case (x,y). Tête-à-tête (bloc 0) → destruction
+  // TOTALE ; sinon on coupe sa queue à partir du bloc touché. Renvoie le nb de blocs détruits.
+  G.biteEnemy = function (x, y) {
+    const e = this.enemy; if (!e) return 0;
+    const b = e.body;
+    let idx = -1;
+    for (let i = 0; i < b.length; i++) if (b[i].x === x && b[i].y === y) { idx = i; break; }
+    if (idx < 0) return 0;
+    const headHit = idx === 0;
+    const removed = b.slice(idx);          // blocs détruits (pour les FX) ; tête-à-tête → tout
+    const destroyed = removed.length;
+    if (headHit) {
+      this.enemy = null;                   // destruction totale
+    } else {
+      e.body.splice(idx);                  // coupe la queue au point d'impact
+      if (e.prev) e.prev.splice(idx);
+    }
+    // feedback d'impact (cosmétique)
+    for (const s of removed) this.spawnFx(s.x, s.y, [T.danger, T.amber, '#ffffff'], headHit ? 16 : 10);
+    this.flash = Math.max(this.flash, headHit ? 0.85 : 0.5); this.flashColor = T.danger;
+    if (!this.reduce) this.shake = Math.max(this.shake, headHit ? 0.7 : 0.4);
+    this.haptic(headHit ? [0, 40, 30, 70] : 25);
+    if (CT.Audio.smash) CT.Audio.smash();
+    // récompense + quête (jeu réel uniquement ; l'ennemi n'existe pas en démo)
+    if (!this.demo) {
+      const gain = (CT.CONFIG.enemy.bitePoints || 40) * this.levelNum * destroyed;
+      this.points += gain;
+      this._scored();
+      this.spawnToast((headHit ? '💥 SNAKATOR DÉTRUIT +' : '✂️ +') + gain, x, y);
+      this._ach({ snakator: destroyed });
+      if (headHit && CT.Audio.achievement) CT.Audio.achievement();
+      this.updateHud();
+    }
+    return destroyed;
   };
 
   // Bouclier : détruit un mur heurté (+ bonus pièces) sans consommer le bouclier.
@@ -701,6 +746,21 @@ window.CT = window.CT || {};
       this.spawnFx(b.x, b.y, [T.pink, '#ffffff', T.amber, T.glow], 26);
       this.doubleUntil = this.time + B.doubleDuration + this.mods.doubleBonus;     // Labo : double prolongé
       if (!this.demo) this._awardBonus(B.doublePoints * this.levelNum, 'DOUBLE', b);
+    } else if (b.type === 'cut') {
+      // Coupe-câble : effet INSTANTANÉ → raccourcit la queue (1 bloc, ×2 via Labo « Double coupe »).
+      this.flash = 0.8; this.flashColor = T.lime;
+      if (CT.Audio.smash) CT.Audio.smash();
+      this.spawnFx(b.x, b.y, [T.lime, T.charge, '#ffffff', T.glow], 26);
+      let n = CT.CONFIG.bonus.cutBlocks || 1;
+      // Labo : proba (5 %/niv) d'enlever 2 blocs. Math.random (pas this.rng) → ne décale pas l'aléa des spawns.
+      if (this.mods.cutDoubleChance > 0 && Math.random() < 0.05 * this.mods.cutDoubleChance) n = 2;
+      const removed = this.cutTail(n);
+      if (!this.demo) {
+        const gain = B.cutPoints * this.levelNum;
+        this.points += gain; this._scored();
+        this.spawnToast('✂️ −' + removed + ' bloc' + (removed > 1 ? 's' : '') + '  +' + gain, b.x, b.y);
+        this.updateHud();
+      }
     } else {
       this.flash = 0.8; this.flashColor = T.amber;
       CT.Audio.bonus();
@@ -708,6 +768,19 @@ window.CT = window.CT || {};
       this.slowUntil = this.time + B.slowDuration + this.mods.slowBonus;          // Labo : surcharge prolongée
       if (!this.demo) this._awardBonus(B.points * this.levelNum, 'SURCHARGE', b);
     }
+  };
+
+  // Retire jusqu'à `n` blocs de la queue du serpent (sans descendre sous `cutMin`).
+  // Renvoie le nombre réellement retiré. Tête + prev gardés cohérents pour l'interpolation.
+  G.cutTail = function (n) {
+    const min = CT.CONFIG.bonus.cutMin || 2;
+    let removed = 0;
+    while (removed < n && this.snake.length > min) {
+      this.snake.pop();
+      if (this.prev && this.prev.length > this.snake.length) this.prev.pop();
+      removed++;
+    }
+    return removed;
   };
 
   G._awardBonus = function (gain, label, b) {
@@ -960,7 +1033,7 @@ window.CT = window.CT || {};
   G.drawBonus = function () {
     const ctx = this.ctx, cell = this.cell, b = this.bonus;
     const ring = b.type === 'shield' ? T.blue : b.type === 'magnet' ? T.violet
-      : b.type === 'double' ? T.pink : T.amber;
+      : b.type === 'double' ? T.pink : b.type === 'cut' ? T.lime : T.amber;
     const cx = (b.x + 0.5) * cell, cy = (b.y + 0.5) * cell;
     const frac = U.clamp(b.life / b.max, 0, 1);
     const pulse = 0.5 + 0.5 * Math.sin(this.time * 9);
@@ -981,6 +1054,7 @@ window.CT = window.CT || {};
     if (b.type === 'shield') { grad.addColorStop(0, '#9ec7ff'); grad.addColorStop(1, T.blue); }
     else if (b.type === 'magnet') { grad.addColorStop(0, '#d6c2ff'); grad.addColorStop(1, T.violet); }
     else if (b.type === 'double') { grad.addColorStop(0, '#ffc2e6'); grad.addColorStop(1, T.pink); }
+    else if (b.type === 'cut') { grad.addColorStop(0, '#cffbb8'); grad.addColorStop(1, T.lime); }
     else { grad.addColorStop(0, '#ffe79b'); grad.addColorStop(1, T.amber); }
     ctx.fillStyle = grad; ctx.shadowBlur = 14;
     U.rr(ctx, -bw / 2, -bh / 2, bw, bh, bh * 0.3); ctx.fill();
@@ -1013,6 +1087,15 @@ window.CT = window.CT || {};
       ctx.font = '800 ' + Math.round(bh * 0.95) + 'px -apple-system, system-ui, sans-serif';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText('×2', 0, bh * 0.04);
+    } else if (b.type === 'cut') {
+      // glyphe ciseaux (deux lames croisées + anneaux des poignées)
+      ctx.strokeStyle = '#0c3a18'; ctx.lineWidth = bh * 0.12; ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(-bw * 0.24, -bh * 0.24); ctx.lineTo(bw * 0.24, bh * 0.2);
+      ctx.moveTo(-bw * 0.24, bh * 0.24); ctx.lineTo(bw * 0.24, -bh * 0.2);
+      ctx.stroke();
+      ctx.beginPath(); ctx.arc(-bw * 0.26, -bh * 0.22, bh * 0.13, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(-bw * 0.26, bh * 0.22, bh * 0.13, 0, Math.PI * 2); ctx.stroke();
     } else {
       // éclair sombre
       ctx.fillStyle = '#5a3b00';

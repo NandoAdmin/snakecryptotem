@@ -123,16 +123,25 @@ plateau), et tête/queue sont **dupliquées** de l'autre côté pendant la trave
 (`_forEachWrap`). L'IA démo et la distance utilisées sont **toroïdales**. Les
 bords sont dessinés en pointillé « portail ».
 
-### Serpent ennemi (`CONFIG.enemy`, dès le niveau `fromLevel` = 4)
+### Serpent ennemi (`CONFIG.enemy`, dès le niveau `fromLevel` = 3)
 Un **mini serpent rouge** (`this.enemy = { body, prev, dir }`, longueur `length`) rôde
-sur la map à partir du niveau 4 (`spawnEnemy` dans `setupLevel`, loin du spawn joueur,
-jamais en démo qui cycle 1→3). Il avance d'**une case par pas** (`stepEnemy`, appelé
+sur la map à partir du niveau 3 (`spawnEnemy` dans `setupLevel`, loin du spawn joueur).
+⚠️ `fromLevel=3` recouvre la plage de la démo (1→3) : l'apparition est **explicitement
+bloquée en démo** (garde `!this.demo` dans `setupLevel`) pour garder l'écran attract calme.
+Il avance d'**une case par pas** (`stepEnemy`, appelé
 dans `step()`) : marche aléatoire avec inertie (`turnChance`), évite demi-tour /
 obstacles / son corps, bords **toroïdaux**, aléa **déterministe** (`this.rng`). **Mortel
 si notre tête le touche** (`enemyHits` → `die()`), testé avant ET après son déplacement,
-**sauf bouclier** (même invuln. que obstacles/câble). Rendu `drawEnemy` : carrés rouges
-interpolés + glow « danger », tête à yeux, duplication aux bords (traversée). Dessiné
-**sous** le serpent joueur.
+**sauf bouclier**. ⚔️ **Sous bouclier, on le MORD** (`biteEnemy`, testé aux deux mêmes
+points que la mort) : **tête-à-tête** (bloc 0) → **destruction totale** ; sinon on **coupe
+sa queue** à partir du bloc touché (`body.splice(idx)`). Chaque bloc détruit rapporte
+`enemy.bitePoints × niveau` pièces, alimente la quête **« Tueur de Snakator »**
+(`_ach({snakator})`) et déclenche éclats/secousse/son ; le **bouclier reste actif** (comme
+le brise-mur). Rendu `drawEnemy` **agressif** :
+crâne en **pointe de lance** orienté vers la direction, **yeux fâchés** ambrés (sourcils
+froncés) + pupilles ardentes, **crocs**, corps en **épine dorsale dentelée** (losanges) à
+queue affinée, glow « danger » pulsé (atténué sous `prefers-reduced-motion`), duplication
+aux bords (traversée). Dessiné **sous** le serpent joueur.
 
 ---
 
@@ -232,14 +241,15 @@ Méta-progression persistante (localStorage `ct_lab`) qui donne de la durée de 
   visé** (`researchTimeMs(l+1)`, utilisé par tous les upgrades) : 30 s · 1 min · 3 min
   · 5 min · 10 min · 30 min · 1 h · 2 h · 4 h · 8 h · 12 h · 16 h · 24 h · 30 h · 36 h …
   puis **+6 h par niveau** au-delà (idle / retour différé).
-- **11 améliorations** (`CT.Lab.UPGRADES`, plusieurs niveaux) : Surtension (+10 %
+- **12 améliorations** (`CT.Lab.UPGRADES`, plusieurs niveaux) : Surtension (+10 %
   points/batterie), Bouclier renforcé (+1 s), Surcharge prolongée (+1 s), Aimant
   longue portée (+1 s), Double prolongé (+1 s de double points), Combo facile
   (+0,5 s de fenêtre), R&D power-ups (fréquence), **Rendement R&D** (+5 %/niv de
   ressources versées, max 15), **Départ protégé** (+1 s/niv de bouclier en début de
   niveau), **Inflation** (+5 %/niv de pièces par objet ; coûte **uniquement des pièces**
   ⚡ : 100·250·500·750…), **Coup de chance** (+5 %/niv de proba, à chaque objet, de
-  **×2 pièces + batterie** de ce ramassage).
+  **×2 pièces + batterie** de ce ramassage) et **Double coupe** (+5 %/niv de proba que le
+  **coupe-câble** retire **2 blocs** de queue au lieu d'1).
 - **Effets** : `CT.Lab.effects()` → `game.mods` (figé au `startRun`), appliqué dans
   `onEat` (points/combo/fréquence + `pointMult` = surtension + inflation + proc
   `luckChance` via `Math.random` pour ne pas décaler l'aléa des spawns), `onEatBonus`
@@ -261,15 +271,17 @@ Méta-progression persistante (localStorage `ct_ach`) → rejouabilité longue d
   combo, level, score, durationMs, bankPts, game})` (depuis `game._ach`, **jamais en démo**) ;
   le module met à jour cumuls/maxima et renvoie les **paliers nouvellement franchis**.
   `CT.Achievements.stats()` renvoie une copie des stats cumulées (écran Statistiques).
-- **8 quêtes × 5 paliers** (`QUESTS`) — chaque quête garde son thème mais a 5 seuils
+- **10 quêtes × 5 paliers** (`QUESTS`) — chaque quête garde son thème mais a 5 seuils
   croissants → médailles **Bronze · Argent · Or · Platine · Diamant** (1 étoile/palier,
-  **40 étoiles** au total). Quêtes : Batteries ramassées, Niveau atteint, Combo max,
-  Power-ups ramassés, Survie, Meilleur score, Mécène du Labo, Parties jouées. Le palier
+  **50 étoiles** au total). Quêtes : Batteries ramassées, Niveau atteint, Combo max,
+  Power-ups ramassés, Survie, Meilleur score, Mécène du Labo, Parties jouées, **Ralph la
+  Casse** (murs brisés sous bouclier) et **Tueur de Snakator** (blocs du serpent ennemi
+  détruits sous bouclier). Le palier
   courant = nb de seuils franchis (`tierOf`) ; `s.tiers` est initialisé depuis les stats
   existantes **sans toast** à la 1ʳᵉ fois (pas de rafale au chargement).
 - **UI** (câblée dans `main.js`) : écran « 🏆 Quêtes » (bouton accueil) — pour chaque
   quête : médaille courante, **★ pleines/☆ vides**, et progression vers le palier suivant
-  (`valeur / prochain seuil`) ; compteur `★ X/40` (dynamique via `count()`). À chaque
+  (`valeur / prochain seuil`) ; compteur `★ X/50` (dynamique via `count()`). À chaque
   palier franchi en jeu, `game.onAchievement(def)` affiche une **notification toast**
   (« PALIER ATTEINT », file d'attente, jingle `CT.Audio.achievement()`).
   `CT.Achievements.reset()` remet à zéro.
@@ -278,7 +290,8 @@ Méta-progression persistante (localStorage `ct_ach`) → rejouabilité longue d
 Écran « 📊 Stats » (bouton accueil) qui **affiche** les stats cumulées déjà suivies par
 `CT.Achievements` : grille de cartes (parties jouées, batteries totales, power-ups,
 meilleur score, niveau max, combo max, meilleure survie `mm:ss`, points versés au Labo,
-quêtes `★ X/40`). Lecture seule via `CT.Achievements.stats()` + `count()`. Le compteur
+murs brisés, Snakator détruit, quêtes `★ X/50`). Lecture seule via `CT.Achievements.stats()`
++ `count()`. Le compteur
 **parties jouées** (`stats.games`) est incrémenté à la mort (`game._ach({game:1})`).
 
 ### Mode démo / attract (`G.startDemo` + `G.autopilot`)
@@ -299,8 +312,8 @@ Un power-up apparaît périodiquement (toutes les `bonus.every` batteries, proba
 pour signaler l'urgence. À l'apparition, `spawnBonus` joue une **annonce** : éclat de
 particules de la couleur du type + petit son `CT.Audio.appear()` (attire l'œil sur ce
 bonus à durée limitée).
-Quatre types (`bonus.type`), tirés à l'apparition (`shieldChance` / `magnetChance` /
-`doubleChance`, sinon charge rapide) :
+Cinq types (`bonus.type`), tirés à l'apparition (`shieldChance` / `magnetChance` /
+`doubleChance` / `cutChance`, sinon charge rapide) :
 - **Charge Rapide** (batterie dorée) : `bonus.points × niveau`, particules
   dorées, et **« Surcharge »** = ralenti temporaire (`bonus.slowFactor` sur
   l'intervalle pendant `bonus.slowDuration` s) → bandeau « ⚡ SURCHARGE ».
@@ -317,6 +330,11 @@ Quatre types (`bonus.type`), tirés à l'apparition (`shieldChance` / `magnetCha
   **×2 sur les points de chaque batterie** pendant `bonus.doubleDuration` s
   (`doubleUntil`, appliqué dans `onEat`). ⚠️ Ce multiplicateur est répercuté dans
   le plafond anti-triche partagé (`scoring-rules.js`, `DOUBLE_MULT`).
+- **Coupe-câble** (batterie verte ✂️) : `bonus.cutPoints × niveau`, et effet
+  **INSTANTANÉ** → **raccourcit la queue** de `bonus.cutBlocks` bloc(s) (`cutTail`, sans
+  descendre sous `bonus.cutMin`) — réduit le risque de se mordre la queue. Pas de durée
+  (aucune pastille). Labo **« Double coupe »** : proba `5 %/niv` (`mods.cutDoubleChance`,
+  via `Math.random` → ne décale pas l'aléa déterministe) d'enlever **2 blocs** au lieu d'1.
 
 Aucun ne fait grandir le serpent ni avancer l'objectif. `effInterval` =
 intervalle effectif (avec surcharge) utilisé par la boucle et l'interpolation.
@@ -412,7 +430,7 @@ complet : Reed-Solomon GF(256), sélection de masque par pénalité, BCH format/
 - [x] **Laboratoire / R&D** : banque batteries+points, recherches chronométrées
       (barème de temps par niveau visé, jusqu'à 36 h+), 9 améliorations permanentes
       dont Rendement R&D & Départ protégé (durée de vie / méta-progression).
-- [x] **Quêtes à paliers** : 8 quêtes × 5 paliers (Bronze→Diamant, 40 ★), écran « 🏆 Quêtes »
+- [x] **Quêtes à paliers** : 10 quêtes × 5 paliers (Bronze→Diamant, 50 ★), écran « 🏆 Quêtes »
       (médaille + étoiles + progression) et notification toast à chaque palier franchi.
 - [x] **Écran Statistiques** (« 📊 Stats ») : grille de cartes des stats cumulées
       (parties, batteries, power-ups, meilleur score, niveau/combo max, survie, Labo, succès).
@@ -425,3 +443,5 @@ complet : Reed-Solomon GF(256), sélection de masque par pénalité, BCH format/
       plafond anti-triche mis à jour, `DOUBLE_MULT`).
 - [x] **Retour auto au mode attract** après inactivité (bornes en bar : l'écran ne
       reste jamais figé sur game over / pause / cinématique / partie abandonnée).
+- [x] Power-up « Coupe-câble » (batterie verte ✂️ → raccourcit la queue, `cutTail`)
+      + recherche Labo « Double coupe » (proba 5 %/niv d'enlever 2 blocs au lieu d'1).

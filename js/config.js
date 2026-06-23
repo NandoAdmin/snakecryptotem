@@ -41,21 +41,29 @@ CT.CONFIG = {
     points: 250,         // points « charge rapide » (× niveau)
     slowDuration: 3,     // durée de la « surcharge » (ralenti) accordée (s)
     slowFactor: 1.6,     // multiplicateur d'intervalle pendant la surcharge (plus lent)
-    shieldChance: 0.32,  // proba qu'un power-up soit un bouclier
+    shieldChance: 0.30,  // proba qu'un power-up soit un bouclier
     shieldDuration: 5,   // durée d'invulnérabilité du bouclier (s)
     shieldPoints: 120,   // points bouclier (× niveau)
-    magnetChance: 0.24,  // proba qu'un power-up soit un aimant (sinon charge rapide)
+    magnetChance: 0.20,  // proba qu'un power-up soit un aimant (sinon charge rapide)
     magnetDuration: 5,   // durée d'attraction de l'aimant (s)
     magnetPoints: 150,   // points aimant (× niveau)
-    doubleChance: 0.20,  // proba qu'un power-up soit « double points »
+    doubleChance: 0.18,  // proba qu'un power-up soit « double points »
     doubleDuration: 6,   // durée du ×2 points (s)
     doublePoints: 200,   // points à la prise (× niveau) — ≤ points (plafond anti-triche)
+    cutChance: 0.14,     // proba qu'un power-up soit un « coupe-câble » (raccourcit la queue)
+    cutPoints: 120,      // points à la prise du coupe-câble (× niveau)
+    cutBlocks: 1,        // nb de blocs de queue retirés (×2 via Labo « Double coupe »)
+    cutMin: 2,           // longueur minimale du serpent (on ne coupe jamais en dessous)
     wallPoints: 60,      // bonus pièces (× niveau) par mur détruit au bouclier
   },
 
-  /* Serpent ennemi : rôde sur la map à partir du niveau `fromLevel`. Mortel si notre
-     tête le touche (sauf bouclier). Se déplace d'une case par pas (même vitesse). */
-  enemy: { fromLevel: 4, length: 4, turnChance: 0.25 },
+  /* Serpent ennemi (« Snakator ») : rôde sur la map à partir du niveau `fromLevel`.
+     Mortel si notre tête le touche — SAUF sous bouclier : on le MORD alors (`biteEnemy`)
+     → tête-à-tête = destruction totale, sinon on coupe sa queue au point d'impact.
+     `bitePoints` = pièces gagnées par bloc détruit (× niveau). Se déplace d'une case/pas.
+     ⚠️ `fromLevel` recouvre la plage de la démo (1→3) : l'apparition est explicitement
+        bloquée en démo (cf. setupLevel, garde `!this.demo`) pour garder l'écran attract calme. */
+  enemy: { fromLevel: 3, length: 4, turnChance: 0.25, bitePoints: 40 },
 
   /* Thème — couleurs de jeu. Rebrander = changer ces valeurs. */
   theme: {

@@ -81,6 +81,11 @@ CT.Lab = (function () {
       desc: (l) => (l * 5) + '% de chance de ×2 (pièces + batterie) par objet',
       cost: (l) => ({ bat: 20 * (l + 1), pts: 1000 * (l + 1) }), time: (l) => researchTimeMs(l + 1),
     },
+    doublecoupe: {
+      name: 'Double coupe', icon: '✂️', max: 10,
+      desc: (l) => (l * 5) + '% de chance d\'enlever 2 blocs (au lieu d\'1) au coupe-câble',
+      cost: (l) => ({ bat: 18 * (l + 1), pts: 900 * (l + 1) }), time: (l) => researchTimeMs(l + 1),
+    },
   };
 
   function load() { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { return {}; } }
@@ -152,6 +157,7 @@ CT.Lab = (function () {
       bankMult: 1 + 0.05 * level('rendement'),   // (informatif : appliqué dans bank())
       startShield: 0.5 * level('depart'),        // s de bouclier au début de chaque niveau (0,5/niv)
       luckChance: level('chance'),               // ×5 % proba de ×2 (pièces+batterie) par objet
+      cutDoubleChance: level('doublecoupe'),     // ×5 % proba d'enlever 2 blocs au coupe-câble
     };
   }
 
@@ -160,7 +166,7 @@ CT.Lab = (function () {
 
   // Modificateurs neutres (avant chargement / fallback).
   function neutral() {
-    return { pointMult: 1, shieldBonus: 0, slowBonus: 0, magnetBonus: 0, doubleBonus: 0, comboWindowBonus: 0, bonusEveryDelta: 0, bankMult: 1, startShield: 0, luckChance: 0 };
+    return { pointMult: 1, shieldBonus: 0, slowBonus: 0, magnetBonus: 0, doubleBonus: 0, comboWindowBonus: 0, bonusEveryDelta: 0, bankMult: 1, startShield: 0, luckChance: 0, cutDoubleChance: 0 };
   }
 
   return {
