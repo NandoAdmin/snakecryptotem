@@ -60,6 +60,7 @@ Snake Cryptotem/
 │   ├── leaderboard.js  # CT.Leaderboard — classement perso/semaine/global (délègue à ScoringRules)
 │   ├── lab.js          # CT.Lab — Laboratoire : banque + recherches chronométrées + upgrades permanents
 │   ├── achievements.js # CT.Achievements — quêtes à 5 paliers (Bronze→Diamant) sur stats cumulées
+│   ├── skins.js        # CT.Skins — apparences du serpent (palettes) déblocables aux étoiles de quêtes
 │   ├── qrcode.js       # CT.QR — générateur de QR code autonome (octet/UTF-8, niveau M) pour la CTA
 │   ├── cinematics.js   # CT.Cinematic — animations de fin de niveau (plusieurs variantes)
 │   ├── game.js         # CT.Game — machine à états, boucle, rendu monde, collisions
@@ -143,6 +144,31 @@ froncés) + pupilles ardentes, **crocs**, corps en **épine dorsale dentelée** 
 queue affinée, glow « danger » pulsé (atténué sous `prefers-reduced-motion`), duplication
 aux bords (traversée). Dessiné **sous** le serpent joueur.
 
+### Mini-boss (`CONFIG.boss`, tous les `everyLevels` = 5 niveaux)
+Aux niveaux **5, 10, 15…** (`bossLevel`, jamais en démo), un **combat de boss DÉDIÉ**
+remplace l'objectif batteries : **pas de batterie à ramasser** (`food = null`), il faut
+**vider la barre de PV** du boss en le **mordant sous bouclier**. Le boss est un serpent
+ennemi **surdimensionné à PV** (`spawnBoss(tier)` → `this.enemy = { …, boss:true, hp, maxHp,
+tier }`, `tier = niveau / everyLevels`). Il **POURSUIT** le joueur (`stepEnemy` : branche
+`e.boss` = option qui rapproche le plus de la tête joueur, chemin toroïdal, + `boss.turnChance`
+d'imprévu). **Mortel au contact hors bouclier** (`enemyHits → die()`, comme l'ennemi).
+- **Morsure** (`biteEnemy`, branche `e.boss`) : entame les **PV** au lieu de détruire (le boss
+  garde sa taille, menace constante). Tête-à-tête = `boss.headDamage` (2), corps = 1. Chaque
+  PV ôté rapporte `enemy.bitePoints × niveau` et alimente la quête **« Tueur de Snakator »**.
+  À `hp ≤ 0` → `bossDefeated()` : grosse récompense (`boss.reward × tier × niveau`), fanfare,
+  puis **cinématique** (niveau terminé).
+- **Boucliers fréquents** : pas de batterie → un **bouclier garanti** (`spawnBonus('shield')`)
+  apparaît tous les `bossShieldEvery` pas (`shieldEveryBase` = 9 au palier 1, **+`shieldEveryPerTier`
+  par palier** → de moins en moins). Spawn câblé dans `step()`. Les **malus sont désactivés** en
+  combat de boss.
+- **Difficulté par palier** : PV `baseHp + (tier-1)·hpPerTier`, longueur `baseLen + (tier-1)·lenPerTier`
+  (plafond `maxLen`), **murs** `(tier-1)·wallsPerTier` (aucun au 1ᵉʳ palier, plafond `wallsMax`).
+- **UI** : HUD bascule la barre sur les PV (`❤️`, classe `.hud-progress.boss` rouge, `#batUnit`),
+  bannière d'intro « 👹 BOSS — NIVEAU X », et **barre de PV sur le canvas** (`drawBossBar`, haut du
+  plateau). Rendu boss `drawEnemy` : segments **×1.35** + **aura violette** (`glowCol = T.violet`)
+  pour le distinguer du Snakator normal. Le score du boss reste **sous le plafond anti-triche** (le
+  plafond suppose déjà une batterie max-combo à chaque pas → large marge).
+
 ---
 
 ## 🎨 Identité visuelle (d'après logo.png + Station.jpeg)
@@ -185,12 +211,14 @@ aux bords (traversée). Dessiné **sous** le serpent joueur.
   Garantit qu'aucune batterie n'est jamais enfermée (map toujours jouable).
 
 ### Cinématiques (`js/cinematics.js`)
-9 **variantes** (recharge express, confettis, pulse néon, surcharge turbo, totem
+10 **variantes** (recharge express, confettis, pulse néon, surcharge turbo, totem
 pixel, **la ville se recharge** — skyline dont les fenêtres s'allument au rythme de
 la charge —, **le réseau s'allume** — maillage de stations Cryptotem dont les
 nœuds et liens s'allument avec la charge —, **aurore énergétique** — rideaux d'aurore
-boréale néon qui ondulent et s'intensifient avec la charge — et **vortex néon** — spirale
-d'énergie qui tourne et s'étend avec la charge). `CT.pickCinematic(lastVariant)` choisit une variante **différente de la
+boréale néon qui ondulent et s'intensifient avec la charge —, **vortex néon** — spirale
+d'énergie qui tourne et s'étend avec la charge — et **pluie de comètes** — traînées
+lumineuses qui filent en diagonale sur un fond étoilé, de plus en plus nombreuses avec la
+charge). `CT.pickCinematic(lastVariant)` choisit une variante **différente de la
 précédente** (liste : `CT.CINEMATICS`). Timeline en phases : `enter` → `connect` →
 `charge` → `celebrate` (boucle jusqu'au clic « Niveau suivant »). Chaque variante a
 sa spec (`accent`, `title`, entrée `from`), son fond (`_drawBackground`) et ses
@@ -294,6 +322,23 @@ murs brisés, Snakator détruit, quêtes `★ X/50`). Lecture seule via `CT.Achi
 + `count()`. Le compteur
 **parties jouées** (`stats.games`) est incrémenté à la mort (`game._ach({game:1})`).
 
+### Skins du serpent (`js/skins.js` → `CT.Skins`)
+Apparences déblocables du serpent. Un **skin = une palette** (1 couleur par batterie, cyclée
+comme `CONFIG.snakePalette`) donnée par des **clés de `CONFIG.theme`** → reste rebrandable
+(jamais de couleur en dur). **6 skins** (`CT.Skins.SKINS`) : Cyan classique (défaut),
+Glacier, Forêt néon, Magma, Prisme, Or pur. **Déblocage par le nombre d'ÉTOILES de quêtes**
+déjà gagnées (`CT.Achievements.count().unlocked` ≥ `skin.stars` : 0 · 4 · 9 · 16 · 26 · 40) →
+récompense la progression existante, **pas de nouvelle monnaie**. Sélection persistée
+(`localStorage ct_skin`), repliée sur `classic` si plus débloquée.
+- **Intégration moteur** : `game.palette = CT.Skins.activePalette()` (figée au `reset`, donc à
+  chaque partie/`toMenu`) ; `setupLevel`/`onEat` cyclent **`this.palette`** au lieu de la
+  constante `PALETTE` (qui reste le défaut de repli). Choisir un skin met aussi à jour
+  `CT.game.palette` à chaud (la démo derrière le menu le reflète).
+- **UI** : écran « 🎨 Skins » (bouton accueil) — carte par skin avec **aperçu en pastilles**,
+  état (✓ Équipé / Choisir / 🔒 N ★ requises), clic pour équiper si débloqué (`renderSkins`
+  dans `main.js`). ⚠️ `isUnlocked` utilise la fonction **interne** `stars()` (pas la méthode
+  exportée) → le gating ne se mocke pas en remplaçant `CT.Skins.stars`.
+
 ### Mode démo / attract (`G.startDemo` + `G.autopilot`)
 Au chargement et au retour menu, le serpent **joue tout seul** derrière le menu
 (idéal pour les écrans en bar). IA gloutonne : se rapproche de la batterie en
@@ -377,6 +422,11 @@ rouges (`drawEffects`) pour les malus temporisés (court-circuit / brouillage / 
   volume**, **désactivée par défaut**, persistée (`ct_music`), toggle « 🎵 Musique »
   sur l'accueil. Démarre au 1ᵉʳ geste utilisateur (politique autoplay) et est
   coupée par le mute global.
+- **Musique dynamique** (`CT.Audio.setTension(0→1)`) : quand la musique tourne, le jeu
+  module sa **tension** (volume + ouverture du filtre + vitesse du LFO) selon le contexte —
+  **objectif proche** (≤ 2 batteries → ~0,6), **sous malus** (~0,85) ou **combat de boss**
+  (~0,55 montant jusqu'à ~0,95 quand le boss faiblit). Calculée chaque frame dans `game.tick`
+  et n'appelle `setTension` que sur **variation** (> 0,02) ; **no-op si la musique est coupée**.
 
 ### Game feel (retours)
 - **Haptique** (`game.haptic`, mobile/tablette via `navigator.vibrate`, no-op
@@ -422,15 +472,15 @@ complet : Reed-Solomon GF(256), sélection de masque par pénalité, BCH format/
 - Couleurs **uniquement** via `CONFIG.theme`.
 - Code attaché à `window.CT`, ordre de chargement des `<script>` important
   (config → audio → input → scoring-rules → leaderboard → lab → achievements →
-  qrcode → cinematics → game → main).
+  skins → qrcode → cinematics → game → main).
 
 ## 🗺️ Pistes / TODO
 
 - [x] Vérifier le rendu dans un navigateur (preview).
-- [x] 9 variantes de cinématiques distinctes (express, confetti, pulse, turbo, totem,
+- [x] 10 variantes de cinématiques distinctes (express, confetti, pulse, turbo, totem,
       ville — la ville se recharge, fenêtres qui s'allument ; reseau — le réseau de
       stations Cryptotem qui s'allume, nœuds + liens ; aurora — aurore boréale néon ;
-      galaxie — vortex d'énergie en spirale).
+      galaxie — vortex d'énergie en spirale ; comete — pluie de comètes sur fond étoilé).
 - [x] Score + combo + meilleur score persistant (localStorage).
 - [x] Mode « attract / démo » qui tourne tout seul (écrans en bar).
 - [x] Call-to-action Cryptotem sur l'écran de fin.
@@ -473,3 +523,11 @@ complet : Reed-Solomon GF(256), sélection de masque par pénalité, BCH format/
       des power-ups, jamais en démo) — 6 types : 🍔 burger (+2 joueur), ⚡ court-circuit, 🌫️ brouillage,
       🧲 aimant inversé, 🧱 obstacles temporaires, 💸 vol de pièces. Sauf le burger, chacun
       allonge AUSSI le serpent ennemi de 2 blocs (`growEnemy`).
+- [x] **Mini-boss** tous les 5 niveaux (`CONFIG.boss`) : combat dédié à PV (pas d'objectif
+      batteries), boss qui poursuit, vaincu en le mordant sous bouclier. Boucliers très
+      fréquents au 1ᵉʳ palier puis de moins en moins ; murs ajoutés par palier. Barre de PV
+      (HUD ❤️ + canvas), aura violette, récompense + cinématique à la victoire.
+- [x] **Skins du serpent** (`js/skins.js`) : 6 palettes déblocables aux étoiles de quêtes
+      (0/4/9/16/26/40 ★), écran « 🎨 Skins », sélection persistée (`ct_skin`).
+- [x] **Musique dynamique** (`CT.Audio.setTension`) : la musique d'ambiance monte en tension
+      près de l'objectif, sous malus et en combat de boss (no-op si musique coupée).

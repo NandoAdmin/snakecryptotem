@@ -86,6 +86,29 @@ CT.CONFIG = {
         bloquée en démo (cf. setupLevel, garde `!this.demo`) pour garder l'écran attract calme. */
   enemy: { fromLevel: 3, length: 4, turnChance: 0.25, bitePoints: 40 },
 
+  /* MINI-BOSS (« Snakator Prime ») : un combat dédié tous les `everyLevels` niveaux
+     (5, 10, 15…). Le niveau boss REMPLACE l'objectif batteries : pas de batterie à
+     ramasser, on doit vider les PV du boss en le MORDANT sous bouclier (`biteEnemy`).
+     Pour ça, des BOUCLIERS apparaissent très souvent (1 essai tous les `shieldEveryBase`
+     pas au 1ᵉʳ palier) — de moins en moins à chaque palier (`shieldEveryPerTier`), et
+     quelques MURS s'ajoutent par palier (`wallsPerTier`). Le boss POURSUIT le joueur.
+     Mortel au contact hors bouclier (comme l'ennemi). `tier` = niveau / everyLevels. */
+  boss: {
+    everyLevels: 5,        // un boss tous les N niveaux
+    baseLen: 7,            // longueur du boss au 1ᵉʳ palier
+    lenPerTier: 2,         // +blocs par palier (plafonné maxLen)
+    maxLen: 16,
+    baseHp: 6,             // PV au 1ᵉʳ palier
+    hpPerTier: 3,          // +PV par palier
+    headDamage: 2,         // dégâts d'une morsure tête-à-tête (corps = 1)
+    turnChance: 0.18,      // imprévu de poursuite (bas = poursuite plus directe)
+    wallsPerTier: 4,       // murs ajoutés par palier (0 au palier 1)
+    wallsMax: 16,
+    shieldEveryBase: 9,    // boucliers TRÈS fréquents au palier 1 (1 essai / N pas)
+    shieldEveryPerTier: 6, // … de moins en moins fréquents par palier
+    reward: 800,           // pièces (× palier × niveau) à la victoire
+  },
+
   /* Thème — couleurs de jeu. Rebrander = changer ces valeurs. */
   theme: {
     bg0:      '#02161a',
@@ -174,7 +197,7 @@ CT.util = {
 };
 
 /* Variantes de cinématiques disponibles (détail dans cinematics.js). */
-CT.CINEMATICS = ['express', 'confetti', 'pulse', 'turbo', 'totem', 'ville', 'reseau', 'aurora', 'galaxie'];
+CT.CINEMATICS = ['express', 'confetti', 'pulse', 'turbo', 'totem', 'ville', 'reseau', 'aurora', 'galaxie', 'comete'];
 
 /* Choisit une variante différente de la précédente. */
 CT.pickCinematic = function (lastVariant) {

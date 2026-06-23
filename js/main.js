@@ -153,6 +153,7 @@
       if (labScreenEl && !labScreenEl.classList.contains('hidden')) return; // Labo ouvert : on ignore les touches de jeu
       if (achScreenEl && !achScreenEl.classList.contains('hidden')) return; // Succès ouvert : idem
       if (statsScreenEl && !statsScreenEl.classList.contains('hidden')) return; // Stats ouvert : idem
+      if (skinScreenEl && !skinScreenEl.classList.contains('hidden')) return; // Skins ouvert : idem
       if (a === 'pause') {
         if (game.state === 'playing' || game.state === 'paused') game.togglePause();
       } else if (a === 'mute') {
@@ -416,6 +417,54 @@
   }
   document.getElementById('statsBtn').addEventListener('click', () => { CT.Audio.unlock(); CT.Audio.ui(); openStats(); });
   document.getElementById('statsCloseBtn').addEventListener('click', () => { CT.Audio.ui(); closeStats(); });
+
+  /* ---------------- Skins du serpent ---------------- */
+  const skinScreenEl = document.getElementById('skinScreen');
+  const skinListEl = document.getElementById('skinList');
+  const skinStarsEl = document.getElementById('skinStars');
+
+  function renderSkins() {
+    const stars = CT.Skins.stars();
+    const selId = CT.Skins.selectedId();
+    skinStarsEl.textContent = '★ ' + stars;
+    skinListEl.innerHTML = '';
+    CT.Skins.SKINS.forEach((s) => {
+      const unlocked = CT.Skins.isUnlocked(s);
+      const card = document.createElement('div');
+      card.className = 'skin-card' + (unlocked ? '' : ' locked') + (s.id === selId ? ' selected' : '');
+      const top = document.createElement('div'); top.className = 'sk-top';
+      const ic = document.createElement('span'); ic.className = 'sk-ic'; ic.textContent = s.icon;
+      const nm = document.createElement('span'); nm.className = 'sk-name'; nm.textContent = s.name;
+      top.append(ic, nm);
+      const sw = document.createElement('div'); sw.className = 'sk-swatch';
+      CT.Skins.paletteHex(s.id).forEach((hex) => { const i = document.createElement('i'); i.style.background = hex; sw.appendChild(i); });
+      const st = document.createElement('div'); st.className = 'sk-state';
+      st.textContent = !unlocked ? ('🔒 ' + s.stars + ' ★ requises') : (s.id === selId ? '✓ Équipé' : 'Choisir');
+      card.append(top, sw, st);
+      if (unlocked) {
+        card.addEventListener('click', () => {
+          if (CT.Skins.select(s.id)) {
+            CT.Audio.ui();
+            if (CT.game) CT.game.palette = CT.Skins.activePalette();   // reflète tout de suite (démo derrière le menu)
+            renderSkins();
+          }
+        });
+      }
+      skinListEl.appendChild(card);
+    });
+  }
+  function openSkins() {
+    overlays.start.classList.add('hidden');
+    skinScreenEl.classList.remove('hidden');
+    renderSkins();
+  }
+  function closeSkins() {
+    skinScreenEl.classList.add('hidden');
+    overlays.start.classList.remove('hidden');
+    renderStartBoard();
+  }
+  document.getElementById('skinBtn').addEventListener('click', () => { CT.Audio.unlock(); CT.Audio.ui(); openSkins(); });
+  document.getElementById('skinCloseBtn').addEventListener('click', () => { CT.Audio.ui(); closeSkins(); });
 
   // Notification de succès débloqué (file d'attente : plusieurs peuvent tomber d'un coup)
   const achToast = document.getElementById('achToast');

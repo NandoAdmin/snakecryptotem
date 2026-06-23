@@ -23,7 +23,7 @@
         <div class="hud-level">NIVEAU <b id="lvlNum">1</b></div>
         <div class="hud-progress">
           <div class="hud-bar"><i id="progFill"></i></div>
-          <div class="hud-count"><b id="batCount">0</b><span>/</span><span id="batNeed">10</span> 🔋</div>
+          <div class="hud-count"><b id="batCount">0</b><span>/</span><span id="batNeed">10</span> <span id="batUnit">🔋</span></div>
         </div>
         <div class="hud-score">⚡ <b id="scoreVal">0</b> <span>·</span> RECORD <b id="bestVal">0</b></div>
       </div>
@@ -52,6 +52,7 @@
       <div class="menu-btns">
         <button id="labBtn" class="btn-ghost">🔬 Laboratoire</button>
         <button id="achBtn" class="btn-ghost">🏆 Quêtes</button>
+        <button id="skinBtn" class="btn-ghost">🎨 Skins</button>
         <button id="statsBtn" class="btn-ghost">📊 Stats</button>
       </div>
       <p class="controls-hint">Flèches&nbsp;·&nbsp;WASD&nbsp;·&nbsp;Swipe&nbsp;·&nbsp;D-pad</p>
@@ -83,6 +84,14 @@
       <p class="lab-intro">Tes records et totaux cumulés sur cette borne.</p>
       <div id="statsGrid" class="stats-grid"></div>
       <button id="statsCloseBtn" class="btn-primary">RETOUR</button>
+    </div>
+
+    <!-- Skins du serpent (déblocables aux étoiles de quêtes) -->
+    <div id="skinScreen" class="overlay hidden">
+      <h2 class="overlay-title lab-title">🎨 SKINS</h2>
+      <p class="lab-intro">Change l'apparence de ton câble. Débloque les skins en gagnant des étoiles de quêtes. <b id="skinStars">★ 0</b></p>
+      <div id="skinList" class="skins-grid"></div>
+      <button id="skinCloseBtn" class="btn-primary">RETOUR</button>
     </div>
 
     <!-- Notification de succès débloqué -->
@@ -156,6 +165,7 @@
   <script src="js/leaderboard.js"></script>
   <script src="js/lab.js"></script>
   <script src="js/achievements.js"></script>
+  <script src="js/skins.js"></script>
   <script src="js/qrcode.js"></script>
   <script src="js/cinematics.js"></script>
   <script src="js/game.js"></script>

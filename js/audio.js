@@ -115,6 +115,17 @@ CT.Audio = (function () {
       return muted;
     },
     isMusicOn() { return musicOn; },
+    // Tension dynamique (0→1) : ouvre le filtre + monte le volume + accélère le LFO
+    // → la musique d'ambiance « monte » près de l'objectif, sous malus ou en combat de boss.
+    // No-op si la musique est coupée (music === null). Appelé par le jeu quand la tension change.
+    setTension(level) {
+      if (!ctx || !music) return;
+      const v = Math.max(0, Math.min(1, level || 0));
+      const t = ctx.currentTime;
+      try { music.master.gain.setTargetAtTime(0.045 + 0.05 * v, t, 0.6); } catch (e) {}
+      try { music.filter.frequency.setTargetAtTime(700 + 950 * v, t, 0.5); } catch (e) {}   // plus brillant/urgent
+      try { music.lfo.frequency.setTargetAtTime(0.06 + 0.22 * v, t, 0.5); } catch (e) {}    // ondulation plus nerveuse
+    },
     toggleMusic() {
       musicOn = !musicOn;
       try { localStorage.setItem('ct_music', musicOn ? '1' : '0'); } catch (e) {}

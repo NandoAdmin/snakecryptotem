@@ -35,6 +35,7 @@ CT.Cinematic = function (ctx) {
       case 'reseau':   return { accent: T.violet, title: 'LE RÉSEAU S’ALLUME',   from: 'top'    };
       case 'aurora':   return { accent: T.charge, title: 'AURORE ÉNERGÉTIQUE',   from: 'zoom'   };
       case 'galaxie':  return { accent: T.cyan,   title: 'VORTEX NÉON',          from: 'zoom'   };
+      case 'comete':   return { accent: T.glow,   title: 'PLUIE DE COMÈTES',     from: 'right'  };
       case 'express':
       default:         return { accent: T.blue,   title: 'RECHARGE EXPRESS',  from: 'left'   };
     }
@@ -296,6 +297,38 @@ CT.Cinematic = function (ctx) {
           ctx.fillStyle = acc; ctx.shadowColor = acc; ctx.shadowBlur = 8;
           ctx.fillRect(x - s / 2, y - s / 2, s, s);
         }
+      }
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+    } else if (this.variant === 'comete') {      // comètes : traînées lumineuses qui filent, densité ↑ avec la charge
+      const litFrac = U.clamp((t - P.connectEnd) / (P.chargeEnd - P.connectEnd), 0, 1);
+      // étoiles de fond qui scintillent
+      ctx.fillStyle = '#bfeef0';
+      for (let i = 0; i < 40; i++) {
+        const sx = ((i * 73 + 17) % 100) / 100 * W;
+        const sy = ((i * 39 + 5) % 100) / 100 * H;
+        ctx.globalAlpha = 0.1 + 0.24 * Math.abs(Math.sin(t * 2 + i));
+        ctx.fillRect(sx, sy, 2, 2);
+      }
+      // comètes additives qui filent (haut-droite → bas-gauche), de plus en plus nombreuses
+      ctx.globalCompositeOperation = 'lighter';
+      const N = 8;
+      for (let i = 0; i < N; i++) {
+        const speed = 0.32 + (i % 3) * 0.12;
+        const prog = (t * speed + i / N) % 1;                  // 0→1 le long de la diagonale
+        const x = W * (1.18 - prog * 1.36);
+        const y = H * (-0.18 + prog * 1.36) + ((i * 53) % 46) - 23;
+        const len = 56 + (i % 4) * 28;
+        // les comètes « tardives » n'apparaissent qu'à mesure que la charge monte
+        const active = (i / N) <= litFrac + 0.25;
+        ctx.globalAlpha = (active ? 1 : 0.25) * (0.22 + 0.55 * litFrac);
+        const grad = ctx.createLinearGradient(x, y, x + len, y - len);
+        grad.addColorStop(0, acc); grad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.strokeStyle = grad; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+        ctx.shadowColor = acc; ctx.shadowBlur = 10;
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + len, y - len); ctx.stroke();
+        ctx.fillStyle = acc;                                   // tête de la comète
+        ctx.beginPath(); ctx.arc(x, y, 2.4 + 1.6 * litFrac, 0, Math.PI * 2); ctx.fill();
       }
       ctx.globalCompositeOperation = 'source-over';
       ctx.globalAlpha = 1; ctx.shadowBlur = 0;

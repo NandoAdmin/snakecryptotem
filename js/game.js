@@ -55,6 +55,7 @@ window.CT = window.CT || {};
       lvl: document.getElementById('lvlNum'),
       bat: document.getElementById('batCount'),
       need: document.getElementById('batNeed'),
+      unit: document.getElementById('batUnit'),
       fill: document.getElementById('progFill'),
       progress: document.querySelector('.hud-progress'),
       score: document.getElementById('scoreVal'),
@@ -99,7 +100,10 @@ window.CT = window.CT || {};
     this.sinceBonus = 0;     // batteries normales depuis le dernier bonus
     this.malus = null;       // MALUS à l'écran (ou null) — { x, y, life, max, type }
     this.sinceMalus = 0;     // pas écoulés (sans malus) depuis la dernière tentative
-    this.enemy = null;       // serpent ennemi (niv 3+) — { body, prev, dir } ou null
+    this.enemy = null;       // serpent ennemi (niv 3+) ou BOSS — { body, prev, dir, boss?, hp? } ou null
+    this.bossLevel = false;  // niveau boss en cours (combat à PV, pas d'objectif batteries)
+    this.bossShieldEvery = 0; // boss : 1 essai d'apparition de bouclier tous les N pas
+    this.bossShieldTimer = 0; // compteur de pas depuis le dernier essai de bouclier (boss)
     this.slowUntil = 0;      // surcharge/ralenti actif tant que time < slowUntil
     this.shieldUntil = 0;    // bouclier (invulnérabilité) actif tant que time < shieldUntil
     this.magnetUntil = 0;    // aimant (attire la batterie) actif tant que time < magnetUntil
@@ -116,9 +120,12 @@ window.CT = window.CT || {};
     this.flashColor = '#ffffff';
     this.shake = 0;          // intensité du screen-shake (décroît)
     this.lastVariant = null;
+    this._tension = 0;       // tension musicale courante (musique dynamique)
+    // palette du serpent : skin sélectionné (cycle de couleurs, 1 par batterie)
+    this.palette = (window.CT && CT.Skins && CT.Skins.activePalette) ? CT.Skins.activePalette() : PALETTE;
     // couleur courante du serpent (change à chaque batterie ; lissée vers la cible)
-    this.snakeColorRgb = hexRgb(PALETTE[0]);
-    this.snakeColorTarget = hexRgb(PALETTE[0]);
+    this.snakeColorRgb = hexRgb(this.palette[0]);
+    this.snakeColorTarget = hexRgb(this.palette[0]);
     this.demo = false;
     // modificateurs issus du Laboratoire (R&D), figés au début de la partie
     this.mods = (window.CT && CT.Lab && CT.Lab.effects) ? CT.Lab.effects()
@@ -163,8 +170,22 @@ window.CT = window.CT || {};
     this.level = CT.getLevel(n);
     this.batteries = 0;
     this.combo = 0;
-    this.snakeColorRgb = hexRgb(PALETTE[0]);   // le niveau repart sur la couleur de base
-    this.snakeColorTarget = hexRgb(PALETTE[0]);
+    this.snakeColorRgb = hexRgb(this.palette[0]);   // le niveau repart sur la couleur de base
+    this.snakeColorTarget = hexRgb(this.palette[0]);
+
+    // Niveau BOSS (tous les `everyLevels` niveaux) : combat à PV, pas d'objectif batteries.
+    // Murs ↑ et boucliers ↓ à chaque palier ; jamais en démo.
+    const BCFG = CT.CONFIG.boss;
+    const bossTier = BCFG ? (n / BCFG.everyLevels) : 0;
+    this.bossLevel = !this.demo && BCFG && Number.isInteger(bossTier) && bossTier >= 1;
+    this.bossShieldTimer = 0;
+    if (this.bossLevel) {
+      // murs : aucun au 1ᵉʳ palier, puis +wallsPerTier par palier (plafonné)
+      const walls = Math.min(BCFG.wallsMax, (bossTier - 1) * BCFG.wallsPerTier);
+      this.level = Object.assign({}, this.level, { obstacles: walls, pattern: 'pillars' });
+      // boucliers très fréquents au 1ᵉʳ palier, de moins en moins ensuite
+      this.bossShieldEvery = Math.max(4, BCFG.shieldEveryBase + (bossTier - 1) * BCFG.shieldEveryPerTier);
+    }
     this.stepInterval = this.level.step / 1000;
     this.effInterval = this.stepInterval;
     this.acc = 0;
@@ -195,12 +216,14 @@ window.CT = window.CT || {};
     this.dir = DIRS.right; this.dirQueue = [];
 
     this.generateObstacles();
-    this.spawnFood();
-    // serpent ennemi à partir du niveau configuré ; jamais en démo (qui cycle 1→3
-    // et recouvre désormais fromLevel=3 → garde `!this.demo` indispensable)
+    // pas de batterie à ramasser en combat de boss (l'objectif est de vaincre le boss)
+    if (this.bossLevel) this.food = null; else this.spawnFood();
+    // boss, sinon serpent ennemi à partir du niveau configuré ; jamais en démo (qui cycle
+    // 1→3 et recouvre désormais fromLevel=3 → garde `!this.demo` indispensable)
     this.enemy = null;
     const ec = CT.CONFIG.enemy;
-    if (ec && !this.demo && n >= ec.fromLevel) this.spawnEnemy();
+    if (this.bossLevel) this.spawnBoss(bossTier);
+    else if (ec && !this.demo && n >= ec.fromLevel) this.spawnEnemy();
     this.updateHud();
   };
 
@@ -218,6 +241,27 @@ window.CT = window.CT || {};
     for (let i = 0; i < ec.length; i++) body.push({ x, y });   // empilé → se déploie en bougeant
     const dirs = [DIRS.up, DIRS.down, DIRS.left, DIRS.right];
     this.enemy = { body, prev: body.map((s) => ({ x: s.x, y: s.y })), dir: dirs[(this.rng() * 4) | 0] };
+  };
+
+  // Place le BOSS (serpent rouge surdimensionné à PV) loin du spawn joueur. `tier` ≥ 1.
+  G.spawnBoss = function (tier) {
+    const B = CT.CONFIG.boss;
+    const len = Math.min(B.maxLen, B.baseLen + (tier - 1) * B.lenPerTier);
+    const hp = B.baseHp + (tier - 1) * B.hpPerTier;
+    const cx = Math.floor(COLS / 2), cy = Math.floor(ROWS / 2);
+    let x = 2, y = 2, tries = 0;
+    do {
+      x = 1 + ((this.rng() * (COLS - 2)) | 0);
+      y = 1 + ((this.rng() * (ROWS - 2)) | 0);
+    } while (++tries < 200 && (this.obstacleSet.has(this.cellKey(x, y)) ||
+             (Math.abs(x - cx) + Math.abs(y - cy)) < 8));
+    const body = [];
+    for (let i = 0; i < len; i++) body.push({ x, y });
+    const dirs = [DIRS.up, DIRS.down, DIRS.left, DIRS.right];
+    this.enemy = {
+      body, prev: body.map((s) => ({ x: s.x, y: s.y })), dir: dirs[(this.rng() * 4) | 0],
+      boss: true, hp, maxHp: hp, tier,
+    };
   };
 
   G.startLevel = function (n) {
@@ -326,7 +370,8 @@ window.CT = window.CT || {};
     return true;
   };
 
-  G.spawnBonus = function () {
+  // `forceType` (optionnel) impose le type du power-up (ex. bouclier garanti en combat de boss).
+  G.spawnBonus = function (forceType) {
     let tries = 0;
     do {
       const x = 1 + ((this.rng() * (COLS - 2)) | 0);
@@ -335,7 +380,8 @@ window.CT = window.CT || {};
         const B = CT.CONFIG.bonus;
         const r = this.rng();
         const cumD = B.shieldChance + B.magnetChance + B.doubleChance;
-        const type = r < B.shieldChance ? 'shield'
+        const type = forceType ? forceType
+          : r < B.shieldChance ? 'shield'
           : r < B.shieldChance + B.magnetChance ? 'magnet'
           : r < cumD ? 'double'
           : r < cumD + B.cutChance ? 'cut' : 'fast';
@@ -651,12 +697,21 @@ window.CT = window.CT || {};
     // MALUS : on a foncé dedans → effet selon le type (indépendant des batteries)
     if (this.malus && nh.x === this.malus.x && nh.y === this.malus.y) this.onEatMalus();
 
-    // apparition aléatoire d'un malus (jeu réel uniquement ; aléa déterministe this.rng)
-    if (!this.demo && !this.malus) {
+    // apparition aléatoire d'un malus (jeu réel hors boss ; aléa déterministe this.rng)
+    if (!this.demo && !this.bossLevel && !this.malus) {
       const M = CT.CONFIG.malus;
       if (++this.sinceMalus >= M.every) {
         this.sinceMalus = 0;
         if (this.rng() < M.chance) this.spawnMalus();
+      }
+    }
+
+    // BOSS : pas de batterie pour faire apparaître des power-ups → on sème des BOUCLIERS
+    // (l'arme contre le boss) à intervalle régulier, de moins en moins souvent par palier.
+    if (this.bossLevel && !this.demo && this.bossShieldEvery > 0) {
+      if (++this.bossShieldTimer >= this.bossShieldEvery) {
+        this.bossShieldTimer = 0;
+        if (!this.bonus) this.spawnBonus('shield');
       }
     }
 
@@ -684,6 +739,28 @@ window.CT = window.CT || {};
     for (let i = 0; i < b.length; i++) if (b[i].x === x && b[i].y === y) { idx = i; break; }
     if (idx < 0) return 0;
     const headHit = idx === 0;
+
+    // BOSS : la morsure entame les PV (ne le détruit pas d'un coup). Tête-à-tête = + de dégâts.
+    // Le boss garde sa taille (menace constante) ; la barre de PV traduit les dégâts.
+    if (e.boss) {
+      const dmg = headHit ? (CT.CONFIG.boss.headDamage || 2) : 1;
+      e.hp = Math.max(0, e.hp - dmg);
+      this.spawnFx(x, y, [T.danger, T.amber, '#ffffff'], headHit ? 16 : 10);
+      this.flash = Math.max(this.flash, headHit ? 0.85 : 0.5); this.flashColor = T.danger;
+      if (!this.reduce) this.shake = Math.max(this.shake, headHit ? 0.7 : 0.4);
+      this.haptic(headHit ? [0, 40, 30, 70] : 25);
+      if (CT.Audio.smash) CT.Audio.smash();
+      if (!this.demo) {
+        const gain = (CT.CONFIG.enemy.bitePoints || 40) * this.levelNum * dmg;
+        this.points += gain; this._scored();
+        this.spawnToast('💥 −' + dmg + ' PV', x, y);
+        this._ach({ snakator: dmg });   // alimente la quête « Tueur de Snakator »
+        this.updateHud();
+      }
+      if (e.hp <= 0) this.bossDefeated();
+      return dmg;
+    }
+
     const removed = b.slice(idx);          // blocs détruits (pour les FX) ; tête-à-tête → tout
     const destroyed = removed.length;
     if (headHit) {
@@ -709,6 +786,26 @@ window.CT = window.CT || {};
       this.updateHud();
     }
     return destroyed;
+  };
+
+  // Boss vaincu (PV à zéro) : grosse récompense → cinématique (niveau terminé).
+  G.bossDefeated = function () {
+    const tier = (this.enemy && this.enemy.tier) || 1;
+    const head = this.snake[0];
+    this.enemy = null;
+    this.bossLevel = false;   // évite tout re-déclenchement
+    this.flash = 1; this.flashColor = T.amber;
+    if (!this.reduce) this.shake = Math.max(this.shake, 0.9);
+    this.haptic([0, 60, 40, 120]);
+    this.spawnFx(head.x, head.y, [T.amber, T.danger, T.glow, '#ffffff'], 40);
+    if (!this.demo) {
+      const gain = (CT.CONFIG.boss.reward || 800) * tier * this.levelNum;
+      this.points += gain; this._scored();
+      this.spawnToast('👹 BOSS VAINCU  +' + gain, head.x, head.y);
+      if (CT.Audio.achievement) CT.Audio.achievement();
+      this.updateHud();
+    }
+    this.startCinematic();    // niveau boss terminé → cinématique de fin de niveau
   };
 
   // Bouclier : détruit un mur heurté (+ bonus pièces) sans consommer le bouclier.
@@ -761,9 +858,23 @@ window.CT = window.CT || {};
     }
     let nd = e.dir;
     if (opts.length) {
-      const straight = opts.find((d) => d.x === e.dir.x && d.y === e.dir.y);
-      const turn = this.rng() < CT.CONFIG.enemy.turnChance;
-      nd = (straight && !turn) ? straight : opts[(this.rng() * opts.length) | 0];
+      if (e.boss) {
+        // BOSS : poursuit le joueur (option qui rapproche le plus de sa tête, chemin toroïdal),
+        // avec un peu d'imprévu (turnChance) pour laisser respirer.
+        const ph = this.snake[0];
+        const td = (a, b2, n) => { const r = Math.abs(a - b2); return Math.min(r, n - r); };
+        let bestD = 1e9, bestOpt = opts[0];
+        for (const d of opts) {
+          const nx = (head.x + d.x + COLS) % COLS, ny = (head.y + d.y + ROWS) % ROWS;
+          const dist = td(nx, ph.x, COLS) + td(ny, ph.y, ROWS);
+          if (dist < bestD) { bestD = dist; bestOpt = d; }
+        }
+        nd = (this.rng() < CT.CONFIG.boss.turnChance) ? opts[(this.rng() * opts.length) | 0] : bestOpt;
+      } else {
+        const straight = opts.find((d) => d.x === e.dir.x && d.y === e.dir.y);
+        const turn = this.rng() < CT.CONFIG.enemy.turnChance;
+        nd = (straight && !turn) ? straight : opts[(this.rng() * opts.length) | 0];
+      }
     }
     e.dir = nd;
     const nx = (head.x + nd.x + COLS) % COLS, ny = (head.y + nd.y + ROWS) % ROWS;
@@ -811,8 +922,8 @@ window.CT = window.CT || {};
 
   G.onEat = function () {
     this.batteries++;
-    // le serpent prend la couleur suivante de la palette (transition lissée dans tick)
-    this.snakeColorTarget = hexRgb(PALETTE[this.batteries % PALETTE.length]);
+    // le serpent prend la couleur suivante de la palette du skin (transition lissée dans tick)
+    this.snakeColorTarget = hexRgb(this.palette[this.batteries % this.palette.length]);
     this.spawnFx(this.food.x, this.food.y);
     this.flash = 0.6; this.flashColor = T.charge;
     this.haptic(12);
@@ -1031,12 +1142,24 @@ window.CT = window.CT || {};
   /* ---------------- HUD ---------------- */
   G.updateHud = function () {
     if (this.dom.lvl) this.dom.lvl.textContent = this.levelNum;
-    if (this.dom.bat) this.dom.bat.textContent = this.batteries;
-    if (this.dom.need && this.level) this.dom.need.textContent = this.level.needed;
-    if (this.dom.fill && this.level) this.dom.fill.style.width = (100 * this.batteries / this.level.needed) + '%';
-    if (this.dom.progress && this.level) {
-      const remaining = this.level.needed - this.batteries;   // « objectif proche » : pulse sur les 2 dernières
-      this.dom.progress.classList.toggle('near-goal', !this.demo && remaining > 0 && remaining <= 2);
+    const boss = this.bossLevel && this.enemy && this.enemy.boss;
+    if (boss) {
+      // en combat de boss, la barre affiche les PV du boss (❤️) à la place des batteries
+      if (this.dom.bat) this.dom.bat.textContent = this.enemy.hp;
+      if (this.dom.need) this.dom.need.textContent = this.enemy.maxHp;
+      if (this.dom.unit) this.dom.unit.textContent = '❤️';
+      if (this.dom.fill) this.dom.fill.style.width = (100 * this.enemy.hp / Math.max(1, this.enemy.maxHp)) + '%';
+      if (this.dom.progress) { this.dom.progress.classList.add('boss'); this.dom.progress.classList.remove('near-goal'); }
+    } else {
+      if (this.dom.bat) this.dom.bat.textContent = this.batteries;
+      if (this.dom.need && this.level) this.dom.need.textContent = this.level.needed;
+      if (this.dom.unit) this.dom.unit.textContent = '🔋';
+      if (this.dom.fill && this.level) this.dom.fill.style.width = (100 * this.batteries / this.level.needed) + '%';
+      if (this.dom.progress && this.level) {
+        const remaining = this.level.needed - this.batteries;   // « objectif proche » : pulse sur les 2 dernières
+        this.dom.progress.classList.remove('boss');
+        this.dom.progress.classList.toggle('near-goal', !this.demo && remaining > 0 && remaining <= 2);
+      }
     }
     if (this.dom.score) this.dom.score.textContent = this.points;
     if (this.dom.best) this.dom.best.textContent = this.best;
@@ -1089,6 +1212,21 @@ window.CT = window.CT || {};
       // start / paused / over : board statique en fond
       this.renderWorld();
     }
+
+    // Musique dynamique : la tension monte près de l'objectif, sous malus, ou en combat de boss.
+    if (CT.Audio && CT.Audio.setTension) {
+      let tn = 0;
+      if (this.state === 'playing' && !this.demo) {
+        if (this.bossLevel && this.enemy && this.enemy.boss) {
+          tn = 0.55 + 0.4 * (1 - this.enemy.hp / Math.max(1, this.enemy.maxHp));   // ↑ quand le boss faiblit
+        } else if (this.level) {
+          const rem = this.level.needed - this.batteries;
+          if (rem > 0 && rem <= 2) tn = Math.max(tn, 0.6);                          // objectif proche
+        }
+        if (this.time < this.rushUntil || this.time < this.fogUntil || this.time < this.repelUntil) tn = Math.max(tn, 0.85); // sous malus
+      }
+      if (Math.abs(tn - (this._tension || 0)) > 0.02) { this._tension = tn; CT.Audio.setTension(tn); }
+    }
   };
 
   /* ---------------- rendu monde ---------------- */
@@ -1136,6 +1274,7 @@ window.CT = window.CT || {};
     ctx.restore();   // fin du screen-shake
 
     this.drawEffects();   // chips d'effets actifs (hors shake, style HUD)
+    this.drawBossBar();   // barre de PV du boss (hors shake)
 
     // flash plein écran
     if (this.flash > 0) {
@@ -1354,6 +1493,39 @@ window.CT = window.CT || {};
     ctx.save(); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); ctx.restore();
   };
 
+  // Barre de PV du boss (haut du plateau) pendant un combat de boss.
+  G.drawBossBar = function () {
+    if (!this.bossLevel || !this.enemy || !this.enemy.boss) return;
+    const ctx = this.ctx, W = this.W, cell = this.cell, e = this.enemy;
+    const bw = Math.min(W * 0.62, cell * 13), bh = cell * 0.4;
+    const bx = (W - bw) / 2, by = cell * 0.42;
+    const frac = U.clamp(e.hp / Math.max(1, e.maxHp), 0, 1);
+    ctx.save();
+    ctx.textAlign = 'center';
+    // libellé
+    ctx.fillStyle = T.danger; ctx.shadowColor = T.danger; ctx.shadowBlur = 10;
+    ctx.font = '800 ' + Math.round(cell * 0.4) + 'px -apple-system, system-ui, sans-serif';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText('👹 BOSS — NIVEAU ' + this.levelNum, W / 2, by - cell * 0.14);
+    ctx.shadowBlur = 0;
+    // rail
+    ctx.fillStyle = 'rgba(2,22,26,0.72)';
+    U.rr(ctx, bx, by, bw, bh, bh * 0.5); ctx.fill();
+    // remplissage PV
+    const grad = ctx.createLinearGradient(bx, 0, bx + bw, 0);
+    grad.addColorStop(0, '#7a1f2a'); grad.addColorStop(1, T.danger);
+    ctx.fillStyle = grad; ctx.shadowColor = T.danger; ctx.shadowBlur = 10;
+    U.rr(ctx, bx, by, Math.max(bh, bw * frac), bh, bh * 0.5); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 1;
+    U.rr(ctx, bx, by, bw, bh, bh * 0.5); ctx.stroke();
+    // PV chiffrés
+    ctx.fillStyle = '#fff'; ctx.textBaseline = 'middle';
+    ctx.font = '800 ' + Math.round(bh * 0.6) + 'px -apple-system, system-ui, sans-serif';
+    ctx.fillText('❤️ ' + e.hp + ' / ' + e.maxHp, W / 2, by + bh * 0.52);
+    ctx.restore();
+  };
+
   // Voile + bandeau pendant la surcharge (ralenti)
   G.drawSurcharge = function () {
     if (this.time >= this.slowUntil) return;
@@ -1426,12 +1598,21 @@ window.CT = window.CT || {};
     ctx.globalAlpha = a;
     ctx.translate(W / 2, H * 0.44); ctx.scale(scale, scale);
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = T.cyan; ctx.shadowColor = T.glow; ctx.shadowBlur = 24;
-    ctx.font = '900 ' + Math.round(S * 0.13) + 'px -apple-system, system-ui, sans-serif';
-    ctx.fillText('NIVEAU ' + this.levelNum, 0, 0);
-    ctx.shadowBlur = 10; ctx.fillStyle = T.text;
-    ctx.font = '700 ' + Math.round(S * 0.045) + 'px -apple-system, system-ui, sans-serif';
-    ctx.fillText('Objectif : ' + this.level.needed + ' batteries 🔋', 0, S * 0.11);
+    if (this.bossLevel) {
+      ctx.fillStyle = T.danger; ctx.shadowColor = T.danger; ctx.shadowBlur = 26;
+      ctx.font = '900 ' + Math.round(S * 0.12) + 'px -apple-system, system-ui, sans-serif';
+      ctx.fillText('👹 BOSS — NIVEAU ' + this.levelNum, 0, 0);
+      ctx.shadowBlur = 10; ctx.fillStyle = T.text;
+      ctx.font = '700 ' + Math.round(S * 0.042) + 'px -apple-system, system-ui, sans-serif';
+      ctx.fillText('Mordez-le sous bouclier 🛡️ pour le vaincre !', 0, S * 0.11);
+    } else {
+      ctx.fillStyle = T.cyan; ctx.shadowColor = T.glow; ctx.shadowBlur = 24;
+      ctx.font = '900 ' + Math.round(S * 0.13) + 'px -apple-system, system-ui, sans-serif';
+      ctx.fillText('NIVEAU ' + this.levelNum, 0, 0);
+      ctx.shadowBlur = 10; ctx.fillStyle = T.text;
+      ctx.font = '700 ' + Math.round(S * 0.045) + 'px -apple-system, system-ui, sans-serif';
+      ctx.fillText('Objectif : ' + this.level.needed + ' batteries 🔋', 0, S * 0.11);
+    }
     ctx.restore();
   };
 
@@ -1503,6 +1684,9 @@ window.CT = window.CT || {};
   G.drawEnemy = function () {
     const e = this.enemy; if (!e) return;
     const ctx = this.ctx, cell = this.cell;
+    const boss = !!e.boss;                             // le BOSS est plus gros + aura violette « danger »
+    const sizeScale = boss ? 1.35 : 1;
+    const glowCol = boss ? T.violet : T.danger;
     const moving = this.state === 'playing' || (this.state === 'start' && this.demo);
     const t = moving ? U.clamp(this.acc / this.effInterval, 0, 1) : 0;
     const pulse = this.reduce ? 0.5 : 0.5 + 0.5 * Math.sin(this.time * 8);
@@ -1516,7 +1700,7 @@ window.CT = window.CT || {};
       ctx.translate(x, y);
       ctx.rotate(Math.PI / 4);                         // carré → losange (pointes agressives)
       const h = s / 2;
-      ctx.shadowColor = T.danger; ctx.shadowBlur = 6 + pulse * 5;
+      ctx.shadowColor = glowCol; ctx.shadowBlur = (6 + pulse * 5) * (boss ? 1.6 : 1);
       ctx.fillStyle = bodyCol;
       ctx.fillRect(-h, -h, s, s);
       ctx.shadowBlur = 0;
@@ -1533,7 +1717,7 @@ window.CT = window.CT || {};
       ctx.translate(x, y);
       ctx.rotate(ang);
       // crâne (pointe de lance vers +x = direction)
-      ctx.shadowColor = T.danger; ctx.shadowBlur = 14 + pulse * 16;
+      ctx.shadowColor = glowCol; ctx.shadowBlur = (14 + pulse * 16) * (boss ? 1.4 : 1);
       ctx.fillStyle = T.danger;
       ctx.beginPath();
       ctx.moveTo(-0.92 * h, -0.80 * h);
@@ -1572,7 +1756,7 @@ window.CT = window.CT || {};
       const gx = pv.x + dx * t, gy = pv.y + dy * t;
       const head = i === 0;
       const f = i / Math.max(1, e.body.length - 1);    // 0 = tête, 1 = queue
-      const s = cell * (head ? 0.72 : 0.56 * (1 - 0.28 * f));   // queue qui s'affine en pointe
+      const s = cell * (head ? 0.72 : 0.56 * (1 - 0.28 * f)) * sizeScale;   // queue qui s'affine ; boss ↑
       const seg = (cgx, cgy) => {
         const x = (cgx + 0.5) * cell, y = (cgy + 0.5) * cell;
         if (head) headSeg(x, y, s); else bodySeg(x, y, s, f);
