@@ -28,7 +28,7 @@ CT.CONFIG = {
 
   /* Vitesse */
   minStep: 72,             // intervalle le plus court (ms) — plancher de vitesse
-  speedupPerBattery: 4.5,  // ms retirés par batterie ramassée
+  speedupPerBattery: 3,    // ms retirés par batterie ramassée (accélération douce → parties plus longues/faciles)
 
   /* Durée de la bannière d'intro de niveau (s) — serpent figé le temps de l'annonce */
   introDuration: 1.7,
@@ -55,6 +55,27 @@ CT.CONFIG = {
     cutBlocks: 1,        // nb de blocs de queue retirés (×2 via Labo « Double coupe »)
     cutMin: 2,           // longueur minimale du serpent (on ne coupe jamais en dessous)
     wallPoints: 60,      // bonus pièces (× niveau) par mur détruit au bouclier
+  },
+
+  /* MALUS (indépendants des power-ups ci-dessus) : icônes ROUGES clignotantes qui
+     apparaissent aléatoirement sur la map. À ÉVITER (ils pénalisent le joueur).
+     Un seul à la fois ; le TYPE est tiré aléatoirement à l'apparition. Tous rouges
+     → se distinguent d'un coup d'œil des power-ups (colorés). */
+  malus: {
+    every: 30,           // nb de pas (sans malus) avant une tentative d'apparition
+    chance: 0.4,         // probabilité d'apparition à chaque tentative
+    life: 7,             // durée de vie à l'écran (s) avant de disparaître
+    types: ['burger', 'speed', 'fog', 'repel', 'walls', 'steal'],  // tirés à proba égale
+    grow: 2,             // 🍔 burger : +N blocs au serpent JOUEUR
+    enemyGrow: 2,        // ⚡🌫️🧲🧱💸 : +N blocs au serpent ENNEMI (en plus de l'effet)
+    maxEnemyLen: 14,     // plafond de longueur du serpent ennemi
+    speedFactor: 0.62,   // ⚡ court-circuit : intervalle ×0.62 (plus rapide) pendant…
+    speedDuration: 3,    //    …N s
+    fogDuration: 4,      // 🌫️ brouillage : visibilité réduite N s
+    repelDuration: 4,    // 🧲 aimant inversé : repousse la batterie N s
+    wallsCount: 3,       // 🧱 obstacles surprise : nb de murs temporaires
+    wallsDuration: 6,    //    …durée avant disparition (s)
+    stealFrac: 0.15,     // 💸 vol : fraction des points retirée
   },
 
   /* Serpent ennemi (« Snakator ») : rôde sur la map à partir du niveau `fromLevel`.

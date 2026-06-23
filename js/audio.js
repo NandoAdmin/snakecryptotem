@@ -176,6 +176,10 @@ CT.Audio = (function () {
       seq.forEach((f, i) => tone(f, 0.16, 'triangle', 0.13, i * 0.06));
       tone(1319, 0.30, 'sine', 0.07, 0.26);  // traîne scintillante
     },
+    malus() {             // malus (burger) : « buzz » descendant désagréable
+      sweep(320, 110, 0.28, 'sawtooth', 0.16);
+      tone(150, 0.12, 'square', 0.12, 0.05);
+    },
     gameover() {
       sweep(440, 90, 0.7, 'sawtooth', 0.2);
     },

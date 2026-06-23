@@ -97,11 +97,17 @@ window.CT = window.CT || {};
     this.acc = 0;
     this.bonus = null;       // power-up à l'écran (ou null) — { x, y, life, max, type }
     this.sinceBonus = 0;     // batteries normales depuis le dernier bonus
+    this.malus = null;       // MALUS à l'écran (ou null) — { x, y, life, max, type }
+    this.sinceMalus = 0;     // pas écoulés (sans malus) depuis la dernière tentative
     this.enemy = null;       // serpent ennemi (niv 3+) — { body, prev, dir } ou null
     this.slowUntil = 0;      // surcharge/ralenti actif tant que time < slowUntil
     this.shieldUntil = 0;    // bouclier (invulnérabilité) actif tant que time < shieldUntil
     this.magnetUntil = 0;    // aimant (attire la batterie) actif tant que time < magnetUntil
     this.doubleUntil = 0;    // double points actif tant que time < doubleUntil
+    this.rushUntil = 0;      // MALUS court-circuit (accélération) tant que time < rushUntil
+    this.fogUntil = 0;       // MALUS brouillage (visibilité réduite) tant que time < fogUntil
+    this.repelUntil = 0;     // MALUS aimant inversé (repousse la batterie) tant que time < repelUntil
+    this.tempWalls = [];     // MALUS obstacles temporaires — [{ x, y, until }]
     this.introUntil = 0;     // bannière d'intro de niveau (serpent figé) tant que time < introUntil
     this.resumeUntil = 0;    // compte à rebours « 3·2·1 » à la reprise après pause (serpent figé)
     this.fx = [];
@@ -164,6 +170,12 @@ window.CT = window.CT || {};
     this.acc = 0;
     this.bonus = null;
     this.sinceBonus = 0;
+    this.malus = null;
+    this.sinceMalus = 0;
+    this.rushUntil = 0;
+    this.fogUntil = 0;
+    this.repelUntil = 0;
+    this.tempWalls = [];
     this.slowUntil = 0;
     this.shieldUntil = 0;
     this.magnetUntil = 0;
@@ -310,6 +322,7 @@ window.CT = window.CT || {};
     for (const s of this.snake) if (s.x === x && s.y === y) return false;
     if (this.food && this.food.x === x && this.food.y === y) return false;
     if (this.bonus && this.bonus.x === x && this.bonus.y === y) return false;
+    if (this.malus && this.malus.x === x && this.malus.y === y) return false;
     return true;
   };
 
@@ -335,6 +348,119 @@ window.CT = window.CT || {};
         return;
       }
     } while (++tries < 200);
+  };
+
+  // MALUS : apparition aléatoire (type tiré au hasard) sur une case libre. Aléa déterministe.
+  G.spawnMalus = function () {
+    const M = CT.CONFIG.malus;
+    let tries = 0;
+    do {
+      const x = 1 + ((this.rng() * (COLS - 2)) | 0);
+      const y = 1 + ((this.rng() * (ROWS - 2)) | 0);
+      if (this.isFree(x, y)) {
+        const type = M.types[(this.rng() * M.types.length) | 0];
+        this.malus = { x, y, life: M.life, max: M.life, type };
+        this.spawnFx(x, y, [T.danger, T.amber, '#ffffff'], 12);   // éclat « pop » rouge (alerte)
+        if (!this.demo && CT.Audio.appear) CT.Audio.appear();
+        return;
+      }
+    } while (++tries < 200);
+  };
+
+  // Allonge le serpent ENNEMI de n blocs (plafonné). No-op s'il n'y a pas d'ennemi.
+  G.growEnemy = function (n) {
+    const e = this.enemy; if (!e) return;
+    const max = CT.CONFIG.malus.maxEnemyLen || 14;
+    for (let i = 0; i < n && e.body.length < max; i++) {
+      const t = e.body[e.body.length - 1];
+      e.body.push({ x: t.x, y: t.y });
+      if (e.prev) e.prev.push({ x: t.x, y: t.y });
+    }
+  };
+
+  // MALUS obstacles surprise : pose `count` murs TEMPORAIRES, loin de la tête (jamais piégeant).
+  G.spawnTempWalls = function (count) {
+    const head = this.snake[0];
+    const until = this.time + (CT.CONFIG.malus.wallsDuration || 6);
+    let placed = 0, tries = 0;
+    while (placed < count && tries < 300) {
+      tries++;
+      const x = 1 + ((this.rng() * (COLS - 2)) | 0);
+      const y = 1 + ((this.rng() * (ROWS - 2)) | 0);
+      if (!this.isFree(x, y)) continue;
+      let ddx = Math.abs(x - head.x); ddx = Math.min(ddx, COLS - ddx);   // distance toroïdale
+      let ddy = Math.abs(y - head.y); ddy = Math.min(ddy, ROWS - ddy);
+      if (ddx + ddy < 4) continue;                       // pas juste devant la tête (fair-play)
+      this.obstacleSet.add(this.cellKey(x, y));
+      this.obstacles.push({ x, y });
+      this.tempWalls.push({ x, y, until });
+      this.spawnFx(x, y, [T.danger, '#ffffff'], 8);
+      placed++;
+    }
+  };
+
+  // MALUS ramassé : effet selon le type. Burger → allonge le JOUEUR ; les autres →
+  // effet propre + allongent l'ENNEMI (enemyGrow). Indépendant des batteries/objectif.
+  G.onEatMalus = function () {
+    const m = this.malus, M = CT.CONFIG.malus;
+    this.malus = null;
+    this.flash = Math.max(this.flash, 0.7); this.flashColor = T.danger;
+    if (!this.reduce) this.shake = Math.max(this.shake, 0.45);
+    this.haptic([0, 60, 40, 60]);
+    if (CT.Audio.malus) CT.Audio.malus();
+    const head = this.snake[0];
+    this.spawnFx(head.x, head.y, [T.danger, T.amber, '#ffffff'], 22);
+    let label = '🍔';
+    if (m.type === 'burger') {
+      for (let i = 0; i < M.grow; i++) {                 // allonge le serpent JOUEUR (duplique la queue)
+        const t = this.snake[this.snake.length - 1];
+        this.snake.push({ x: t.x, y: t.y });
+        if (this.prev) this.prev.push({ x: t.x, y: t.y });
+      }
+      label = '🍔 +' + M.grow + ' blocs';
+    } else {
+      if (m.type === 'speed') { this.rushUntil = this.time + M.speedDuration; label = '⚡ COURT-CIRCUIT'; }
+      else if (m.type === 'fog') { this.fogUntil = this.time + M.fogDuration; label = '🌫️ BROUILLAGE'; }
+      else if (m.type === 'repel') { this.repelUntil = this.time + M.repelDuration; label = '🧲 AIMANT INVERSÉ'; }
+      else if (m.type === 'walls') { this.spawnTempWalls(M.wallsCount); label = '🧱 OBSTACLES !'; }
+      else if (m.type === 'steal') {
+        const lost = Math.round(this.points * (M.stealFrac || 0.15));
+        this.points = Math.max(0, this.points - lost); label = '💸 −' + lost + ' pts';
+      }
+      this.growEnemy(M.enemyGrow);                       // malus 2-6 : +2 blocs à l'ennemi
+    }
+    if (!this.demo) { this.spawnToast(label, head.x, head.y); this.updateHud(); }
+  };
+
+  // MALUS aimant inversé : repousse la batterie d'une case loin de la tête (déterministe).
+  G.pushFood = function () {
+    if (!this.food) return;
+    const head = this.snake[0];
+    let dx = head.x - this.food.x; if (dx > COLS / 2) dx -= COLS; else if (dx < -COLS / 2) dx += COLS;
+    let dy = head.y - this.food.y; if (dy > ROWS / 2) dy -= ROWS; else if (dy < -ROWS / 2) dy += ROWS;
+    const move = (mx, my) => {
+      if (!mx && !my) return false;
+      const nx = (this.food.x + mx + COLS) % COLS, ny = (this.food.y + my + ROWS) % ROWS;
+      if (this.obstacleSet.has(this.cellKey(nx, ny))) return false;
+      for (const s of this.snake) if (s.x === nx && s.y === ny) return false;
+      this.food.x = nx; this.food.y = ny; return true;
+    };
+    // s'éloigne : direction OPPOSÉE à la tête (-sign), repli sur l'autre axe si bloqué
+    if (Math.abs(dx) >= Math.abs(dy)) { if (!move(-Math.sign(dx), 0)) move(0, -Math.sign(dy)); }
+    else { if (!move(0, -Math.sign(dy))) move(-Math.sign(dx), 0); }
+  };
+
+  // Retire les murs temporaires (MALUS) dont la durée est écoulée.
+  G.expireTempWalls = function () {
+    for (let i = this.tempWalls.length - 1; i >= 0; i--) {
+      const w = this.tempWalls[i];
+      if (this.time < w.until) continue;
+      this.obstacleSet.delete(this.cellKey(w.x, w.y));
+      const idx = this.obstacles.findIndex((o) => o.x === w.x && o.y === w.y);
+      if (idx >= 0) this.obstacles.splice(idx, 1);
+      this.spawnFx(w.x, w.y, [T.danger, '#ffffff'], 6);
+      this.tempWalls.splice(i, 1);
+    }
   };
 
   G.spawnFood = function () {
@@ -522,8 +648,21 @@ window.CT = window.CT || {};
     // power-up : ne fait pas grandir le serpent ni avancer l'objectif
     if (this.bonus && nh.x === this.bonus.x && nh.y === this.bonus.y) this.onEatBonus();
 
-    // aimant : attire la batterie d'une case vers la tête (déterministe, sans aléa)
+    // MALUS : on a foncé dedans → effet selon le type (indépendant des batteries)
+    if (this.malus && nh.x === this.malus.x && nh.y === this.malus.y) this.onEatMalus();
+
+    // apparition aléatoire d'un malus (jeu réel uniquement ; aléa déterministe this.rng)
+    if (!this.demo && !this.malus) {
+      const M = CT.CONFIG.malus;
+      if (++this.sinceMalus >= M.every) {
+        this.sinceMalus = 0;
+        if (this.rng() < M.chance) this.spawnMalus();
+      }
+    }
+
+    // aimant : attire la batterie (bonus) OU la repousse (malus aimant inversé) — déterministe
     if (this.time < this.magnetUntil) this.pullFood();
+    if (this.time < this.repelUntil) this.pushFood();
 
     // serpent ennemi (niv 3+) : il se déplace, puis on reteste le contact avec la tête
     if (this.enemy && this.state === 'playing') {
@@ -918,8 +1057,9 @@ window.CT = window.CT || {};
 
     if (simulating) {
       if (this.demo) this.autopilot();
-      const slow = this.time < this.slowUntil;
-      this.effInterval = this.stepInterval * (slow ? CT.CONFIG.bonus.slowFactor : 1);
+      let f = (this.time < this.slowUntil) ? CT.CONFIG.bonus.slowFactor : 1;   // surcharge : plus lent
+      if (this.time < this.rushUntil) f *= CT.CONFIG.malus.speedFactor;        // court-circuit (malus) : plus rapide
+      this.effInterval = this.stepInterval * f;
       const intro = !this.demo && (this.time < this.introUntil || this.time < this.resumeUntil);   // figé : annonce de niveau OU reprise (3·2·1)
       if (intro) {
         this.acc = 0;
@@ -934,6 +1074,8 @@ window.CT = window.CT || {};
         }
       }
       if (this.bonus) { this.bonus.life -= dt; if (this.bonus.life <= 0) this.bonus = null; }
+      if (this.malus) { this.malus.life -= dt; if (this.malus.life <= 0) this.malus = null; }
+      if (this.tempWalls.length) this.expireTempWalls();
       this.updateFx(dt);
       if (this.toast && this.toast.life > 0) this.toast.life -= dt;
       this.renderWorld();
@@ -981,9 +1123,11 @@ window.CT = window.CT || {};
     this.drawObstacles();
     if (this.food) this.drawFood();
     if (this.bonus) this.drawBonus();
+    if (this.malus) this.drawMalus();
     if (this.enemy) this.drawEnemy();
     if (this.snake) this.drawSnake();
     this.drawFx();
+    if (this.time < this.fogUntil) this.drawFog();   // MALUS brouillage : voile sauf autour de la tête
     this.drawToast();
     this.drawSurcharge();
     this.drawRecordBanner();
@@ -1010,6 +1154,10 @@ window.CT = window.CT || {};
     if (this.time < this.slowUntil) items.push({ c: T.cyan, t: '🌀', s: this.slowUntil - this.time });
     if (this.time < this.magnetUntil) items.push({ c: T.violet, t: '🧲', s: this.magnetUntil - this.time });
     if (this.time < this.doubleUntil) items.push({ c: T.pink, t: '×2', s: this.doubleUntil - this.time });
+    // MALUS temporisés (rouge)
+    if (this.time < this.rushUntil) items.push({ c: T.danger, t: '⚡', s: this.rushUntil - this.time });
+    if (this.time < this.fogUntil) items.push({ c: T.danger, t: '🌫️', s: this.fogUntil - this.time });
+    if (this.time < this.repelUntil) items.push({ c: T.danger, t: '🧲', s: this.repelUntil - this.time });
     if (!items.length) return;
     const ctx = this.ctx, cell = this.cell;
     const h = cell * 0.74, w = cell * 1.7, pad = cell * 0.35, gap = cell * 0.18;
@@ -1106,6 +1254,104 @@ window.CT = window.CT || {};
       ctx.closePath(); ctx.fill();
     }
     ctx.restore();
+  };
+
+  // MALUS : icône ROUGE qui CLIGNOTE + anneau de minuterie rouge. Tous rouges (vs power-ups
+  // colorés) ; le TYPE se lit au glyphe blanc (le burger garde sa forme dédiée).
+  G.drawMalus = function () {
+    const ctx = this.ctx, cell = this.cell, m = this.malus;
+    const cx = (m.x + 0.5) * cell, cy = (m.y + 0.5) * cell;
+    const frac = U.clamp(m.life / m.max, 0, 1);
+    const blink = this.reduce ? 0.9 : 0.45 + 0.55 * Math.abs(Math.sin(this.time * 8));   // clignotement
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.globalAlpha = blink;
+    // anneau de minuterie rouge (commun à tous les malus)
+    ctx.shadowColor = T.danger; ctx.shadowBlur = 16;
+    ctx.strokeStyle = T.danger; ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(0, 0, cell * 0.52, -Math.PI / 2, -Math.PI / 2 + frac * Math.PI * 2);
+    ctx.stroke();
+
+    if (m.type === 'burger') {                          // 🍔 burger rouge (forme dédiée)
+      const w = cell * 0.84, h = cell * 0.7;
+      ctx.shadowBlur = 12;
+      ctx.fillStyle = '#e8643a'; U.rr(ctx, -w / 2, h * 0.12, w, h * 0.26, h * 0.13); ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#3a160c'; U.rr(ctx, -w * 0.46, h * 0.02, w * 0.92, h * 0.14, h * 0.05); ctx.fill();
+      ctx.fillStyle = '#ff9d6b'; U.rr(ctx, -w * 0.48, -h * 0.02, w * 0.96, h * 0.06, h * 0.03); ctx.fill();
+      ctx.fillStyle = '#ff7a52';
+      ctx.beginPath();
+      ctx.moveTo(-w / 2, 0); ctx.quadraticCurveTo(-w / 2, -h * 0.44, 0, -h * 0.44);
+      ctx.quadraticCurveTo(w / 2, -h * 0.44, w / 2, 0); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#ffe0b8';
+      [[-w * 0.2, -h * 0.2], [0, -h * 0.28], [w * 0.2, -h * 0.2], [-w * 0.07, -h * 0.12], [w * 0.1, -h * 0.11]]
+        .forEach((s) => { ctx.beginPath(); ctx.ellipse(s[0], s[1], w * 0.035, h * 0.028, 0, 0, Math.PI * 2); ctx.fill(); });
+      ctx.restore(); return;
+    }
+
+    // token rouge commun + glyphe blanc selon le type
+    const w = cell * 0.78, h = cell * 0.64;
+    const grad = ctx.createLinearGradient(0, -h / 2, 0, h / 2);
+    grad.addColorStop(0, '#ff9aa6'); grad.addColorStop(1, T.danger);
+    ctx.shadowBlur = 14; ctx.fillStyle = grad;
+    U.rr(ctx, -w / 2, -h / 2, w, h, h * 0.28); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = '#7a0a16'; ctx.lineWidth = Math.max(1, h * 0.06);
+    U.rr(ctx, -w / 2, -h / 2, w, h, h * 0.28); ctx.stroke();
+    ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#ffffff';
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+
+    if (m.type === 'speed') {                            // ⚡ éclair (court-circuit)
+      ctx.beginPath();
+      ctx.moveTo(w * 0.08, -h * 0.30); ctx.lineTo(-w * 0.16, h * 0.04); ctx.lineTo(0, h * 0.04);
+      ctx.lineTo(-w * 0.08, h * 0.32); ctx.lineTo(w * 0.18, -h * 0.04); ctx.lineTo(w * 0.02, -h * 0.04);
+      ctx.closePath(); ctx.fill();
+    } else if (m.type === 'fog') {                       // 🌫️ trois vagues (brouillage)
+      ctx.lineWidth = h * 0.09;
+      for (let i = 0; i < 3; i++) {
+        const yy = -h * 0.2 + i * h * 0.2;
+        ctx.beginPath();
+        ctx.moveTo(-w * 0.32, yy);
+        ctx.quadraticCurveTo(-w * 0.1, yy - h * 0.1, 0, yy);
+        ctx.quadraticCurveTo(w * 0.1, yy + h * 0.1, w * 0.32, yy);
+        ctx.stroke();
+      }
+    } else if (m.type === 'repel') {                     // 🧲 deux flèches opposées (repousse)
+      ctx.lineWidth = h * 0.11;
+      ctx.beginPath();
+      ctx.moveTo(-w * 0.04, 0); ctx.lineTo(-w * 0.3, 0);
+      ctx.moveTo(-w * 0.22, -h * 0.14); ctx.lineTo(-w * 0.3, 0); ctx.lineTo(-w * 0.22, h * 0.14);
+      ctx.moveTo(w * 0.04, 0); ctx.lineTo(w * 0.3, 0);
+      ctx.moveTo(w * 0.22, -h * 0.14); ctx.lineTo(w * 0.3, 0); ctx.lineTo(w * 0.22, h * 0.14);
+      ctx.stroke();
+    } else if (m.type === 'walls') {                     // 🧱 briques décalées
+      const bw2 = w * 0.18, bh2 = h * 0.13;
+      [-h * 0.16, h * 0.04].forEach((ry, r) => {
+        const off = r ? w * 0.11 : 0;
+        for (let bx = -w * 0.34 + off; bx < w * 0.28; bx += w * 0.24) ctx.fillRect(bx, ry, bw2, bh2);
+      });
+    } else if (m.type === 'steal') {                     // 💸 pièce + flèche bas (vol)
+      ctx.lineWidth = h * 0.09;
+      ctx.beginPath(); ctx.arc(-w * 0.1, 0, h * 0.26, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(w * 0.24, -h * 0.22); ctx.lineTo(w * 0.24, h * 0.22);
+      ctx.moveTo(w * 0.13, h * 0.08); ctx.lineTo(w * 0.24, h * 0.22); ctx.lineTo(w * 0.35, h * 0.08);
+      ctx.stroke();
+    }
+    ctx.restore();
+  };
+
+  // MALUS brouillage : voile sombre sur le plateau, clair seulement autour de la tête.
+  G.drawFog = function () {
+    const ctx = this.ctx, cell = this.cell, W = this.W, H = this.H;
+    const head = this.snake[0];
+    const hx = (head.x + 0.5) * cell, hy = (head.y + 0.5) * cell;
+    const r = cell * 4.5;
+    const g = ctx.createRadialGradient(hx, hy, r * 0.4, hx, hy, r);
+    g.addColorStop(0, 'rgba(2,12,16,0)');
+    g.addColorStop(1, 'rgba(2,12,16,0.92)');
+    ctx.save(); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); ctx.restore();
   };
 
   // Voile + bandeau pendant la surcharge (ralenti)

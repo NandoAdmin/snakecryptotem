@@ -342,6 +342,30 @@ Des **pastilles d'effet actif** (coin haut-gauche, `drawEffects`) affichent
 🛡️/🌀/🧲/×2 + le **compte à rebours** restant (pratique avec les durées rallongées
 par le Labo).
 
+### Malus (`CONFIG.malus`)
+Entités **indépendantes** des power-ups (`this.malus`, séparée de `this.bonus`). Des **icônes
+ROUGES clignotantes** (`drawMalus` : token rouge + glyphe blanc, glow rouge + anneau de
+minuterie ; **toutes rouges** → se distinguent des power-ups colorés) apparaissent
+**aléatoirement** sur la map (jeu réel uniquement, **jamais en démo**) : toutes les
+`malus.every` étapes sans malus, tentative de proba `malus.chance` via le **PRNG déterministe**
+`this.rng` (`spawnMalus`) ; le **type** est aussi tiré au hasard. Un seul à la fois, vit
+`malus.life` s puis disparaît. **À ÉVITER** (pénalisent le joueur). `onEatMalus` applique
+l'effet (flash/secousse rouges + son `CT.Audio.malus`). N'affectent ni l'objectif ni les
+power-ups en place. **6 types** (`malus.types`) :
+- **🍔 burger** : **+`grow` blocs au serpent JOUEUR** (duplique la queue) → risque de se mordre.
+- **⚡ court-circuit** : **accélération** temporaire (`rushUntil`, intervalle ×`speedFactor` pendant
+  `speedDuration` s ; combiné à la surcharge dans `effInterval`).
+- **🌫️ brouillage** : **visibilité réduite** `fogDuration` s (`fogUntil` → `drawFog` : voile sombre
+  sauf un rayon clair autour de la tête).
+- **🧲 aimant inversé** : **repousse la batterie** `repelDuration` s (`repelUntil` → `pushFood`,
+  miroir de `pullFood`, déterministe).
+- **🧱 obstacles surprise** : pose `wallsCount` **murs temporaires** (`spawnTempWalls`, loin de la
+  tête, mortels comme les obstacles) retirés après `wallsDuration` s (`expireTempWalls`).
+- **💸 vol de pièces** : retire **`stealFrac`** des points courants.
+Sauf le burger, **chaque malus allonge AUSSI le serpent ENNEMI de `enemyGrow` blocs**
+(`growEnemy`, plafonné à `maxEnemyLen` ; no-op s'il n'y a pas d'ennemi). Pastilles d'effet
+rouges (`drawEffects`) pour les malus temporisés (court-circuit / brouillage / aimant inversé).
+
 ### Audio
 - **SFX** synthétisés (WebAudio, aucun fichier) ; préférence **mute** persistée
   (`ct_mute`).
@@ -445,3 +469,7 @@ complet : Reed-Solomon GF(256), sélection de masque par pénalité, BCH format/
       reste jamais figé sur game over / pause / cinématique / partie abandonnée).
 - [x] Power-up « Coupe-câble » (batterie verte ✂️ → raccourcit la queue, `cutTail`)
       + recherche Labo « Double coupe » (proba 5 %/niv d'enlever 2 blocs au lieu d'1).
+- [x] **Malus** (icônes ROUGES clignotantes, apparition aléatoire `CONFIG.malus`, indépendants
+      des power-ups, jamais en démo) — 6 types : 🍔 burger (+2 joueur), ⚡ court-circuit, 🌫️ brouillage,
+      🧲 aimant inversé, 🧱 obstacles temporaires, 💸 vol de pièces. Sauf le burger, chacun
+      allonge AUSSI le serpent ennemi de 2 blocs (`growEnemy`).
