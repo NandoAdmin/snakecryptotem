@@ -121,3 +121,49 @@ CT.BossSkins = (function () {
 
   return { SKINS, isUnlocked, isOwned, buy, selectedId, selected, select, activeMain, activeAura, preview };
 })();
+
+/* ---------------- Têtes / visages (forme, pas couleur) ---------------- */
+/* Fabrique commune aux skins « 100 % payants » : sélection + possession + achat ⚡.
+   Le DESSIN du visage vit dans game.js (qui a le contexte canvas) ; ici on ne gère
+   que l'id de style sélectionné. `preview()` renvoie [] → la carte affiche l'emoji. */
+function ctMakeShop(selKey, ownKey, SKINS) {
+  function load() { try { return localStorage.getItem(selKey) || 'classic'; } catch (e) { return 'classic'; } }
+  function save(id) { try { localStorage.setItem(selKey, id); } catch (e) {} }
+  function ownedSet() { try { return new Set(JSON.parse(localStorage.getItem(ownKey)) || []); } catch (e) { return new Set(); } }
+  function saveOwned(s) { try { localStorage.setItem(ownKey, JSON.stringify([...s])); } catch (e) {} }
+  function isOwned(id) { return ownedSet().has(id); }
+  function get(id) { return SKINS.find((s) => s.id === id) || SKINS[0]; }
+  function isUnlocked(s) { return s.price === 0 || isOwned(s.id); }
+  function selectedId() { const s = get(load()); return isUnlocked(s) ? s.id : 'classic'; }
+  function select(id) { const s = get(id); if (!isUnlocked(s)) return false; save(s.id); return true; }
+  function buy(id) {
+    const s = get(id);
+    if (s.price == null || isUnlocked(s)) return false;
+    if (!(CT.Lab && CT.Lab.spend && CT.Lab.spend(s.price))) return false;
+    const set = ownedSet(); set.add(id); saveOwned(set);
+    return true;
+  }
+  return { SKINS, isOwned, isUnlocked, selectedId, select, buy, preview() { return []; } };
+}
+
+// Têtes du SERPENT joueur (le rendu lit `game.headStyle` dans drawHead). Têtes = articles
+// de prestige → prix élevés (dizaines à centaines de milliers de ⚡ pour les plus exclusifs).
+CT.HeadSkins = ctMakeShop('ct_head', 'ct_head_own', [
+  { id: 'classic',  name: 'Logo T',       icon: '🔋', price: 0 },
+  { id: 'drole',    name: 'Rigolo',       icon: '😜', price: 25000 },
+  { id: 'agressif', name: 'Agressif',     icon: '😈', price: 50000 },
+  { id: 'ete',      name: 'Été',          icon: '😎', price: 80000 },
+  // formes exclusives (changent la FORME de la tête)
+  { id: 'sperm',    name: 'Spermatozoïde', icon: '🦠', price: 200000 },
+  { id: 'ver',      name: 'Ver de terre',  icon: '🪱', price: 350000 },
+]);
+
+// Têtes des ENNEMIS / BOSS (le rendu lit `game.enemyHeadStyle` dans drawHostile).
+CT.EnemyHeads = ctMakeShop('ct_enemy_head', 'ct_enemy_head_own', [
+  { id: 'classic',  name: 'Féroce',        icon: '💀', price: 0 },
+  { id: 'drole',    name: 'Rigolo',        icon: '🤪', price: 25000 },
+  { id: 'agressif', name: 'Enragé',        icon: '👿', price: 50000 },
+  { id: 'ete',      name: 'Vacances',      icon: '🕶️', price: 80000 },
+  { id: 'sperm',    name: 'Spermatozoïde', icon: '🦠', price: 200000 },
+  { id: 'ver',      name: 'Ver de terre',  icon: '🪱', price: 350000 },
+]);

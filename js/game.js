@@ -133,6 +133,9 @@ window.CT = window.CT || {};
     this.enemySkin = (window.CT && CT.BossSkins && CT.BossSkins.activeMain)
       ? { main: CT.BossSkins.activeMain(), aura: CT.BossSkins.activeAura() }
       : { main: T.danger, aura: T.violet };
+    // styles de TÊTE achetés (visage du serpent joueur / des ennemis)
+    this.headStyle = (window.CT && CT.HeadSkins) ? CT.HeadSkins.selectedId() : 'classic';
+    this.enemyHeadStyle = (window.CT && CT.EnemyHeads) ? CT.EnemyHeads.selectedId() : 'classic';
     // couleur courante du serpent (change à chaque batterie ; lissée vers la cible)
     this.snakeColorRgb = hexRgb(this.palette[0]);
     this.snakeColorTarget = hexRgb(this.palette[0]);
@@ -1809,6 +1812,7 @@ window.CT = window.CT || {};
     if (!e) return;
     const ctx = this.ctx, cell = this.cell;
     const skin = this.enemySkin || { main: T.danger, aura: T.violet };   // apparence achetée
+    const eStyle = this.enemyHeadStyle || 'classic';   // visage acheté (classic/drole/agressif/ete)
     const boss = !!e.boss;                             // le BOSS est plus gros + aura « danger »
     const sizeScale = boss ? 1.35 : 1;
     const glowCol = boss ? skin.aura : skin.main;
@@ -1842,6 +1846,10 @@ window.CT = window.CT || {};
       ctx.save();
       ctx.translate(x, y);
       ctx.rotate(a == null ? ang : a);
+      if (eStyle === 'sperm' || eStyle === 'ver') {   // tête « forme libre » (remplace le crâne)
+        this._drawCreatureHead(ctx, eStyle, skin.main, glowCol, s);
+        ctx.restore(); return;
+      }
       // crâne (pointe de lance vers +x = direction)
       ctx.shadowColor = glowCol; ctx.shadowBlur = (14 + pulse * 16) * (boss ? 1.4 : 1);
       ctx.fillStyle = skin.main;
@@ -1861,17 +1869,36 @@ window.CT = window.CT || {};
       ctx.moveTo(0.52 * h, -0.30 * h); ctx.lineTo(1.06 * h, -0.10 * h); ctx.lineTo(0.55 * h, 0.02 * h); ctx.closePath();
       ctx.moveTo(0.52 * h,  0.30 * h); ctx.lineTo(1.06 * h,  0.10 * h); ctx.lineTo(0.55 * h, -0.02 * h); ctx.closePath();
       ctx.fill();
-      // yeux fâchés : fentes obliques incandescentes (sourcils froncés vers l'avant)
-      ctx.shadowColor = T.amber; ctx.shadowBlur = 5 + pulse * 6;
-      ctx.fillStyle = mix(T.amber, '#ffffff', 0.35);
-      ctx.beginPath();
-      ctx.moveTo(-0.06 * h, -0.30 * h); ctx.lineTo(0.46 * h, -0.54 * h); ctx.lineTo(0.54 * h, -0.34 * h); ctx.lineTo(0.04 * h, -0.14 * h); ctx.closePath();
-      ctx.moveTo(-0.06 * h,  0.30 * h); ctx.lineTo(0.46 * h,  0.54 * h); ctx.lineTo(0.54 * h,  0.34 * h); ctx.lineTo(0.04 * h,  0.14 * h); ctx.closePath();
-      ctx.fill();
-      // pupilles ardentes (teinte profonde du skin)
-      ctx.shadowBlur = 0; ctx.fillStyle = mix(skin.main, '#000000', 0.25);
-      ctx.fillRect(0.20 * h, -0.44 * h, 0.13 * h, 0.13 * h);
-      ctx.fillRect(0.20 * h,  0.31 * h, 0.13 * h, 0.13 * h);
+      // VISAGE selon le skin de tête (eStyle). +x = avant ; les deux yeux straddle l'axe.
+      if (eStyle === 'drole') {                        // 🤪 gros yeux ronds rigolos
+        ctx.shadowBlur = 0; ctx.fillStyle = '#ffffff';
+        ctx.beginPath(); ctx.arc(0.16 * h, -0.34 * h, 0.2 * h, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(0.16 * h, 0.34 * h, 0.2 * h, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#1a0006';
+        ctx.beginPath(); ctx.arc(0.24 * h, -0.30 * h, 0.09 * h, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(0.24 * h, 0.38 * h, 0.09 * h, 0, Math.PI * 2); ctx.fill();
+      } else if (eStyle === 'ete') {                   // 🕶️ lunettes de soleil
+        ctx.shadowBlur = 0; ctx.fillStyle = '#04101a';
+        ctx.fillRect(0.10 * h, -0.2 * h, 0.12 * h, 0.4 * h);    // pont entre les verres
+        U.rr(ctx, -0.02 * h, -0.62 * h, 0.34 * h, 0.34 * h, 0.1 * h); ctx.fill();
+        U.rr(ctx, -0.02 * h, 0.28 * h, 0.34 * h, 0.34 * h, 0.1 * h); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.4)';
+        ctx.fillRect(0.04 * h, -0.56 * h, 0.1 * h, 0.08 * h);
+        ctx.fillRect(0.04 * h, 0.34 * h, 0.1 * h, 0.08 * h);
+      } else {                                          // classic / agressif : yeux fâchés (agressif ↑ + rouge)
+        const big = eStyle === 'agressif' ? 1.22 : 1;
+        ctx.shadowColor = T.amber; ctx.shadowBlur = 5 + pulse * 6;
+        ctx.fillStyle = eStyle === 'agressif' ? '#ff5b6e' : mix(T.amber, '#ffffff', 0.35);
+        ctx.save(); ctx.scale(1, big);
+        ctx.beginPath();
+        ctx.moveTo(-0.06 * h, -0.30 * h); ctx.lineTo(0.46 * h, -0.54 * h); ctx.lineTo(0.54 * h, -0.34 * h); ctx.lineTo(0.04 * h, -0.14 * h); ctx.closePath();
+        ctx.moveTo(-0.06 * h,  0.30 * h); ctx.lineTo(0.46 * h,  0.54 * h); ctx.lineTo(0.54 * h,  0.34 * h); ctx.lineTo(0.04 * h,  0.14 * h); ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+        ctx.shadowBlur = 0; ctx.fillStyle = mix(skin.main, '#000000', 0.25);
+        ctx.fillRect(0.20 * h, -0.44 * h, 0.13 * h, 0.13 * h);
+        ctx.fillRect(0.20 * h,  0.31 * h, 0.13 * h, 0.13 * h);
+      }
       ctx.restore();
     };
 
@@ -2053,25 +2080,119 @@ window.CT = window.CT || {};
 
     ctx.save();
     ctx.translate(p.x, p.y); ctx.rotate(ang);
-    // corps
-    ctx.shadowColor = headHex; ctx.shadowBlur = 16;
-    const body = ctx.createLinearGradient(-w / 2, 0, w / 2, 0);
-    body.addColorStop(0, '#13242a'); body.addColorStop(1, '#0c181c');
-    ctx.fillStyle = body;
-    U.rr(ctx, -w / 2, -h / 2, w, h, h * 0.32); ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = headHex; ctx.lineWidth = 2;
-    U.rr(ctx, -w / 2, -h / 2, w, h, h * 0.32); ctx.stroke();
-    // embout USB-C à l'avant
-    ctx.fillStyle = '#cfe9ea';
-    U.rr(ctx, w / 2 - cell * 0.06, -h * 0.18, cell * 0.22, h * 0.36, cell * 0.08); ctx.fill();
-    // « T » Cryptotem (redressé, indépendant de l'angle)
-    ctx.rotate(-ang);
-    ctx.fillStyle = headHex; ctx.shadowColor = headHex; ctx.shadowBlur = 10;
-    const tw = h * 0.5, tt = h * 0.16;
-    ctx.fillRect(-tw / 2, -h * 0.22, tw, tt);
-    ctx.fillRect(-tt / 2, -h * 0.22, tt, h * 0.46);
+    const style = this.headStyle || 'classic';
+    if (style === 'sperm' || style === 'ver') {
+      // tête « forme libre » : remplace la power bank (perd le « T » → skin de prestige)
+      this._drawCreatureHead(ctx, style, headHex, headHex, cell * 1.15);
+    } else {
+      // corps power bank
+      ctx.shadowColor = headHex; ctx.shadowBlur = 16;
+      const body = ctx.createLinearGradient(-w / 2, 0, w / 2, 0);
+      body.addColorStop(0, '#13242a'); body.addColorStop(1, '#0c181c');
+      ctx.fillStyle = body;
+      U.rr(ctx, -w / 2, -h / 2, w, h, h * 0.32); ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = headHex; ctx.lineWidth = 2;
+      U.rr(ctx, -w / 2, -h / 2, w, h, h * 0.32); ctx.stroke();
+      // embout USB-C à l'avant
+      ctx.fillStyle = '#cfe9ea';
+      U.rr(ctx, w / 2 - cell * 0.06, -h * 0.18, cell * 0.22, h * 0.36, cell * 0.08); ctx.fill();
+      // visage / logo (redressé, indépendant de l'angle) — selon le skin de tête acheté
+      ctx.rotate(-ang);
+      this._drawHeadFace(ctx, headHex, h);
+    }
     ctx.restore();
+  };
+
+  // Dessine le visage du serpent dans le repère local redressé (origine = centre de la tête).
+  // `this.headStyle` : classic (logo « T ») · drole · agressif · ete.
+  G._drawHeadFace = function (ctx, col, h) {
+    const style = this.headStyle || 'classic';
+    if (style === 'classic') {
+      ctx.fillStyle = col; ctx.shadowColor = col; ctx.shadowBlur = 10;
+      const tw = h * 0.5, tt = h * 0.16;
+      ctx.fillRect(-tw / 2, -h * 0.22, tw, tt);
+      ctx.fillRect(-tt / 2, -h * 0.22, tt, h * 0.46);
+      return;
+    }
+    ctx.shadowBlur = 0;
+    if (style === 'drole') {                          // 😜 gros yeux + grand sourire
+      ctx.fillStyle = '#ffffff';
+      [-0.2, 0.2].forEach((sx) => { ctx.beginPath(); ctx.arc(sx * h, -0.08 * h, 0.15 * h, 0, Math.PI * 2); ctx.fill(); });
+      ctx.fillStyle = '#06181c';
+      [-0.2, 0.2].forEach((sx) => { ctx.beginPath(); ctx.arc(sx * h + 0.03 * h, -0.05 * h, 0.07 * h, 0, Math.PI * 2); ctx.fill(); });
+      ctx.strokeStyle = col; ctx.lineWidth = h * 0.07; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.arc(0, 0.05 * h, 0.2 * h, 0.18 * Math.PI, 0.82 * Math.PI); ctx.stroke();
+    } else if (style === 'agressif') {                // 😈 yeux furieux + dents serrées
+      ctx.fillStyle = '#ff5b6e';
+      ctx.beginPath(); ctx.moveTo(-0.33 * h, -0.18 * h); ctx.lineTo(-0.07 * h, -0.05 * h); ctx.lineTo(-0.07 * h, 0.04 * h); ctx.lineTo(-0.33 * h, -0.05 * h); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(0.33 * h, -0.18 * h); ctx.lineTo(0.07 * h, -0.05 * h); ctx.lineTo(0.07 * h, 0.04 * h); ctx.lineTo(0.33 * h, -0.05 * h); ctx.closePath(); ctx.fill();
+      const mw = 0.42 * h, my = 0.13 * h, mh = 0.13 * h;
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(-mw / 2, my, mw, mh);
+      ctx.strokeStyle = '#06181c'; ctx.lineWidth = Math.max(1, h * 0.025);
+      for (let i = 1; i < 4; i++) { const x = -mw / 2 + i * mw / 4; ctx.beginPath(); ctx.moveTo(x, my); ctx.lineTo(x, my + mh); ctx.stroke(); }
+    } else if (style === 'ete') {                     // 😎 lunettes de soleil + sourire détendu
+      ctx.fillStyle = '#06181c';
+      ctx.fillRect(-0.28 * h, -0.13 * h, 0.56 * h, 0.05 * h);   // barre/monture
+      U.rr(ctx, -0.32 * h, -0.14 * h, 0.26 * h, 0.2 * h, 0.06 * h); ctx.fill();
+      U.rr(ctx, 0.06 * h, -0.14 * h, 0.26 * h, 0.2 * h, 0.06 * h); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.45)';
+      ctx.fillRect(-0.28 * h, -0.1 * h, 0.08 * h, 0.05 * h);
+      ctx.fillRect(0.1 * h, -0.1 * h, 0.08 * h, 0.05 * h);
+      ctx.strokeStyle = col; ctx.lineWidth = h * 0.06; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.arc(0, 0.1 * h, 0.16 * h, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke();
+    }
+  };
+
+  // Têtes « forme libre » (remplacent la forme de la tête) — repère ALIGNÉ DIRECTION (+x = avant,
+  // origine = centre de la tête). `S` = taille caractéristique. Partagé serpent ⇄ ennemis/boss.
+  G._drawCreatureHead = function (ctx, style, col, glow, S) {
+    if (style === 'sperm') {                           // 🦠 spermatozoïde : cellule ovale + flagelle ondulant
+      // flagelle (derrière, -x) qui ondule
+      ctx.strokeStyle = col; ctx.lineWidth = S * 0.09; ctx.lineCap = 'round';
+      ctx.shadowColor = glow; ctx.shadowBlur = S * 0.28;
+      ctx.beginPath();
+      const segs = 16, len = S * 1.0;
+      for (let i = 0; i <= segs; i++) {
+        const f = i / segs, tx = -S * 0.28 - f * len, ty = Math.sin(f * 6 + this.time * 9) * S * 0.3 * f;
+        i ? ctx.lineTo(tx, ty) : ctx.moveTo(tx, ty);
+      }
+      ctx.stroke();
+      // cellule (tête ovale)
+      ctx.shadowBlur = S * 0.34;
+      const grad = ctx.createLinearGradient(-S * 0.3, 0, S * 0.4, 0);
+      grad.addColorStop(0, mix(col, '#ffffff', 0.25)); grad.addColorStop(1, col);
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.ellipse(S * 0.05, 0, S * 0.4, S * 0.3, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
+      // noyau + yeux
+      ctx.fillStyle = mix(col, '#04101a', 0.55);
+      ctx.beginPath(); ctx.ellipse(S * 0.06, 0, S * 0.17, S * 0.13, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath(); ctx.arc(S * 0.2, -S * 0.1, S * 0.06, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(S * 0.2, S * 0.1, S * 0.06, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#06181c';
+      ctx.beginPath(); ctx.arc(S * 0.22, -S * 0.1, S * 0.03, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(S * 0.22, S * 0.1, S * 0.03, 0, Math.PI * 2); ctx.fill();
+    } else {                                            // 🪱 ver de terre : capsule annelée + anneau clair
+      const bw = S * 0.95, bh = S * 0.52;
+      ctx.shadowColor = glow; ctx.shadowBlur = S * 0.22;
+      const grad = ctx.createLinearGradient(0, -bh / 2, 0, bh / 2);
+      grad.addColorStop(0, mix(col, '#ffffff', 0.25)); grad.addColorStop(1, mix(col, '#3a0820', 0.25));
+      ctx.fillStyle = grad;
+      U.rr(ctx, -bw * 0.5, -bh * 0.5, bw, bh, bh * 0.5); ctx.fill();
+      ctx.shadowBlur = 0;
+      // anneaux de segments
+      ctx.strokeStyle = mix(col, '#000000', 0.4); ctx.lineWidth = Math.max(1, S * 0.04);
+      for (let i = -1; i <= 2; i++) { const sx = i * S * 0.2; ctx.beginPath(); ctx.moveTo(sx, -bh * 0.42); ctx.lineTo(sx, bh * 0.42); ctx.stroke(); }
+      // clitellum (anneau clair)
+      ctx.fillStyle = mix(col, '#ffffff', 0.4); ctx.fillRect(-S * 0.04, -bh * 0.5, S * 0.14, bh);
+      // yeux à l'avant (+x)
+      ctx.fillStyle = '#06181c';
+      ctx.beginPath(); ctx.arc(S * 0.38, -S * 0.1, S * 0.05, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(S * 0.38, S * 0.1, S * 0.05, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.shadowBlur = 0;
   };
 
   G.drawToast = function () {

@@ -297,6 +297,8 @@ html, body {
 .skin-card .sk-name { font-size: 14px; font-weight: 800; flex: 1; color: var(--text); }
 .skin-card .sk-swatch { display: flex; gap: 3px; height: 16px; border-radius: 6px; overflow: hidden; }
 .skin-card .sk-swatch i { flex: 1; display: block; }
+/* aperçu d'un skin de tête : grand emoji */
+.skin-card .sk-emoji { height: 30px; font-size: 26px; line-height: 30px; text-align: center; }
 .skin-card .sk-state { font-size: 12px; font-weight: 700; color: var(--text-dim); }
 .skin-card.locked { opacity: 0.6; filter: grayscale(0.5); }
 .skin-card.locked .sk-state { color: var(--amber); }

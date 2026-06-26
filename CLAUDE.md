@@ -350,16 +350,27 @@ Couleurs toujours via des clés de `CONFIG.theme` (rebrandable).
   appliqué à **tous les hostiles** (Snakator + boss). **5 skins** : Rouge sang (défaut, gratuit),
   Toxique ⚡3000, Givré ⚡5000, Doré ⚡9000, Ombre ⚡14000. `game.enemySkin = { main, aura }`
   (figé au `reset`) ; `drawHostile` lit `this.enemySkin` au lieu des `T.danger`/`T.violet` en dur.
+- **Têtes / visages** (forme, pas couleur ; axe indépendant des couleurs) — fabrique commune
+  `ctMakeShop(selKey, ownKey, SKINS)` (100 % payants) : **`CT.HeadSkins`** (serpent → `game.headStyle`,
+  lu par `drawHead`) et **`CT.EnemyHeads`** (ennemis → `game.enemyHeadStyle`, lu par `headSeg`).
+  **6 styles** chacun, **prix de prestige** (dizaines→centaines de milliers de ⚡) : `classic` (gratuit :
+  logo « T » / crâne féroce), `drole` ⚡25k, `agressif` ⚡50k, `ete` ⚡80k (lunettes) — visages posés sur
+  la tête existante via `_drawHeadFace` (serpent) / le switch d'yeux de `headSeg` (ennemi). Et **2 têtes
+  « forme libre »** qui **remplacent** la forme : `sperm` ⚡200k (🦠 cellule ovale + flagelle ondulant) et
+  `ver` ⚡350k (🪱 capsule annelée), dessinées par **`_drawCreatureHead(ctx, style, col, glow, S)`** (repère
+  aligné direction, +x avant) — **partagé serpent ⇄ ennemis**. Le module ne stocke que l'id ; `preview()`
+  renvoie `[]` → carte en **emoji**.
 - **Achat** : `mod.buy(id)` débite le portefeuille du Labo via **`CT.Lab.spend(pts)`** (⚡ partagé
   avec la R&D → vrai choix économique) puis marque le skin **possédé** (`localStorage ct_skins_own`
   / `ct_boss_own`). `isUnlocked` = seuil d'étoiles **ou** possédé/gratuit. Sélection persistée
   (`ct_skin` / `ct_boss_skin`), repliée sur `classic` si plus débloquée.
-- **UI** : écran « 🎨 Skins & Boutique » (bouton accueil) — portefeuille ⚡ + 2 grilles (Serpent,
-  Ennemis & Boss). Chaque carte : aperçu en **pastilles**, état (✓ Équipé / Choisir / 🔒 N ★ / pastille
-  « ⚡ prix » verte=abordable, rouge=trop cher). `renderSkinGrid(container, mod, apply)` est générique
-  (snake & boss partagent l'API : `SKINS`, `isUnlocked`, `selectedId`, `select`, `buy`, `preview`) ;
-  `apply` reflète le choix à chaud (`CT.game.palette` / `CT.game.enemySkin`). Acheter coûte les ⚡,
-  équipe le skin et rafraîchit. ⚠️ `isUnlocked` (snake) appelle l'**interne** `stars()` (pas l'export).
+- **UI** : écran « 🎨 Skins & Boutique » (bouton accueil) — portefeuille ⚡ + **4 grilles** (Serpent
+  Couleurs/Têtes, Ennemis Couleurs/Têtes). Chaque carte : aperçu (**pastilles** couleur ou **emoji**
+  pour une tête), état (✓ Équipé / Choisir / 🔒 N ★ / pastille « ⚡ prix » verte=abordable, rouge=trop
+  cher). `renderSkinGrid(container, mod, apply)` est générique (tous les mods partagent l'API : `SKINS`,
+  `isUnlocked`, `selectedId`, `select`, `buy`, `preview`) ; `apply` reflète le choix à chaud
+  (`CT.game.palette` / `enemySkin` / `headStyle` / `enemyHeadStyle`). Acheter coûte les ⚡, équipe et
+  rafraîchit. ⚠️ `isUnlocked` (snake palette) appelle l'**interne** `stars()` (pas l'export).
 
 ### Mode démo / attract (`G.startDemo` + `G.autopilot`)
 Au chargement et au retour menu, le serpent **joue tout seul** derrière le menu
@@ -557,6 +568,10 @@ complet : Reed-Solomon GF(256), sélection de masque par pénalité, BCH format/
 - [x] **Boutique en pièces ⚡** (`CT.Lab.spend`) : skins de serpent payants (Braise/Abysse/Vaporwave)
       + **skins d'ennemis/boss** (`CT.BossSkins` : Toxique/Givré/Doré/Ombre, recolore Snakator + boss).
       Achat débité du portefeuille du Labo, possédés à vie (`ct_skins_own`/`ct_boss_own`), écran
-      « 🎨 Skins & Boutique » (2 grilles + portefeuille).
+      « 🎨 Skins & Boutique » (portefeuille + grilles).
+- [x] **Têtes / visages achetables** (`CT.HeadSkins` serpent + `CT.EnemyHeads` ennemis, fabrique
+      `ctMakeShop`) : 6 styles chacun, prix de prestige (⚡25k→350k). Visages posés (classic logo T,
+      Rigolo, Agressif, Été lunettes) + **2 têtes « forme libre »** qui remplacent la forme
+      (Spermatozoïde 🦠, Ver de terre 🪱, via `_drawCreatureHead` partagé serpent/ennemis). Aperçu emoji.
 - [x] **Musique dynamique** (`CT.Audio.setTension`) : la musique d'ambiance monte en tension
       près de l'objectif, sous malus et en combat de boss (no-op si musique coupée).

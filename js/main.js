@@ -427,7 +427,9 @@
   /* ---------------- Skins & Boutique (serpent + ennemis/boss) ---------------- */
   const skinScreenEl = document.getElementById('skinScreen');
   const skinListEl = document.getElementById('skinList');
+  const headSkinListEl = document.getElementById('headSkinList');
   const bossSkinListEl = document.getElementById('bossSkinList');
+  const enemyHeadListEl = document.getElementById('enemyHeadList');
   const skinStarsEl = document.getElementById('skinStars');
   const skinWalletEl = document.getElementById('skinWallet');
 
@@ -447,8 +449,14 @@
       const ic = document.createElement('span'); ic.className = 'sk-ic'; ic.textContent = s.icon;
       const nm = document.createElement('span'); nm.className = 'sk-name'; nm.textContent = s.name;
       top.append(ic, nm);
-      const sw = document.createElement('div'); sw.className = 'sk-swatch';
-      mod.preview(s.id).forEach((hex) => { const i = document.createElement('i'); i.style.background = hex; sw.appendChild(i); });
+      const colors = mod.preview(s.id);
+      let sw;
+      if (colors && colors.length) {
+        sw = document.createElement('div'); sw.className = 'sk-swatch';
+        colors.forEach((hex) => { const i = document.createElement('i'); i.style.background = hex; sw.appendChild(i); });
+      } else {
+        sw = document.createElement('div'); sw.className = 'sk-emoji'; sw.textContent = s.icon;   // tête : aperçu en emoji
+      }
       const st = document.createElement('div'); st.className = 'sk-state';
       card.append(top, sw, st);
       if (equipped) {
@@ -473,9 +481,11 @@
     skinStarsEl.textContent = '★ ' + CT.Skins.stars();
     skinWalletEl.textContent = CT.Lab.wallet().pts;
     renderSkinGrid(skinListEl, CT.Skins, () => { if (CT.game) CT.game.palette = CT.Skins.activePalette(); });
+    renderSkinGrid(headSkinListEl, CT.HeadSkins, () => { if (CT.game) CT.game.headStyle = CT.HeadSkins.selectedId(); });
     renderSkinGrid(bossSkinListEl, CT.BossSkins, () => {
       if (CT.game) CT.game.enemySkin = { main: CT.BossSkins.activeMain(), aura: CT.BossSkins.activeAura() };
     });
+    renderSkinGrid(enemyHeadListEl, CT.EnemyHeads, () => { if (CT.game) CT.game.enemyHeadStyle = CT.EnemyHeads.selectedId(); });
   }
   function openSkins() {
     overlays.start.classList.add('hidden');
