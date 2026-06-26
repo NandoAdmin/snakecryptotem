@@ -129,6 +129,10 @@ window.CT = window.CT || {};
     this._tension = 0;       // tension musicale courante (musique dynamique)
     // palette du serpent : skin sélectionné (cycle de couleurs, 1 par batterie)
     this.palette = (window.CT && CT.Skins && CT.Skins.activePalette) ? CT.Skins.activePalette() : PALETTE;
+    // apparence des ennemis / boss (skin acheté) : couleur principale + aura
+    this.enemySkin = (window.CT && CT.BossSkins && CT.BossSkins.activeMain)
+      ? { main: CT.BossSkins.activeMain(), aura: CT.BossSkins.activeAura() }
+      : { main: T.danger, aura: T.violet };
     // couleur courante du serpent (change à chaque batterie ; lissée vers la cible)
     this.snakeColorRgb = hexRgb(this.palette[0]);
     this.snakeColorTarget = hexRgb(this.palette[0]);
@@ -1804,14 +1808,15 @@ window.CT = window.CT || {};
   G.drawHostile = function (e) {
     if (!e) return;
     const ctx = this.ctx, cell = this.cell;
-    const boss = !!e.boss;                             // le BOSS est plus gros + aura violette « danger »
+    const skin = this.enemySkin || { main: T.danger, aura: T.violet };   // apparence achetée
+    const boss = !!e.boss;                             // le BOSS est plus gros + aura « danger »
     const sizeScale = boss ? 1.35 : 1;
-    const glowCol = boss ? T.violet : T.danger;
+    const glowCol = boss ? skin.aura : skin.main;
     const moving = this.state === 'playing' || (this.state === 'start' && this.demo);
     const t = moving ? U.clamp(this.acc / this.effInterval, 0, 1) : 0;
     const pulse = this.reduce ? 0.5 : 0.5 + 0.5 * Math.sin(this.time * 8);
-    const bodyCol = mix(T.danger, '#16030a', 0.55);    // rouge sang très sombre
-    const edgeCol = mix(T.danger, '#ffffff', 0.4);     // arête chaude, presque incandescente
+    const bodyCol = mix(skin.main, '#16030a', 0.55);   // teinte sombre du corps
+    const edgeCol = mix(skin.main, '#ffffff', 0.4);    // arête chaude, presque incandescente
     const ang = Math.atan2(e.dir.y, e.dir.x);          // oriente la tête vers la direction
 
     // Segment de corps : losange « épine dorsale » dentelée + arête vive (plus chaude vers la tête).
@@ -1839,7 +1844,7 @@ window.CT = window.CT || {};
       ctx.rotate(a == null ? ang : a);
       // crâne (pointe de lance vers +x = direction)
       ctx.shadowColor = glowCol; ctx.shadowBlur = (14 + pulse * 16) * (boss ? 1.4 : 1);
-      ctx.fillStyle = T.danger;
+      ctx.fillStyle = skin.main;
       ctx.beginPath();
       ctx.moveTo(-0.92 * h, -0.80 * h);
       ctx.lineTo( 0.18 * h, -1.00 * h);
@@ -1863,8 +1868,8 @@ window.CT = window.CT || {};
       ctx.moveTo(-0.06 * h, -0.30 * h); ctx.lineTo(0.46 * h, -0.54 * h); ctx.lineTo(0.54 * h, -0.34 * h); ctx.lineTo(0.04 * h, -0.14 * h); ctx.closePath();
       ctx.moveTo(-0.06 * h,  0.30 * h); ctx.lineTo(0.46 * h,  0.54 * h); ctx.lineTo(0.54 * h,  0.34 * h); ctx.lineTo(0.04 * h,  0.14 * h); ctx.closePath();
       ctx.fill();
-      // pupilles ardentes (rouge profond)
-      ctx.shadowBlur = 0; ctx.fillStyle = mix(T.danger, '#000000', 0.25);
+      // pupilles ardentes (teinte profonde du skin)
+      ctx.shadowBlur = 0; ctx.fillStyle = mix(skin.main, '#000000', 0.25);
       ctx.fillRect(0.20 * h, -0.44 * h, 0.13 * h, 0.13 * h);
       ctx.fillRect(0.20 * h,  0.31 * h, 0.13 * h, 0.13 * h);
       ctx.restore();

@@ -424,39 +424,57 @@
   document.getElementById('statsBtn').addEventListener('click', () => { CT.Audio.unlock(); CT.Audio.ui(); openStats(); });
   document.getElementById('statsCloseBtn').addEventListener('click', () => { CT.Audio.ui(); closeStats(); });
 
-  /* ---------------- Skins du serpent ---------------- */
+  /* ---------------- Skins & Boutique (serpent + ennemis/boss) ---------------- */
   const skinScreenEl = document.getElementById('skinScreen');
   const skinListEl = document.getElementById('skinList');
+  const bossSkinListEl = document.getElementById('bossSkinList');
   const skinStarsEl = document.getElementById('skinStars');
+  const skinWalletEl = document.getElementById('skinWallet');
 
-  function renderSkins() {
-    const stars = CT.Skins.stars();
-    const selId = CT.Skins.selectedId();
-    skinStarsEl.textContent = '★ ' + stars;
-    skinListEl.innerHTML = '';
-    CT.Skins.SKINS.forEach((s) => {
-      const unlocked = CT.Skins.isUnlocked(s);
+  // Rendu générique d'une grille de skins (serpent ou boss) — `mod` expose l'API commune
+  // (SKINS, isUnlocked, selectedId, select, buy, preview) ; `apply` reflète le choix en jeu.
+  function renderSkinGrid(container, mod, apply) {
+    const selId = mod.selectedId();
+    const coins = CT.Lab.wallet().pts;
+    container.innerHTML = '';
+    mod.SKINS.forEach((s) => {
+      const unlocked = mod.isUnlocked(s);
+      const equipped = s.id === selId;
+      const priced = s.price != null && s.price > 0;
       const card = document.createElement('div');
-      card.className = 'skin-card' + (unlocked ? '' : ' locked') + (s.id === selId ? ' selected' : '');
+      card.className = 'skin-card' + (equipped ? ' selected' : '') + (!unlocked ? (priced ? ' buyable' : ' locked') : '');
       const top = document.createElement('div'); top.className = 'sk-top';
       const ic = document.createElement('span'); ic.className = 'sk-ic'; ic.textContent = s.icon;
       const nm = document.createElement('span'); nm.className = 'sk-name'; nm.textContent = s.name;
       top.append(ic, nm);
       const sw = document.createElement('div'); sw.className = 'sk-swatch';
-      CT.Skins.paletteHex(s.id).forEach((hex) => { const i = document.createElement('i'); i.style.background = hex; sw.appendChild(i); });
+      mod.preview(s.id).forEach((hex) => { const i = document.createElement('i'); i.style.background = hex; sw.appendChild(i); });
       const st = document.createElement('div'); st.className = 'sk-state';
-      st.textContent = !unlocked ? ('🔒 ' + s.stars + ' ★ requises') : (s.id === selId ? '✓ Équipé' : 'Choisir');
       card.append(top, sw, st);
-      if (unlocked) {
-        card.addEventListener('click', () => {
-          if (CT.Skins.select(s.id)) {
-            CT.Audio.ui();
-            if (CT.game) CT.game.palette = CT.Skins.activePalette();   // reflète tout de suite (démo derrière le menu)
-            renderSkins();
-          }
+      if (equipped) {
+        st.textContent = '✓ Équipé';
+      } else if (unlocked) {
+        st.textContent = 'Choisir'; st.classList.add('sk-choose');
+        card.addEventListener('click', () => { if (mod.select(s.id)) { CT.Audio.ui(); apply(); renderSkins(); } });
+      } else if (priced) {
+        const afford = coins >= s.price;
+        st.textContent = '⚡ ' + s.price; st.classList.add('sk-buy'); if (!afford) st.classList.add('poor');
+        if (afford) card.addEventListener('click', () => {
+          if (mod.buy(s.id)) { if (CT.Audio.bonus) CT.Audio.bonus(); mod.select(s.id); apply(); renderSkins(); }
         });
+      } else {
+        st.textContent = '🔒 ' + s.stars + ' ★ requises';
       }
-      skinListEl.appendChild(card);
+      container.appendChild(card);
+    });
+  }
+
+  function renderSkins() {
+    skinStarsEl.textContent = '★ ' + CT.Skins.stars();
+    skinWalletEl.textContent = CT.Lab.wallet().pts;
+    renderSkinGrid(skinListEl, CT.Skins, () => { if (CT.game) CT.game.palette = CT.Skins.activePalette(); });
+    renderSkinGrid(bossSkinListEl, CT.BossSkins, () => {
+      if (CT.game) CT.game.enemySkin = { main: CT.BossSkins.activeMain(), aura: CT.BossSkins.activeAura() };
     });
   }
   function openSkins() {

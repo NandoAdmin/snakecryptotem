@@ -110,6 +110,15 @@ CT.Lab = (function () {
     save(s);
   }
 
+  // Dépense des pièces (⚡) du portefeuille — achats cosmétiques (skins). true si payé.
+  function canAfford(pts) { return (state().wallet.pts || 0) >= (pts || 0); }
+  function spend(pts) {
+    const s = state();
+    if ((s.wallet.pts || 0) < pts) return false;
+    s.wallet.pts -= pts; save(s);
+    return true;
+  }
+
   function canResearch(key) {
     const s = state();
     if (s.research) return { ok: false, reason: 'recherche en cours' };
@@ -170,7 +179,7 @@ CT.Lab = (function () {
   }
 
   return {
-    UPGRADES, level, wallet, bank,
+    UPGRADES, level, wallet, bank, canAfford, spend,
     canResearch, startResearch, research, researchRemaining, isReady, claim,
     effects, neutral, reset,
   };

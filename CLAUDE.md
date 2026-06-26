@@ -275,7 +275,8 @@ côté serveur**, limite le débit et rejette les scores aberrants. Brancher le 
 ### Laboratoire / R&D (`js/lab.js` → `CT.Lab`)
 Méta-progression persistante (localStorage `ct_lab`) qui donne de la durée de vie.
 - **Banque** : à la mort, `CT.Lab.bank({batteries, points})` verse les ressources
-  de la partie (batteries collectées + points) dans le portefeuille.
+  de la partie (batteries collectées + points) dans le portefeuille. `CT.Lab.spend(pts)`
+  débite des pièces ⚡ (achats cosmétiques de la Boutique — voir Skins) ; `canAfford(pts)`.
 - **Recherches** : on dépense **batteries + points** pour lancer **une** recherche
   qui prend du **temps réel** (`endsAt`, persiste même hors-jeu). Une seule à la
   fois. À la fin → bouton « Récupérer » (`claim`) qui applique le niveau.
@@ -336,22 +337,29 @@ murs brisés, Snakator détruit, quêtes `★ X/50`). Lecture seule via `CT.Achi
 + `count()`. Le compteur
 **parties jouées** (`stats.games`) est incrémenté à la mort (`game._ach({game:1})`).
 
-### Skins du serpent (`js/skins.js` → `CT.Skins`)
-Apparences déblocables du serpent. Un **skin = une palette** (1 couleur par batterie, cyclée
-comme `CONFIG.snakePalette`) donnée par des **clés de `CONFIG.theme`** → reste rebrandable
-(jamais de couleur en dur). **6 skins** (`CT.Skins.SKINS`) : Cyan classique (défaut),
-Glacier, Forêt néon, Magma, Prisme, Or pur. **Déblocage par le nombre d'ÉTOILES de quêtes**
-déjà gagnées (`CT.Achievements.count().unlocked` ≥ `skin.stars` : 0 · 4 · 9 · 16 · 26 · 40) →
-récompense la progression existante, **pas de nouvelle monnaie**. Sélection persistée
-(`localStorage ct_skin`), repliée sur `classic` si plus débloquée.
-- **Intégration moteur** : `game.palette = CT.Skins.activePalette()` (figée au `reset`, donc à
-  chaque partie/`toMenu`) ; `setupLevel`/`onEat` cyclent **`this.palette`** au lieu de la
-  constante `PALETTE` (qui reste le défaut de repli). Choisir un skin met aussi à jour
-  `CT.game.palette` à chaud (la démo derrière le menu le reflète).
-- **UI** : écran « 🎨 Skins » (bouton accueil) — carte par skin avec **aperçu en pastilles**,
-  état (✓ Équipé / Choisir / 🔒 N ★ requises), clic pour équiper si débloqué (`renderSkins`
-  dans `main.js`). ⚠️ `isUnlocked` utilise la fonction **interne** `stars()` (pas la méthode
-  exportée) → le gating ne se mocke pas en remplaçant `CT.Skins.stars`.
+### Skins & Boutique (`js/skins.js` → `CT.Skins` + `CT.BossSkins`)
+Apparences personnalisables du **serpent** ET des **ennemis/boss**, débloquées de deux façons :
+par **ÉTOILES de quêtes** (récompenses gratuites) ou par **ACHAT en pièces ⚡** (boutique).
+Couleurs toujours via des clés de `CONFIG.theme` (rebrandable).
+- **`CT.Skins`** (serpent) : un **skin = une palette** (1 couleur/batterie, cyclée comme
+  `CONFIG.snakePalette`). **9 skins** : 6 **aux étoiles** (Cyan classique 0★, Glacier 4★, Forêt 9★,
+  Magma 16★, Prisme 26★, Or 40★ ; gating via la fonction **interne** `stars()` = `CT.Achievements.count().unlocked`)
+  + 3 **payants** (Braise ⚡2500, Abysse ⚡4500, Vaporwave ⚡8000). `game.palette = CT.Skins.activePalette()`
+  (figée au `reset` ; `setupLevel`/`onEat` cyclent `this.palette`, `PALETTE` = repli).
+- **`CT.BossSkins`** (ennemis/boss) : un skin = couleur **`main`** (corps/crâne) + **`aura`** (halo),
+  appliqué à **tous les hostiles** (Snakator + boss). **5 skins** : Rouge sang (défaut, gratuit),
+  Toxique ⚡3000, Givré ⚡5000, Doré ⚡9000, Ombre ⚡14000. `game.enemySkin = { main, aura }`
+  (figé au `reset`) ; `drawHostile` lit `this.enemySkin` au lieu des `T.danger`/`T.violet` en dur.
+- **Achat** : `mod.buy(id)` débite le portefeuille du Labo via **`CT.Lab.spend(pts)`** (⚡ partagé
+  avec la R&D → vrai choix économique) puis marque le skin **possédé** (`localStorage ct_skins_own`
+  / `ct_boss_own`). `isUnlocked` = seuil d'étoiles **ou** possédé/gratuit. Sélection persistée
+  (`ct_skin` / `ct_boss_skin`), repliée sur `classic` si plus débloquée.
+- **UI** : écran « 🎨 Skins & Boutique » (bouton accueil) — portefeuille ⚡ + 2 grilles (Serpent,
+  Ennemis & Boss). Chaque carte : aperçu en **pastilles**, état (✓ Équipé / Choisir / 🔒 N ★ / pastille
+  « ⚡ prix » verte=abordable, rouge=trop cher). `renderSkinGrid(container, mod, apply)` est générique
+  (snake & boss partagent l'API : `SKINS`, `isUnlocked`, `selectedId`, `select`, `buy`, `preview`) ;
+  `apply` reflète le choix à chaud (`CT.game.palette` / `CT.game.enemySkin`). Acheter coûte les ⚡,
+  équipe le skin et rafraîchit. ⚠️ `isUnlocked` (snake) appelle l'**interne** `stars()` (pas l'export).
 
 ### Mode démo / attract (`G.startDemo` + `G.autopilot`)
 Au chargement et au retour menu, le serpent **joue tout seul** derrière le menu
@@ -546,5 +554,9 @@ complet : Reed-Solomon GF(256), sélection de masque par pénalité, BCH format/
       mini-barre par tête, aura violette, récompense + cinématique quand tout tombe.
 - [x] **Skins du serpent** (`js/skins.js`) : 6 palettes déblocables aux étoiles de quêtes
       (0/4/9/16/26/40 ★), écran « 🎨 Skins », sélection persistée (`ct_skin`).
+- [x] **Boutique en pièces ⚡** (`CT.Lab.spend`) : skins de serpent payants (Braise/Abysse/Vaporwave)
+      + **skins d'ennemis/boss** (`CT.BossSkins` : Toxique/Givré/Doré/Ombre, recolore Snakator + boss).
+      Achat débité du portefeuille du Labo, possédés à vie (`ct_skins_own`/`ct_boss_own`), écran
+      « 🎨 Skins & Boutique » (2 grilles + portefeuille).
 - [x] **Musique dynamique** (`CT.Audio.setTension`) : la musique d'ambiance monte en tension
       près de l'objectif, sous malus et en combat de boss (no-op si musique coupée).
