@@ -35,6 +35,10 @@ window.CT = window.CT || {};
     up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 },
   };
 
+  // Décalages (perpendiculaires au cou) des têtes d'une hydre, centrés. 1 tête = au ras du
+  // corps ; 2-3 têtes = déployées en éventail devant (Y qui se sépare / trident).
+  const HEAD_SLOTS = { 1: [0], 2: [-1, 1], 3: [-1, 0, 1] };
+
   CT.Game = function (ctx) {
     this.ctx = ctx;
     this.cine = new CT.Cinematic(ctx);
@@ -100,8 +104,10 @@ window.CT = window.CT || {};
     this.sinceBonus = 0;     // batteries normales depuis le dernier bonus
     this.malus = null;       // MALUS à l'écran (ou null) — { x, y, life, max, type }
     this.sinceMalus = 0;     // pas écoulés (sans malus) depuis la dernière tentative
-    this.enemy = null;       // serpent ennemi (niv 3+) ou BOSS — { body, prev, dir, boss?, hp? } ou null
+    this.enemy = null;       // serpent ennemi « Snakator » (niv 3+, hors boss) — { body, prev, dir } ou null
+    this.bosses = [];        // BOSS simultanés (niveaux boss) — [{ body, prev, dir, boss:true, hp, maxHp, tier }]
     this.bossLevel = false;  // niveau boss en cours (combat à PV, pas d'objectif batteries)
+    this.bossTier = 0;       // palier du combat de boss courant (= niveau / everyLevels)
     this.bossShieldEvery = 0; // boss : 1 essai d'apparition de bouclier tous les N pas
     this.bossShieldTimer = 0; // compteur de pas depuis le dernier essai de bouclier (boss)
     this.slowUntil = 0;      // surcharge/ralenti actif tant que time < slowUntil
@@ -221,8 +227,10 @@ window.CT = window.CT || {};
     // boss, sinon serpent ennemi à partir du niveau configuré ; jamais en démo (qui cycle
     // 1→3 et recouvre désormais fromLevel=3 → garde `!this.demo` indispensable)
     this.enemy = null;
+    this.bosses = [];
+    this.bossTier = this.bossLevel ? bossTier : 0;
     const ec = CT.CONFIG.enemy;
-    if (this.bossLevel) this.spawnBoss(bossTier);
+    if (this.bossLevel) this.spawnBosses(bossTier);
     else if (ec && !this.demo && n >= ec.fromLevel) this.spawnEnemy();
     this.updateHud();
   };
@@ -243,25 +251,101 @@ window.CT = window.CT || {};
     this.enemy = { body, prev: body.map((s) => ({ x: s.x, y: s.y })), dir: dirs[(this.rng() * 4) | 0] };
   };
 
-  // Place le BOSS (serpent rouge surdimensionné à PV) loin du spawn joueur. `tier` ≥ 1.
-  G.spawnBoss = function (tier) {
+  // Nombre de boss simultanés selon le palier (+1 tous les `countEvery` paliers, plafonné).
+  G.bossCount = function (tier) {
     const B = CT.CONFIG.boss;
+    return Math.max(1, Math.min(B.maxCount || 1, 1 + Math.floor((tier - 1) / (B.countEvery || 99))));
+  };
+
+  // Décide la forme du combat selon le palier : paliers PAIRS → HYDRE (1 boss à 2-3 têtes),
+  // paliers IMPAIRS → ESSAIM (plusieurs boss à 1 tête). Varie les plaisirs.
+  G.bossSpec = function (tier) {
+    const B = CT.CONFIG.boss;
+    if (tier % 2 === 0) return { hydra: true, count: 1, heads: Math.min(B.maxHeads || 3, 1 + (tier / 2)) };
+    return { hydra: false, count: this.bossCount(tier), heads: 1 };
+  };
+
+  // Place les BOSS (serpents rouges surdimensionnés) loin du spawn joueur ET les uns des
+  // autres. Chaque boss porte un tableau `heads` : 1 tête (essaim) ou 2-3 (hydre), chacune
+  // avec ses propres PV → couper toutes les têtes pour l'abattre.
+  G.spawnBosses = function (tier) {
+    const B = CT.CONFIG.boss;
+    const spec = this.bossSpec(tier);
+    const count = spec.count;
     const len = Math.min(B.maxLen, B.baseLen + (tier - 1) * B.lenPerTier);
-    const hp = B.baseHp + (tier - 1) * B.hpPerTier;
+    const baseHp = B.baseHp + (tier - 1) * B.hpPerTier;
+    // PV par tête : hydre → réparti (perHeadHpScale) ; essaim → perBossHpScale si plusieurs
+    const headHp = spec.hydra
+      ? Math.max(2, Math.round(baseHp * (B.perHeadHpScale || 0.6)))
+      : (count > 1 ? Math.max(3, Math.round(baseHp * (B.perBossHpScale || 1))) : baseHp);
+    const slots = HEAD_SLOTS[spec.heads] || [0];
     const cx = Math.floor(COLS / 2), cy = Math.floor(ROWS / 2);
-    let x = 2, y = 2, tries = 0;
-    do {
-      x = 1 + ((this.rng() * (COLS - 2)) | 0);
-      y = 1 + ((this.rng() * (ROWS - 2)) | 0);
-    } while (++tries < 200 && (this.obstacleSet.has(this.cellKey(x, y)) ||
-             (Math.abs(x - cx) + Math.abs(y - cy)) < 8));
-    const body = [];
-    for (let i = 0; i < len; i++) body.push({ x, y });
     const dirs = [DIRS.up, DIRS.down, DIRS.left, DIRS.right];
-    this.enemy = {
-      body, prev: body.map((s) => ({ x: s.x, y: s.y })), dir: dirs[(this.rng() * 4) | 0],
-      boss: true, hp, maxHp: hp, tier,
-    };
+    this.bosses = [];
+    for (let k = 0; k < count; k++) {
+      let x = 2, y = 2, tries = 0, ok = false;
+      do {
+        x = 1 + ((this.rng() * (COLS - 2)) | 0);
+        y = 1 + ((this.rng() * (ROWS - 2)) | 0);
+        const farCenter = (Math.abs(x - cx) + Math.abs(y - cy)) >= 8;
+        let farOthers = true;
+        for (const o of this.bosses) {
+          const h = o.body[0];
+          if (Math.abs(x - h.x) + Math.abs(y - h.y) < 6) { farOthers = false; break; }
+        }
+        ok = !this.obstacleSet.has(this.cellKey(x, y)) && farCenter && farOthers;
+      } while (++tries < 250 && !ok);
+      const body = [];
+      for (let i = 0; i < len; i++) body.push({ x, y });
+      const heads = slots.map((slot) => ({ hp: headHp, maxHp: headHp, slot, dead: false }));
+      this.bosses.push({
+        body, prev: body.map((s) => ({ x: s.x, y: s.y })), dir: dirs[(this.rng() * 4) | 0],
+        boss: true, hydra: spec.hydra, tier, heads,
+      });
+    }
+  };
+
+  // Cases-grille des têtes VIVANTES d'un boss (hitboxes / cibles). 1 tête → au ras du corps
+  // (body[0]) ; plusieurs → déployées une case devant, en éventail perpendiculaire au cou.
+  // Toroïdal. Renvoie [{ x, y, head }].
+  G.headCells = function (e) {
+    const cells = [];
+    if (!e.heads) return cells;
+    const reach = e.heads.length > 1 ? 1 : 0;
+    const d = e.dir, px = -d.y, py = d.x;          // perpendiculaire au cou
+    const h0 = e.body[0];
+    const bx = h0.x + d.x * reach, by = h0.y + d.y * reach;
+    for (const head of e.heads) {
+      if (head.dead) continue;
+      const x = ((bx + px * head.slot) % COLS + COLS) % COLS;
+      const y = ((by + py * head.slot) % ROWS + ROWS) % ROWS;
+      cells.push({ x, y, head });
+    }
+    return cells;
+  };
+
+  // Liste des serpents hostiles courants : les BOSS (niveau boss) ou le Snakator (sinon).
+  G.hostiles = function () {
+    if (this.bosses && this.bosses.length) return this.bosses;
+    return this.enemy ? [this.enemy] : [];
+  };
+
+  // PV cumulés (toutes têtes de tous les boss) → barres HUD/canvas + tension musicale.
+  G.bossesHp = function () {
+    let hp = 0, max = 0;
+    for (const e of this.bosses) for (const h of e.heads) { hp += Math.max(0, h.hp); max += h.maxHp; }
+    return { hp, max };
+  };
+
+  // Renvoie le serpent hostile occupant la case (x,y), ou null (corps OU tête vivante).
+  G.hostileAt = function (x, y) {
+    const list = this.hostiles();
+    for (const e of list) {
+      const b = e.body;
+      for (let i = 0; i < b.length; i++) if (b[i].x === x && b[i].y === y) return e;
+      if (e.boss) { const hc = this.headCells(e); for (let i = 0; i < hc.length; i++) if (hc[i].x === x && hc[i].y === y) return e; }
+    }
+    return null;
   };
 
   G.startLevel = function (n) {
@@ -671,9 +755,10 @@ window.CT = window.CT || {};
         if (i === len - 1 && !willEat) continue; // la queue va libérer sa case
         if (this.snake[i].x === nh.x && this.snake[i].y === nh.y) return this.die();
       }
-      if (this.enemyHits(nh.x, nh.y)) return this.die();   // on fonce dans l'ennemi (niv 3+)
-    } else if (this.enemy) {
-      this.biteEnemy(nh.x, nh.y);   // BOUCLIER : on mord le Snakator (tête-à-tête = destruction)
+      if (this.hostileAt(nh.x, nh.y)) return this.die();   // on fonce dans l'ennemi / un boss
+    } else {
+      const hit = this.hostileAt(nh.x, nh.y);
+      if (hit) this.biteSnake(hit, nh.x, nh.y);   // BOUCLIER : on mord (Snakator détruit / boss entamé)
     }
 
     // déplacement (index stables : segment i suit i-1)
@@ -720,47 +805,66 @@ window.CT = window.CT || {};
     if (this.time < this.repelUntil) this.pushFood();
 
     // serpent ennemi (niv 3+) : il se déplace, puis on reteste le contact avec la tête
-    if (this.enemy && this.state === 'playing') {
-      this.stepEnemy();
+    const hostiles = this.hostiles();
+    if (hostiles.length && this.state === 'playing') {
+      for (const e of hostiles) this.stepSnake(e);   // chaque ennemi/boss avance d'une case
       if (this.time >= this.shieldUntil) {
-        if (this.enemyHits(nh.x, nh.y)) return this.die();
+        if (this.hostileAt(nh.x, nh.y)) return this.die();
       } else {
-        this.biteEnemy(nh.x, nh.y);   // BOUCLIER : l'ennemi a foncé sur notre tête → on le mord
+        const hit = this.hostileAt(nh.x, nh.y);   // BOUCLIER : un hostile a foncé sur notre tête → on le mord
+        if (hit) this.biteSnake(hit, nh.x, nh.y);
       }
     }
   };
 
-  // Bouclier : MORD le serpent ennemi à la case (x,y). Tête-à-tête (bloc 0) → destruction
-  // TOTALE ; sinon on coupe sa queue à partir du bloc touché. Renvoie le nb de blocs détruits.
-  G.biteEnemy = function (x, y) {
-    const e = this.enemy; if (!e) return 0;
+  // Bouclier : MORD le serpent hostile `e` à la case (x,y). Snakator : tête-à-tête (bloc 0) →
+  // destruction TOTALE, sinon coupe la queue au point d'impact. BOSS : entame les PV (garde sa
+  // taille) ; à 0 PV il tombe, et quand TOUS les boss tombent → niveau terminé.
+  // Renvoie le nb de blocs détruits / PV ôtés.
+  G.biteSnake = function (e, x, y) {
+    if (!e) return 0;
+
+    // BOSS / HYDRE : on vise les TÊTES. Mordre une tête vivante = headDamage à CETTE tête ;
+    // mordre le corps = grignotage (1 PV) de la 1ʳᵉ tête vivante. La tête « tombe » à 0 PV ;
+    // le boss est abattu quand TOUTES ses têtes sont coupées.
+    if (e.boss) {
+      let target = null, headHit = false;
+      for (const hc of this.headCells(e)) if (hc.x === x && hc.y === y) { target = hc.head; headHit = true; break; }
+      if (!target) {
+        let onBody = false; for (const s of e.body) if (s.x === x && s.y === y) { onBody = true; break; }
+        if (!onBody) return 0;
+        target = e.heads.find((h) => !h.dead);   // morsure de corps → grignote une tête vivante
+        if (!target) return 0;
+      }
+      const dmg = headHit ? (CT.CONFIG.boss.headDamage || 2) : 1;
+      const wasAlive = !target.dead;
+      target.hp = Math.max(0, target.hp - dmg);
+      if (target.hp <= 0) target.dead = true;
+      const justCut = wasAlive && target.dead;
+      const stillAlive = e.heads.some((h) => !h.dead);
+      this.spawnFx(x, y, [T.danger, T.amber, '#ffffff'], justCut ? 18 : (headHit ? 14 : 10));
+      this.flash = Math.max(this.flash, justCut ? 0.9 : headHit ? 0.7 : 0.5); this.flashColor = T.danger;
+      if (!this.reduce) this.shake = Math.max(this.shake, justCut ? 0.8 : headHit ? 0.6 : 0.4);
+      this.haptic(justCut ? [0, 50, 30, 90] : headHit ? [0, 40, 30, 70] : 25);
+      if (CT.Audio.smash) CT.Audio.smash();
+      if (!this.demo) {
+        const gain = (CT.CONFIG.enemy.bitePoints || 40) * this.levelNum * dmg;
+        this.points += gain; this._scored();
+        // « TÊTE COUPÉE » seulement s'il reste des têtes (sinon killBoss affichera la victoire)
+        this.spawnToast((justCut && stillAlive) ? '🗡️ TÊTE COUPÉE !' : '💥 −' + dmg + ' PV', x, y);
+        this._ach({ snakator: dmg });   // alimente la quête « Tueur de Snakator »
+        if (justCut && CT.Audio.achievement) CT.Audio.achievement();
+        this.updateHud();
+      }
+      if (!stillAlive) this.killBoss(e);
+      return dmg;
+    }
+
     const b = e.body;
     let idx = -1;
     for (let i = 0; i < b.length; i++) if (b[i].x === x && b[i].y === y) { idx = i; break; }
     if (idx < 0) return 0;
     const headHit = idx === 0;
-
-    // BOSS : la morsure entame les PV (ne le détruit pas d'un coup). Tête-à-tête = + de dégâts.
-    // Le boss garde sa taille (menace constante) ; la barre de PV traduit les dégâts.
-    if (e.boss) {
-      const dmg = headHit ? (CT.CONFIG.boss.headDamage || 2) : 1;
-      e.hp = Math.max(0, e.hp - dmg);
-      this.spawnFx(x, y, [T.danger, T.amber, '#ffffff'], headHit ? 16 : 10);
-      this.flash = Math.max(this.flash, headHit ? 0.85 : 0.5); this.flashColor = T.danger;
-      if (!this.reduce) this.shake = Math.max(this.shake, headHit ? 0.7 : 0.4);
-      this.haptic(headHit ? [0, 40, 30, 70] : 25);
-      if (CT.Audio.smash) CT.Audio.smash();
-      if (!this.demo) {
-        const gain = (CT.CONFIG.enemy.bitePoints || 40) * this.levelNum * dmg;
-        this.points += gain; this._scored();
-        this.spawnToast('💥 −' + dmg + ' PV', x, y);
-        this._ach({ snakator: dmg });   // alimente la quête « Tueur de Snakator »
-        this.updateHud();
-      }
-      if (e.hp <= 0) this.bossDefeated();
-      return dmg;
-    }
-
     const removed = b.slice(idx);          // blocs détruits (pour les FX) ; tête-à-tête → tout
     const destroyed = removed.length;
     if (headHit) {
@@ -788,24 +892,35 @@ window.CT = window.CT || {};
     return destroyed;
   };
 
-  // Boss vaincu (PV à zéro) : grosse récompense → cinématique (niveau terminé).
-  G.bossDefeated = function () {
-    const tier = (this.enemy && this.enemy.tier) || 1;
-    const head = this.snake[0];
-    this.enemy = null;
-    this.bossLevel = false;   // évite tout re-déclenchement
-    this.flash = 1; this.flashColor = T.amber;
-    if (!this.reduce) this.shake = Math.max(this.shake, 0.9);
-    this.haptic([0, 60, 40, 120]);
-    this.spawnFx(head.x, head.y, [T.amber, T.danger, T.glow, '#ffffff'], 40);
+  // UN boss tombe (PV à zéro) : retiré de la liste + récompense. Quand TOUS sont tombés
+  // → bossLevelCleared() (niveau terminé). Avec plusieurs boss, n'enchaîne pas la cinématique
+  // tant qu'il en reste.
+  G.killBoss = function (e) {
+    const tier = e.tier || this.bossTier || 1;
+    const h = e.body[0];
+    const i = this.bosses.indexOf(e);
+    if (i >= 0) this.bosses.splice(i, 1);
+    this.spawnFx(h.x, h.y, [T.amber, T.danger, T.glow, '#ffffff'], 30);
+    this.flash = Math.max(this.flash, 0.9); this.flashColor = T.amber;
+    if (!this.reduce) this.shake = Math.max(this.shake, 0.7);
+    this.haptic([0, 50, 30, 90]);
     if (!this.demo) {
       const gain = (CT.CONFIG.boss.reward || 800) * tier * this.levelNum;
       this.points += gain; this._scored();
-      this.spawnToast('👹 BOSS VAINCU  +' + gain, head.x, head.y);
+      this.spawnToast('👹 BOSS −1  +' + gain, h.x, h.y);
       if (CT.Audio.achievement) CT.Audio.achievement();
       this.updateHud();
     }
-    this.startCinematic();    // niveau boss terminé → cinématique de fin de niveau
+    if (!this.bosses.length) this.bossLevelCleared();
+  };
+
+  // Tous les boss du niveau sont tombés → flash + cinématique de fin de niveau.
+  G.bossLevelCleared = function () {
+    this.bossLevel = false;   // évite tout re-déclenchement
+    this.flash = 1; this.flashColor = T.glow;
+    if (!this.reduce) this.shake = Math.max(this.shake, 0.9);
+    if (!this.demo) this.updateHud();
+    this.startCinematic();
   };
 
   // Bouclier : détruit un mur heurté (+ bonus pièces) sans consommer le bouclier.
@@ -832,18 +947,13 @@ window.CT = window.CT || {};
     }
   };
 
-  // Vrai si (x,y) est sur un segment du serpent ennemi.
-  G.enemyHits = function (x, y) {
-    if (!this.enemy) return false;
-    const b = this.enemy.body;
-    for (let i = 0; i < b.length; i++) if (b[i].x === x && b[i].y === y) return true;
-    return false;
-  };
+  // Vrai si (x,y) touche un hostile (serpent ennemi ou un boss). (compat — délègue à hostileAt)
+  G.enemyHits = function (x, y) { return !!this.hostileAt(x, y); };
 
-  // Déplace le serpent ennemi d'une case : marche aléatoire avec inertie, évite
-  // demi-tour / obstacles / son propre corps ; bords toroïdaux. Aléa déterministe (this.rng).
-  G.stepEnemy = function () {
-    const e = this.enemy; if (!e) return;
+  // Déplace un serpent hostile `e` d'une case : marche aléatoire avec inertie (ou poursuite
+  // si boss), évite demi-tour / obstacles / son propre corps ; bords toroïdaux. Aléa déterministe.
+  G.stepSnake = function (e) {
+    if (!e) return;
     const head = e.body[0];
     const opts = [];
     for (const k in DIRS) {
@@ -1142,13 +1252,14 @@ window.CT = window.CT || {};
   /* ---------------- HUD ---------------- */
   G.updateHud = function () {
     if (this.dom.lvl) this.dom.lvl.textContent = this.levelNum;
-    const boss = this.bossLevel && this.enemy && this.enemy.boss;
+    const boss = this.bossLevel && this.bosses.length;
     if (boss) {
-      // en combat de boss, la barre affiche les PV du boss (❤️) à la place des batteries
-      if (this.dom.bat) this.dom.bat.textContent = this.enemy.hp;
-      if (this.dom.need) this.dom.need.textContent = this.enemy.maxHp;
+      // en combat de boss, la barre affiche les PV CUMULÉS (toutes têtes) à la place des batteries
+      const { hp, max } = this.bossesHp();
+      if (this.dom.bat) this.dom.bat.textContent = hp;
+      if (this.dom.need) this.dom.need.textContent = max;
       if (this.dom.unit) this.dom.unit.textContent = '❤️';
-      if (this.dom.fill) this.dom.fill.style.width = (100 * this.enemy.hp / Math.max(1, this.enemy.maxHp)) + '%';
+      if (this.dom.fill) this.dom.fill.style.width = (100 * hp / Math.max(1, max)) + '%';
       if (this.dom.progress) { this.dom.progress.classList.add('boss'); this.dom.progress.classList.remove('near-goal'); }
     } else {
       if (this.dom.bat) this.dom.bat.textContent = this.batteries;
@@ -1217,8 +1328,9 @@ window.CT = window.CT || {};
     if (CT.Audio && CT.Audio.setTension) {
       let tn = 0;
       if (this.state === 'playing' && !this.demo) {
-        if (this.bossLevel && this.enemy && this.enemy.boss) {
-          tn = 0.55 + 0.4 * (1 - this.enemy.hp / Math.max(1, this.enemy.maxHp));   // ↑ quand le boss faiblit
+        if (this.bossLevel && this.bosses.length) {
+          const { hp, max } = this.bossesHp();
+          tn = 0.55 + 0.4 * (1 - hp / Math.max(1, max));   // ↑ quand les boss faiblissent
         } else if (this.level) {
           const rem = this.level.needed - this.batteries;
           if (rem > 0 && rem <= 2) tn = Math.max(tn, 0.6);                          // objectif proche
@@ -1262,7 +1374,7 @@ window.CT = window.CT || {};
     if (this.food) this.drawFood();
     if (this.bonus) this.drawBonus();
     if (this.malus) this.drawMalus();
-    if (this.enemy) this.drawEnemy();
+    for (const e of this.hostiles()) this.drawHostile(e);
     if (this.snake) this.drawSnake();
     this.drawFx();
     if (this.time < this.fogUntil) this.drawFog();   // MALUS brouillage : voile sauf autour de la tête
@@ -1493,20 +1605,25 @@ window.CT = window.CT || {};
     ctx.save(); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); ctx.restore();
   };
 
-  // Barre de PV du boss (haut du plateau) pendant un combat de boss.
+  // Barre de PV cumulés des boss (haut du plateau) pendant un combat de boss.
   G.drawBossBar = function () {
-    if (!this.bossLevel || !this.enemy || !this.enemy.boss) return;
-    const ctx = this.ctx, W = this.W, cell = this.cell, e = this.enemy;
+    if (!this.bossLevel || !this.bosses.length) return;
+    const ctx = this.ctx, W = this.W, cell = this.cell;
+    const { hp, max } = this.bossesHp();
+    const isHydra = this.bosses.length === 1 && this.bosses[0].hydra;
+    const n = isHydra ? this.bosses[0].heads.filter((h) => !h.dead).length : this.bosses.length;
+    const label = isHydra ? ('🐉 HYDRE — ' + n + ' tête' + (n > 1 ? 's' : ''))
+                          : ('👹 BOSS' + (n > 1 ? ' ×' + n : ''));
     const bw = Math.min(W * 0.62, cell * 13), bh = cell * 0.4;
     const bx = (W - bw) / 2, by = cell * 0.42;
-    const frac = U.clamp(e.hp / Math.max(1, e.maxHp), 0, 1);
+    const frac = U.clamp(hp / Math.max(1, max), 0, 1);
     ctx.save();
     ctx.textAlign = 'center';
-    // libellé
+    // libellé (× nombre de boss s'ils sont plusieurs)
     ctx.fillStyle = T.danger; ctx.shadowColor = T.danger; ctx.shadowBlur = 10;
     ctx.font = '800 ' + Math.round(cell * 0.4) + 'px -apple-system, system-ui, sans-serif';
     ctx.textBaseline = 'alphabetic';
-    ctx.fillText('👹 BOSS — NIVEAU ' + this.levelNum, W / 2, by - cell * 0.14);
+    ctx.fillText(label + ' — NIVEAU ' + this.levelNum, W / 2, by - cell * 0.14);
     ctx.shadowBlur = 0;
     // rail
     ctx.fillStyle = 'rgba(2,22,26,0.72)';
@@ -1522,7 +1639,7 @@ window.CT = window.CT || {};
     // PV chiffrés
     ctx.fillStyle = '#fff'; ctx.textBaseline = 'middle';
     ctx.font = '800 ' + Math.round(bh * 0.6) + 'px -apple-system, system-ui, sans-serif';
-    ctx.fillText('❤️ ' + e.hp + ' / ' + e.maxHp, W / 2, by + bh * 0.52);
+    ctx.fillText('❤️ ' + hp + ' / ' + max, W / 2, by + bh * 0.52);
     ctx.restore();
   };
 
@@ -1599,12 +1716,15 @@ window.CT = window.CT || {};
     ctx.translate(W / 2, H * 0.44); ctx.scale(scale, scale);
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     if (this.bossLevel) {
+      const hydra = this.bosses.length === 1 && this.bosses[0].hydra;
+      const nHeads = hydra ? this.bosses[0].heads.length : 0;
       ctx.fillStyle = T.danger; ctx.shadowColor = T.danger; ctx.shadowBlur = 26;
       ctx.font = '900 ' + Math.round(S * 0.12) + 'px -apple-system, system-ui, sans-serif';
-      ctx.fillText('👹 BOSS — NIVEAU ' + this.levelNum, 0, 0);
+      ctx.fillText((hydra ? '🐉 HYDRE — NIVEAU ' : '👹 BOSS — NIVEAU ') + this.levelNum, 0, 0);
       ctx.shadowBlur = 10; ctx.fillStyle = T.text;
       ctx.font = '700 ' + Math.round(S * 0.042) + 'px -apple-system, system-ui, sans-serif';
-      ctx.fillText('Mordez-le sous bouclier 🛡️ pour le vaincre !', 0, S * 0.11);
+      ctx.fillText(hydra ? ('Coupez ses ' + nHeads + ' têtes sous bouclier 🛡️ !')
+                         : 'Mordez-le sous bouclier 🛡️ pour le vaincre !', 0, S * 0.11);
     } else {
       ctx.fillStyle = T.cyan; ctx.shadowColor = T.glow; ctx.shadowBlur = 24;
       ctx.font = '900 ' + Math.round(S * 0.13) + 'px -apple-system, system-ui, sans-serif';
@@ -1680,9 +1800,9 @@ window.CT = window.CT || {};
     ctx.restore();
   };
 
-  // Serpent ennemi : chaîne de petits carrés rouges (tête à yeux), interpolés + glow « danger ».
-  G.drawEnemy = function () {
-    const e = this.enemy; if (!e) return;
+  // Serpent hostile (Snakator ou BOSS) : chaîne de carrés rouges (tête à yeux), interpolés + glow.
+  G.drawHostile = function (e) {
+    if (!e) return;
     const ctx = this.ctx, cell = this.cell;
     const boss = !!e.boss;                             // le BOSS est plus gros + aura violette « danger »
     const sizeScale = boss ? 1.35 : 1;
@@ -1711,11 +1831,12 @@ window.CT = window.CT || {};
     };
 
     // Tête : crâne en pointe de lance, sourcils froncés, yeux ardents et crocs.
-    const headSeg = (x, y, s) => {
+    // `a` = angle d'orientation (défaut = direction ; les têtes d'hydre s'écartent en éventail).
+    const headSeg = (x, y, s, a) => {
       const h = s / 2;
       ctx.save();
       ctx.translate(x, y);
-      ctx.rotate(ang);
+      ctx.rotate(a == null ? ang : a);
       // crâne (pointe de lance vers +x = direction)
       ctx.shadowColor = glowCol; ctx.shadowBlur = (14 + pulse * 16) * (boss ? 1.4 : 1);
       ctx.fillStyle = T.danger;
@@ -1749,23 +1870,66 @@ window.CT = window.CT || {};
       ctx.restore();
     };
 
+    // mini-barre de PV au-dessus d'une tête (helper local)
+    const hpPip = (x, y, frac, w) => {
+      const hbar = cell * 0.11, bx = x - w / 2, by = y - cell * 0.8;
+      ctx.save();
+      ctx.fillStyle = 'rgba(2,22,26,0.8)'; U.rr(ctx, bx, by, w, hbar, hbar * 0.5); ctx.fill();
+      ctx.fillStyle = T.danger; ctx.shadowColor = T.danger; ctx.shadowBlur = 5;
+      U.rr(ctx, bx, by, Math.max(hbar, w * U.clamp(frac, 0, 1)), hbar, hbar * 0.5); ctx.fill();
+      ctx.restore();
+    };
+
+    const hydra = boss && e.hydra;                     // hydre : les têtes sont DEVANT le cou
+    let headScreen = null, leadGx = 0, leadGy = 0;
     for (let i = e.body.length - 1; i >= 0; i--) {
       const cur = e.body[i], pv = (e.prev && e.prev[i]) || cur;
       let dx = cur.x - pv.x; if (dx > 1) dx -= COLS; else if (dx < -1) dx += COLS;   // court chemin toroïdal
       let dy = cur.y - pv.y; if (dy > 1) dy -= ROWS; else if (dy < -1) dy += ROWS;
       const gx = pv.x + dx * t, gy = pv.y + dy * t;
-      const head = i === 0;
+      const isLead = i === 0;
+      const drawSkull = isLead && !hydra;              // hydre : body[0] = jonction du cou (losange), pas un crâne
       const f = i / Math.max(1, e.body.length - 1);    // 0 = tête, 1 = queue
-      const s = cell * (head ? 0.72 : 0.56 * (1 - 0.28 * f)) * sizeScale;   // queue qui s'affine ; boss ↑
+      const s = cell * (isLead ? 0.72 : 0.56 * (1 - 0.28 * f)) * sizeScale;   // queue qui s'affine ; boss ↑
       const seg = (cgx, cgy) => {
         const x = (cgx + 0.5) * cell, y = (cgy + 0.5) * cell;
-        if (head) headSeg(x, y, s); else bodySeg(x, y, s, f);
+        if (drawSkull) headSeg(x, y, s, ang); else bodySeg(x, y, s, f);
       };
       seg(gx, gy);                                     // image principale + doubles aux bords (traversée)
       if (gx < 0) seg(gx + COLS, gy); else if (gx > COLS - 1) seg(gx - COLS, gy);
       if (gy < 0) seg(gx, gy + ROWS); else if (gy > ROWS - 1) seg(gx, gy - ROWS);
+      if (isLead) { headScreen = { x: (gx + 0.5) * cell, y: (gy + 0.5) * cell }; leadGx = gx; leadGy = gy; }
     }
     ctx.shadowBlur = 0;
+
+    if (hydra && headScreen) {
+      // HYDRE : têtes déployées en éventail devant le cou. Chacune = point faible (mini-barre),
+      // têtes coupées → moignon de cou. Cou dessiné du corps vers chaque tête.
+      const d = e.dir, px = -d.y, py = d.x, s = cell * 0.72 * sizeScale;
+      const baseGx = leadGx + d.x, baseGy = leadGy + d.y;
+      for (const head of e.heads) {
+        let cgx = baseGx + px * head.slot, cgy = baseGy + py * head.slot;
+        if (cgx < -0.5) cgx += COLS; else if (cgx > COLS - 0.5) cgx -= COLS;       // wrap toroïdal au bord
+        if (cgy < -0.5) cgy += ROWS; else if (cgy > ROWS - 0.5) cgy -= ROWS;
+        const x = (cgx + 0.5) * cell, y = (cgy + 0.5) * cell;
+        // cou
+        ctx.save();
+        ctx.strokeStyle = bodyCol; ctx.lineWidth = cell * 0.32 * sizeScale; ctx.lineCap = 'round';
+        ctx.shadowColor = glowCol; ctx.shadowBlur = 6 + pulse * 4;
+        ctx.beginPath(); ctx.moveTo(headScreen.x, headScreen.y); ctx.lineTo(x, y); ctx.stroke();
+        ctx.restore();
+        if (head.dead) {                                // moignon (tête coupée)
+          ctx.save(); ctx.fillStyle = mix(bodyCol, '#000000', 0.3);
+          ctx.beginPath(); ctx.arc(x, y, cell * 0.17, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+          continue;
+        }
+        headSeg(x, y, s, ang + head.slot * 0.3);        // tête orientée vers l'extérieur
+        hpPip(x, y, head.hp / head.maxHp, cell * 0.9);
+      }
+    } else if (boss && headScreen && this.bosses.length > 1 && e.heads && e.heads[0]) {
+      // ESSAIM : mini-barre au-dessus de la tête de chaque boss (repère le plus faible).
+      hpPip(headScreen.x, headScreen.y, e.heads[0].hp / e.heads[0].maxHp, cell * 1.1);
+    }
   };
 
   G.drawSnake = function () {

@@ -209,8 +209,14 @@
   function showPause() {
     const el = document.getElementById('pauseStats');
     if (el && game.level) {
-      el.innerHTML = 'Niveau <b>' + game.levelNum + '</b> · Score <b>' + game.points +
-        '</b> · <b>' + game.batteries + '</b>/' + game.level.needed + ' 🔋';
+      let obj;
+      if (game.bossLevel && game.bosses && game.bosses.length) {
+        const hp = game.bossesHp();
+        obj = '<b>' + hp.hp + '</b>/' + hp.max + ' ❤️ (boss)';
+      } else {
+        obj = '<b>' + game.batteries + '</b>/' + game.level.needed + ' 🔋';
+      }
+      el.innerHTML = 'Niveau <b>' + game.levelNum + '</b> · Score <b>' + game.points + '</b> · ' + obj;
     }
     syncAudioButtons();
   }

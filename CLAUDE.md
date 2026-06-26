@@ -147,27 +147,41 @@ aux bords (traversée). Dessiné **sous** le serpent joueur.
 ### Mini-boss (`CONFIG.boss`, tous les `everyLevels` = 5 niveaux)
 Aux niveaux **5, 10, 15…** (`bossLevel`, jamais en démo), un **combat de boss DÉDIÉ**
 remplace l'objectif batteries : **pas de batterie à ramasser** (`food = null`), il faut
-**vider la barre de PV** du boss en le **mordant sous bouclier**. Le boss est un serpent
-ennemi **surdimensionné à PV** (`spawnBoss(tier)` → `this.enemy = { …, boss:true, hp, maxHp,
-tier }`, `tier = niveau / everyLevels`). Il **POURSUIT** le joueur (`stepEnemy` : branche
-`e.boss` = option qui rapproche le plus de la tête joueur, chemin toroïdal, + `boss.turnChance`
-d'imprévu). **Mortel au contact hors bouclier** (`enemyHits → die()`, comme l'ennemi).
-- **Morsure** (`biteEnemy`, branche `e.boss`) : entame les **PV** au lieu de détruire (le boss
-  garde sa taille, menace constante). Tête-à-tête = `boss.headDamage` (2), corps = 1. Chaque
-  PV ôté rapporte `enemy.bitePoints × niveau` et alimente la quête **« Tueur de Snakator »**.
-  À `hp ≤ 0` → `bossDefeated()` : grosse récompense (`boss.reward × tier × niveau`), fanfare,
-  puis **cinématique** (niveau terminé).
+**couper toutes les TÊTES** en les **mordant sous bouclier**. Les boss vivent dans un **tableau
+`this.bosses`** (≠ `this.enemy`, réservé au Snakator normal). Chaque boss porte un tableau
+**`heads`** : `[{ hp, maxHp, slot, dead }]` — **chaque tête = un point faible à ses propres PV**.
+`spawnBosses(tier)` les place loin du joueur ET les uns des autres ; `tier = niveau / everyLevels`.
+- **Deux formes alternées** (`bossSpec(tier)`, varie les plaisirs) :
+  - **paliers IMPAIRS → ESSAIM** : `bossCount(tier)=1+⌊(tier-1)/countEvery⌋` boss à **1 tête**
+    (plafond `maxCount`, 1·2·3·4…) ; PV/boss réduits (`perBossHpScale`) quand plusieurs.
+  - **paliers PAIRS → HYDRE** : **un seul** boss à `min(maxHeads, 1+tier/2)` **têtes** (2-3),
+    déployées en éventail devant le cou (`headCells` : `body[0] + dir + perp·slot`, `HEAD_SLOTS`),
+    PV/tête réduits (`perHeadHpScale`). Couper **toutes** ses têtes pour l'abattre.
+  - Tous **POURSUIVENT** le joueur (`stepSnake`, branche `e.boss` = option qui rapproche le plus
+    de sa tête, toroïdal, + `boss.turnChance`).
+- **Unification ennemi/boss** : `hostiles()` = `this.bosses` (niveau boss) sinon `[this.enemy]` ;
+  `hostileAt(x,y)` teste corps **ET têtes vivantes** (`headCells`). Collisions/morsures de `step()`
+  passent par là → **mortel au contact hors bouclier** (`die()`), **mordable sous bouclier**.
+- **Morsure** (`biteSnake(e,x,y)`, branche `e.boss`) : viser les **têtes**. Mordre une tête vivante
+  = `boss.headDamage` (2) à **cette** tête ; mordre le **corps** = 1 PV à la 1ʳᵉ tête vivante. À 0 PV
+  la tête « tombe » (`dead`, moignon de cou) → toast « 🗡️ TÊTE COUPÉE ». Chaque PV ôté rapporte
+  `enemy.bitePoints × niveau` (quête **« Tueur de Snakator »**). `killBoss(e)` quand **toutes** ses
+  têtes sont coupées : retire le boss + récompense (`boss.reward × tier × niveau`) ; quand **tous**
+  les boss sont abattus → `bossLevelCleared()` (flash + **cinématique**). PV cumulés via `bossesHp()`.
 - **Boucliers fréquents** : pas de batterie → un **bouclier garanti** (`spawnBonus('shield')`)
-  apparaît tous les `bossShieldEvery` pas (`shieldEveryBase` = 9 au palier 1, **+`shieldEveryPerTier`
-  par palier** → de moins en moins). Spawn câblé dans `step()`. Les **malus sont désactivés** en
-  combat de boss.
-- **Difficulté par palier** : PV `baseHp + (tier-1)·hpPerTier`, longueur `baseLen + (tier-1)·lenPerTier`
-  (plafond `maxLen`), **murs** `(tier-1)·wallsPerTier` (aucun au 1ᵉʳ palier, plafond `wallsMax`).
-- **UI** : HUD bascule la barre sur les PV (`❤️`, classe `.hud-progress.boss` rouge, `#batUnit`),
-  bannière d'intro « 👹 BOSS — NIVEAU X », et **barre de PV sur le canvas** (`drawBossBar`, haut du
-  plateau). Rendu boss `drawEnemy` : segments **×1.35** + **aura violette** (`glowCol = T.violet`)
-  pour le distinguer du Snakator normal. Le score du boss reste **sous le plafond anti-triche** (le
-  plafond suppose déjà une batterie max-combo à chaque pas → large marge).
+  apparaît tous les `bossShieldEvery` pas (`shieldEveryBase` au palier 1, **+`shieldEveryPerTier`
+  par palier** → de moins en moins). Spawn câblé dans `step()`. **Malus désactivés** en combat de boss.
+- **Difficulté par palier** : PV `baseHp + (tier-1)·hpPerTier` (×`perBossHpScale`/`perHeadHpScale`),
+  longueur `baseLen + (tier-1)·lenPerTier` (plafond `maxLen`), **murs** `(tier-1)·wallsPerTier`
+  (aucun au 1ᵉʳ palier, plafond `wallsMax`), **+ nb de boss / de têtes** qui monte (voir ci-dessus).
+- **UI** : HUD bascule sur les **PV CUMULÉS** (`❤️`, classe `.hud-progress.boss` rouge, `#batUnit`),
+  bannière d'intro « 👹 BOSS » ou « 🐉 HYDRE — coupez ses N têtes », **barre de PV cumulés sur le
+  canvas** (`drawBossBar`, « 🐉 HYDRE — N têtes » / « 👹 BOSS ×N »), et une **mini-barre de PV au-dessus
+  de chaque tête** (hydre : par tête ; essaim : par boss → repère le plus faible). Rendu `drawHostile(e)` :
+  boss = segments **×1.35** + **aura violette** (`glowCol = T.violet`) ; hydre = `body[0]` devient une
+  jonction (losange), têtes en éventail reliées par des **cous**, têtes coupées en **moignons**. Le
+  score boss reste **sous le plafond anti-triche** (le plafond suppose déjà une batterie max-combo
+  à chaque pas → large marge).
 
 ---
 
@@ -523,10 +537,13 @@ complet : Reed-Solomon GF(256), sélection de masque par pénalité, BCH format/
       des power-ups, jamais en démo) — 6 types : 🍔 burger (+2 joueur), ⚡ court-circuit, 🌫️ brouillage,
       🧲 aimant inversé, 🧱 obstacles temporaires, 💸 vol de pièces. Sauf le burger, chacun
       allonge AUSSI le serpent ennemi de 2 blocs (`growEnemy`).
-- [x] **Mini-boss** tous les 5 niveaux (`CONFIG.boss`) : combat dédié à PV (pas d'objectif
-      batteries), boss qui poursuit, vaincu en le mordant sous bouclier. Boucliers très
-      fréquents au 1ᵉʳ palier puis de moins en moins ; murs ajoutés par palier. Barre de PV
-      (HUD ❤️ + canvas), aura violette, récompense + cinématique à la victoire.
+- [x] **Mini-boss** tous les 5 niveaux (`CONFIG.boss`) : combat dédié (pas d'objectif batteries),
+      boss qui poursuivent, vaincus en les mordant sous bouclier. Boucliers très fréquents au 1ᵉʳ
+      palier puis de moins en moins ; murs ajoutés par palier. **Deux formes alternées**
+      (`bossSpec`) : paliers IMPAIRS = **essaim** de plusieurs boss à 1 tête (`bossCount`, jusqu'à
+      `maxCount`) ; paliers PAIRS = **HYDRE** à 2-3 têtes (`maxHeads`), chaque tête un point faible
+      à couper. Barre de PV cumulés (HUD ❤️ + canvas « 🐉 HYDRE — N têtes » / « 👹 BOSS ×N ») +
+      mini-barre par tête, aura violette, récompense + cinématique quand tout tombe.
 - [x] **Skins du serpent** (`js/skins.js`) : 6 palettes déblocables aux étoiles de quêtes
       (0/4/9/16/26/40 ★), écran « 🎨 Skins », sélection persistée (`ct_skin`).
 - [x] **Musique dynamique** (`CT.Audio.setTension`) : la musique d'ambiance monte en tension

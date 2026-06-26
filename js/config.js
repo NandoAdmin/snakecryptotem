@@ -94,19 +94,27 @@ CT.CONFIG = {
      quelques MURS s'ajoutent par palier (`wallsPerTier`). Le boss POURSUIT le joueur.
      Mortel au contact hors bouclier (comme l'ennemi). `tier` = niveau / everyLevels. */
   boss: {
-    everyLevels: 5,        // un boss tous les N niveaux
-    baseLen: 7,            // longueur du boss au 1ᵉʳ palier
+    everyLevels: 5,        // un combat de boss tous les N niveaux
+    baseLen: 7,            // longueur d'un boss au 1ᵉʳ palier
     lenPerTier: 2,         // +blocs par palier (plafonné maxLen)
     maxLen: 16,
-    baseHp: 6,             // PV au 1ᵉʳ palier
-    hpPerTier: 3,          // +PV par palier
+    baseHp: 8,             // PV au 1ᵉʳ palier (plus coriace)
+    hpPerTier: 4,          // +PV par palier
     headDamage: 2,         // dégâts d'une morsure tête-à-tête (corps = 1)
-    turnChance: 0.18,      // imprévu de poursuite (bas = poursuite plus directe)
+    turnChance: 0.14,      // imprévu de poursuite (bas = poursuite plus tenace)
     wallsPerTier: 4,       // murs ajoutés par palier (0 au palier 1)
     wallsMax: 16,
-    shieldEveryBase: 9,    // boucliers TRÈS fréquents au palier 1 (1 essai / N pas)
-    shieldEveryPerTier: 6, // … de moins en moins fréquents par palier
-    reward: 800,           // pièces (× palier × niveau) à la victoire
+    shieldEveryBase: 8,    // boucliers TRÈS fréquents au palier 1 (1 essai / N pas)
+    shieldEveryPerTier: 5, // … de moins en moins fréquents par palier
+    reward: 800,           // pièces (× palier × niveau) par boss vaincu, + bonus quand tous tombent
+    // PLUSIEURS boss simultanés (essaim) aux paliers IMPAIRS (varie les plaisirs).
+    countEvery: 2,         // +1 boss simultané tous les N paliers
+    maxCount: 4,           // plafond de boss en même temps
+    perBossHpScale: 0.65,  // PV/boss réduits quand ils sont plusieurs (évite l'éponge à PV)
+    // HYDRE multi-têtes aux paliers PAIRS : un seul boss, mais 2-3 têtes (chacune un point
+    // faible à couper sous bouclier ; le boss tombe quand TOUTES ses têtes sont coupées).
+    maxHeads: 3,           // têtes max d'une hydre
+    perHeadHpScale: 0.6,   // PV/tête (évite l'éponge ; total ≈ 1,8× un boss simple à 3 têtes)
   },
 
   /* Thème — couleurs de jeu. Rebrander = changer ces valeurs. */
@@ -138,11 +146,11 @@ CT.CONFIG = {
   /* Niveaux conçus à la main. Au-delà → génération procédurale (getLevel). */
   levels: [
     { needed: 10, step: 168, obstacles: 0,  pattern: 'none'    },
-    { needed: 13, step: 156, obstacles: 5,  pattern: 'corners' },
-    { needed: 16, step: 146, obstacles: 9,  pattern: 'bars'    },
-    { needed: 20, step: 136, obstacles: 13, pattern: 'cross'   },
-    { needed: 24, step: 126, obstacles: 18, pattern: 'pillars' },
-    { needed: 28, step: 116, obstacles: 22, pattern: 'maze'    },
+    { needed: 11, step: 156, obstacles: 5,  pattern: 'corners' },
+    { needed: 12, step: 146, obstacles: 9,  pattern: 'bars'    },
+    { needed: 13, step: 136, obstacles: 13, pattern: 'cross'   },
+    { needed: 14, step: 126, obstacles: 18, pattern: 'pillars' },
+    { needed: 15, step: 116, obstacles: 22, pattern: 'maze'    },
   ],
 };
 
@@ -158,7 +166,7 @@ CT.getLevel = function (n) {
   const procPatterns = ['corners', 'bars', 'cross', 'pillars', 'diamond', 'maze'];
   return {
     index: n,
-    needed: last.needed + extra * 4,
+    needed: last.needed + extra,   // +1 batterie par niveau (objectif doux : 10, 11, 12…)
     step: Math.max(CT.CONFIG.minStep + 18, last.step - extra * 6),
     obstacles: Math.min(40, last.obstacles + extra * 4),
     pattern: procPatterns[(extra - 1) % procPatterns.length],
