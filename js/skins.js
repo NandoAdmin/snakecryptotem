@@ -158,6 +158,16 @@ CT.HeadSkins = ctMakeShop('ct_head', 'ct_head_own', [
   { id: 'ver',      name: 'Ver de terre',  icon: '🪱', price: 350000 },
 ]);
 
+// Traînées du SERPENT (particules émises derrière la tête à chaque pas ; le rendu vit
+// dans game.js `emitTrail`). Articles de prestige — prix élevés, aperçu emoji.
+CT.Trails = ctMakeShop('ct_trail', 'ct_trail_own', [
+  { id: 'none',       name: 'Aucune',     icon: '➖', price: 0 },
+  { id: 'etincelles', name: 'Étincelles', icon: '✨', price: 40000 },
+  { id: 'bulles',     name: 'Bulles',     icon: '🫧', price: 90000 },
+  { id: 'flamme',     name: 'Flammes',    icon: '🔥', price: 160000 },
+  { id: 'etoiles',    name: 'Étoiles',    icon: '🌟', price: 300000 },
+]);
+
 // Têtes des ENNEMIS / BOSS (le rendu lit `game.enemyHeadStyle` dans drawHostile).
 CT.EnemyHeads = ctMakeShop('ct_enemy_head', 'ct_enemy_head_own', [
   { id: 'classic',  name: 'Féroce',        icon: '💀', price: 0 },

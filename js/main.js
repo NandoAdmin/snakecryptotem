@@ -428,6 +428,7 @@
   const skinScreenEl = document.getElementById('skinScreen');
   const skinListEl = document.getElementById('skinList');
   const headSkinListEl = document.getElementById('headSkinList');
+  const trailListEl = document.getElementById('trailList');
   const bossSkinListEl = document.getElementById('bossSkinList');
   const enemyHeadListEl = document.getElementById('enemyHeadList');
   const skinStarsEl = document.getElementById('skinStars');
@@ -482,6 +483,7 @@
     skinWalletEl.textContent = CT.Lab.wallet().pts;
     renderSkinGrid(skinListEl, CT.Skins, () => { if (CT.game) CT.game.palette = CT.Skins.activePalette(); });
     renderSkinGrid(headSkinListEl, CT.HeadSkins, () => { if (CT.game) CT.game.headStyle = CT.HeadSkins.selectedId(); });
+    renderSkinGrid(trailListEl, CT.Trails, () => { if (CT.game) CT.game.trailStyle = CT.Trails.selectedId(); });
     renderSkinGrid(bossSkinListEl, CT.BossSkins, () => {
       if (CT.game) CT.game.enemySkin = { main: CT.BossSkins.activeMain(), aura: CT.BossSkins.activeAura() };
     });

@@ -177,6 +177,10 @@ remplace l'objectif batteries : **pas de batterie à ramasser** (`food = null`),
   `enemy.bitePoints × niveau` (quête **« Tueur de Snakator »**). `killBoss(e)` quand **toutes** ses
   têtes sont coupées : retire le boss + récompense (`boss.reward × tier × niveau`) ; quand **tous**
   les boss sont abattus → `bossLevelCleared()` (flash + **cinématique**). PV cumulés via `bossesHp()`.
+- **ENRAGE** : sous **50 % de PV** (toutes têtes cumulées), le boss passe `e.enraged = true` (une fois,
+  détecté dans `biteSnake`) → toast « 😡 ENRAGÉ ! » + sting `alert()`, **poursuite implacable**
+  (`turnChance × 0.4` dans `stepSnake` — même nombre d'appels rng, déterminisme préservé) et visuel
+  chauffé à blanc (`drawHostile` : pulse ×14, aura ×2+, crâne éclairci).
 - **Boucliers fréquents** : pas de batterie → un **bouclier garanti** (`spawnBonus('shield')`)
   apparaît tous les `bossShieldEvery` pas (`shieldEveryBase` au palier 1, **+`shieldEveryPerTier`
   par palier** → de moins en moins). Spawn câblé dans `step()`. **Malus désactivés** en combat de boss.
@@ -250,6 +254,8 @@ particules de célébration (`_emitCelebrate`) ; téléphone + power bank + câb
 ### Score, combo & record
 - `points` : score chiffré. Gain par batterie = `(50 + niveau*10) * combo`.
 - `combo` : ×N si on ramasse une batterie < 2,6 s après la précédente (max ×9).
+  Un **chip « 🔥×N » + fenêtre restante** s'affiche parmi les pastilles d'effets (`drawEffects`,
+  combo ≥ 2, jamais en démo) → le joueur voit le temps qu'il lui reste pour enchaîner.
 - `best` : record perso, chargé depuis `CT.Leaderboard` (async) et affiché sur
   l'accueil, le HUD et l'écran de fin (« Nouveau record ! »). ⚠️ `best` est **bumpé en
   cours de partie** pour suivre `points` (affichage HUD) ; le vrai record à battre est figé
@@ -369,6 +375,13 @@ Couleurs toujours via des clés de `CONFIG.theme` (rebrandable).
   `ver` ⚡350k (🪱 capsule annelée), dessinées par **`_drawCreatureHead(ctx, style, col, glow, S)`** (repère
   aligné direction, +x avant) — **partagé serpent ⇄ ennemis**. Le module ne stocke que l'id ; `preview()`
   renvoie `[]` → carte en **emoji**.
+- **Traînées** (`CT.Trails`, via `ctMakeShop`) : particules émises **derrière la tête à chaque pas**
+  (`game.trailStyle`, figé au `reset` ; émission dans `step()` → `emitTrail(prev[0])`). **5 styles** :
+  Aucune (gratuit), Étincelles ⚡40k (éclats ambre/glow), Bulles ⚡90k (anneaux cyan qui montent),
+  Flammes ⚡160k (flammèches), Étoiles ⚡300k (scintillements 4 branches). `emitTrail` utilise
+  `Math.random` (cosmétique → ne décale pas l'aléa déterministe) et réduit ~65 % des particules sous
+  `prefers-reduced-motion`. `drawFx` gère désormais des **formes** (`shape` : rect/bubble/circle/star).
+  ⚠️ Les fx vivent en **pixels** : un resize du canvas en cours de vol les décale (préexistant, bénin).
 - **Achat** : `mod.buy(id)` débite le portefeuille du Labo via **`CT.Lab.spend(pts)`** (⚡ partagé
   avec la R&D → vrai choix économique) puis marque le skin **possédé** (`localStorage ct_skins_own`
   / `ct_boss_own`). `isUnlocked` = seuil d'étoiles **ou** possédé/gratuit. Sélection persistée
@@ -587,3 +600,9 @@ complet : Reed-Solomon GF(256), sélection de masque par pénalité, BCH format/
 - [x] **Annonces dynamiques** (`drawIntro` + `introKind`) : intro spéciale de l'arrivée du Snakator
       (niv. 3, « ⚠️ ALERTE ») et des boss/hydres (titre empilé), avec vignette rouge pulsée + sting
       `CT.Audio.alert()` → plus dynamique et immersif.
+- [x] **Traînées achetables** (`CT.Trails`, boutique ⚡40k→300k) : particules stylées derrière la
+      tête (étincelles/bulles/flammes/étoiles), formes gérées par `drawFx` (`shape`).
+- [x] **Boss ENRAGÉ** : sous 50 % de PV → poursuite implacable (turnChance ×0.4), aura chauffée à
+      blanc, toast « 😡 ENRAGÉ ! » + sting (drame de fin de combat).
+- [x] **Chip de combo** (`drawEffects`) : « 🔥×N » + fenêtre restante → le système de combo devient
+      lisible pendant la partie.

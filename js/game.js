@@ -138,6 +138,8 @@ window.CT = window.CT || {};
     // styles de TÊTE achetés (visage du serpent joueur / des ennemis)
     this.headStyle = (window.CT && CT.HeadSkins) ? CT.HeadSkins.selectedId() : 'classic';
     this.enemyHeadStyle = (window.CT && CT.EnemyHeads) ? CT.EnemyHeads.selectedId() : 'classic';
+    // traînée cosmétique achetée (particules derrière la tête ; 'none' = aucune)
+    this.trailStyle = (window.CT && CT.Trails) ? CT.Trails.selectedId() : 'none';
     // couleur courante du serpent (change à chaque batterie ; lissée vers la cible)
     this.snakeColorRgb = hexRgb(this.palette[0]);
     this.snakeColorTarget = hexRgb(this.palette[0]);
@@ -785,6 +787,9 @@ window.CT = window.CT || {};
     }
     this.snake[0] = nh;
 
+    // traînée cosmétique (skin acheté) : particules émises sur la case que la tête quitte
+    if (this.trailStyle && this.trailStyle !== 'none') this.emitTrail(this.prev[0].x, this.prev[0].y);
+
     if (willEat) {
       const tail = this.prev[len - 1];
       this.snake.push({ x: tail.x, y: tail.y });
@@ -871,6 +876,17 @@ window.CT = window.CT || {};
         this._ach({ snakator: dmg });   // alimente la quête « Tueur de Snakator »
         if (justCut && CT.Audio.achievement) CT.Audio.achievement();
         this.updateHud();
+      }
+      // ENRAGE : sous 50 % de PV, le boss s'énerve (une fois) → poursuite implacable + aura
+      // chauffée à blanc (drame en fin de combat).
+      if (!e.enraged && stillAlive) {
+        const tot = e.heads.reduce((s2, hh) => s2 + hh.maxHp, 0);
+        const cur = e.heads.reduce((s2, hh) => s2 + Math.max(0, hh.hp), 0);
+        if (cur / Math.max(1, tot) <= 0.5) {
+          e.enraged = true;
+          this.spawnFx(x, y, [T.danger, T.amber, '#ffffff'], 16);
+          if (!this.demo) { this.spawnToast('😡 ENRAGÉ !', x, y); if (CT.Audio.alert) CT.Audio.alert(); }
+        }
       }
       if (!stillAlive) this.killBoss(e);
       return dmg;
@@ -995,7 +1011,9 @@ window.CT = window.CT || {};
           const dist = td(nx, ph.x, COLS) + td(ny, ph.y, ROWS);
           if (dist < bestD) { bestD = dist; bestOpt = d; }
         }
-        nd = (this.rng() < CT.CONFIG.boss.turnChance) ? opts[(this.rng() * opts.length) | 0] : bestOpt;
+        // enragé (< 50 % PV) : quasi plus d'imprévu → poursuite implacable
+        const tc = e.enraged ? CT.CONFIG.boss.turnChance * 0.4 : CT.CONFIG.boss.turnChance;
+        nd = (this.rng() < tc) ? opts[(this.rng() * opts.length) | 0] : bestOpt;
       } else {
         const straight = opts.find((d) => d.x === e.dir.x && d.y === e.dir.y);
         const turn = this.rng() < CT.CONFIG.enemy.turnChance;
@@ -1256,6 +1274,42 @@ window.CT = window.CT || {};
     }
   };
 
+  // Traînée cosmétique (CT.Trails) : émet 1-2 particules stylées sur la case (gx,gy) que la
+  // tête vient de quitter. Math.random (cosmétique) → ne décale pas l'aléa déterministe.
+  G.emitTrail = function (gx, gy) {
+    const style = this.trailStyle;
+    if (this.reduce && Math.random() < 0.65) return;   // reduce-motion : ~35 % des particules
+    const cell = this.cell;
+    const cx = (gx + 0.5) * cell, cy = (gy + 0.5) * cell;
+    const headHex = rgbToHex(this.snakeColorRgb);
+    const n = style === 'etoiles' ? 1 : 2;
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2, sp = 10 + Math.random() * 28;
+      const p = {
+        x: cx + (Math.random() - 0.5) * cell * 0.4,
+        y: cy + (Math.random() - 0.5) * cell * 0.4,
+        vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+        size: cell * (0.10 + Math.random() * 0.12),
+        rot: Math.random() * 6, vr: (Math.random() - 0.5) * 6,
+        life: 0.45 + Math.random() * 0.3, max: 0.75,
+        color: headHex, shape: 'rect',
+      };
+      if (style === 'etincelles') {                    // ✨ éclats chauds qui crépitent
+        p.color = [T.amber, T.glow, '#ffffff'][(Math.random() * 3) | 0];
+      } else if (style === 'bulles') {                 // 🫧 bulles qui montent doucement
+        p.color = T.cyan; p.shape = 'bubble';
+        p.vx *= 0.4; p.vy = -(15 + Math.random() * 25);
+      } else if (style === 'flamme') {                 // 🔥 flammèches qui lèchent vers le haut
+        p.color = [T.danger, T.amber, '#ff8c42'][(Math.random() * 3) | 0];
+        p.shape = 'circle'; p.vy = -(5 + Math.random() * 18);
+      } else if (style === 'etoiles') {                // 🌟 scintillements 4 branches
+        p.color = [T.amber, '#ffffff', T.glow][(Math.random() * 3) | 0];
+        p.shape = 'star'; p.size = cell * (0.16 + Math.random() * 0.12);
+      }
+      this.fx.push(p);
+    }
+  };
+
   G.updateFx = function (dt) {
     for (let i = this.fx.length - 1; i >= 0; i--) {
       const p = this.fx[i];
@@ -1417,6 +1471,12 @@ window.CT = window.CT || {};
   // Petites pastilles « effet actif + compte à rebours » (coin haut-gauche du plateau).
   G.drawEffects = function () {
     const items = [];
+    // combo en cours + fenêtre restante (lisibilité du système de score ; jamais en démo)
+    if (!this.demo && this.combo >= 2 && this.state === 'playing') {
+      const w = 2.6 + ((this.mods && this.mods.comboWindowBonus) || 0);
+      const rem = this.lastEat + w - this.time;
+      if (rem > 0) items.push({ c: T.amber, t: '🔥×' + this.combo, s: rem });
+    }
     if (this.time < this.shieldUntil) items.push({ c: T.blue, t: '🛡️', s: this.shieldUntil - this.time });
     if (this.time < this.slowUntil) items.push({ c: T.cyan, t: '🌀', s: this.slowUntil - this.time });
     if (this.time < this.magnetUntil) items.push({ c: T.violet, t: '🧲', s: this.magnetUntil - this.time });
@@ -1848,11 +1908,12 @@ window.CT = window.CT || {};
     const skin = this.enemySkin || { main: T.danger, aura: T.violet };   // apparence achetée
     const eStyle = this.enemyHeadStyle || 'classic';   // visage acheté (classic/drole/agressif/ete)
     const boss = !!e.boss;                             // le BOSS est plus gros + aura « danger »
+    const enraged = boss && !!e.enraged;               // < 50 % PV : pulse nerveux + aura chauffée
     const sizeScale = boss ? 1.35 : 1;
     const glowCol = boss ? skin.aura : skin.main;
     const moving = this.state === 'playing' || (this.state === 'start' && this.demo);
     const t = moving ? U.clamp(this.acc / this.effInterval, 0, 1) : 0;
-    const pulse = this.reduce ? 0.5 : 0.5 + 0.5 * Math.sin(this.time * 8);
+    const pulse = this.reduce ? 0.5 : 0.5 + 0.5 * Math.sin(this.time * (enraged ? 14 : 8));
     const bodyCol = mix(skin.main, '#16030a', 0.55);   // teinte sombre du corps
     const edgeCol = mix(skin.main, '#ffffff', 0.4);    // arête chaude, presque incandescente
     const ang = Math.atan2(e.dir.y, e.dir.x);          // oriente la tête vers la direction
@@ -1863,7 +1924,7 @@ window.CT = window.CT || {};
       ctx.translate(x, y);
       ctx.rotate(Math.PI / 4);                         // carré → losange (pointes agressives)
       const h = s / 2;
-      ctx.shadowColor = glowCol; ctx.shadowBlur = (6 + pulse * 5) * (boss ? 1.6 : 1);
+      ctx.shadowColor = glowCol; ctx.shadowBlur = (6 + pulse * 5) * (boss ? (enraged ? 2.3 : 1.6) : 1);
       ctx.fillStyle = bodyCol;
       ctx.fillRect(-h, -h, s, s);
       ctx.shadowBlur = 0;
@@ -1884,9 +1945,9 @@ window.CT = window.CT || {};
         this._drawCreatureHead(ctx, eStyle, skin.main, glowCol, s);
         ctx.restore(); return;
       }
-      // crâne (pointe de lance vers +x = direction)
-      ctx.shadowColor = glowCol; ctx.shadowBlur = (14 + pulse * 16) * (boss ? 1.4 : 1);
-      ctx.fillStyle = skin.main;
+      // crâne (pointe de lance vers +x = direction) — chauffé à blanc si enragé
+      ctx.shadowColor = glowCol; ctx.shadowBlur = (14 + pulse * 16) * (boss ? (enraged ? 2.0 : 1.4) : 1);
+      ctx.fillStyle = enraged ? mix(skin.main, '#ffffff', 0.22) : skin.main;
       ctx.beginPath();
       ctx.moveTo(-0.92 * h, -0.80 * h);
       ctx.lineTo( 0.18 * h, -1.00 * h);
@@ -2250,7 +2311,23 @@ window.CT = window.CT || {};
       ctx.globalAlpha = a;
       ctx.translate(p.x, p.y); ctx.rotate(p.rot);
       ctx.fillStyle = p.color; ctx.shadowColor = p.color; ctx.shadowBlur = 8;
-      ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+      if (p.shape === 'bubble') {                      // anneau (bulle)
+        ctx.strokeStyle = p.color; ctx.lineWidth = Math.max(1, p.size * 0.18);
+        ctx.beginPath(); ctx.arc(0, 0, p.size / 2, 0, Math.PI * 2); ctx.stroke();
+      } else if (p.shape === 'circle') {               // disque (flammèche)
+        ctx.beginPath(); ctx.arc(0, 0, p.size / 2, 0, Math.PI * 2); ctx.fill();
+      } else if (p.shape === 'star') {                 // scintillement 4 branches
+        const s = p.size / 2;
+        ctx.beginPath();
+        ctx.moveTo(0, -s);
+        ctx.quadraticCurveTo(s * 0.15, -s * 0.15, s, 0);
+        ctx.quadraticCurveTo(s * 0.15, s * 0.15, 0, s);
+        ctx.quadraticCurveTo(-s * 0.15, s * 0.15, -s, 0);
+        ctx.quadraticCurveTo(-s * 0.15, -s * 0.15, 0, -s);
+        ctx.closePath(); ctx.fill();
+      } else {                                         // carré pixel (défaut)
+        ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+      }
       ctx.restore();
     }
   };
