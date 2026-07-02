@@ -191,6 +191,13 @@ CT.Audio = (function () {
       sweep(320, 110, 0.28, 'sawtooth', 0.16);
       tone(150, 0.12, 'square', 0.12, 0.05);
     },
+    alert() {             // sting d'alerte dramatique (arrivée du Snakator / d'un boss)
+      tone(98, 0.4, 'sawtooth', 0.16);                 // grave menaçant
+      tone(740, 0.18, 'square', 0.08);                 // accent métallique
+      sweep(600, 180, 0.55, 'triangle', 0.10);         // descente sombre
+      tone(98, 0.4, 'sawtooth', 0.13, 0.32);           // 2ᵉ coup grave (dun-dun)
+      tone(1320, 0.14, 'square', 0.09, 0.34);          // pointe aiguë
+    },
     gameover() {
       sweep(440, 90, 0.7, 'sawtooth', 0.2);
     },

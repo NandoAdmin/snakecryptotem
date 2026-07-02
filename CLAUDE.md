@@ -97,10 +97,19 @@ dans `dirQueue` (un virage recalculé par pas).
 ### Vitesse
 `stepInterval = max(minStep, level.step - batteriesRamassées * speedupPerBattery)`.
 
-### Intro de niveau
-Au début de chaque niveau (jeu réel), une bannière **« NIVEAU X — Objectif : N
-batteries »** s'affiche pendant `CONFIG.introDuration` s ; le serpent est **figé**
-le temps de l'annonce (`introUntil`), ce qui laisse voir la map avant de jouer.
+### Intro de niveau (`drawIntro`, 3 types via `introKind`)
+Au début de chaque niveau (jeu réel), une bannière s'affiche pendant `introDur` s ; le
+serpent est **figé** le temps de l'annonce (`introUntil`), ce qui laisse voir la map.
+`startLevel` choisit le **type** d'annonce (`introKind`) :
+- **`normal`** : « NIVEAU X — Objectif : N batteries » (cyan), durée `CONFIG.introDuration`.
+- **`enemy`** (niveau = `CONFIG.enemy.fromLevel` = 3, **une seule fois**) : annonce dramatique
+  de l'arrivée du **Snakator** — « ⚠️ ALERTE / LE SNAKATOR APPARAÎT ! », vignette rouge pulsée
+  + sting `CT.Audio.alert()`.
+- **`boss`** (niveaux boss) : titre empilé « NIVEAU X / 👹 BOSS » ou « 🐉 HYDRE / Coupez ses N
+  têtes » (empilé pour tenir à l'écran), même vignette rouge + sting.
+
+Les annonces spéciales durent `+0.9 s` et ajoutent une **vignette rouge pulsée** + un texte qui
+palpite (atténués sous `prefers-reduced-motion`). `CT.Audio.alert()` = sting grave « dun-dun ».
 
 ### Objectif proche
 Quand il reste **≤ 2 batteries** avant la fin du niveau, `updateHud` ajoute la classe
@@ -575,3 +584,6 @@ complet : Reed-Solomon GF(256), sélection de masque par pénalité, BCH format/
       (Spermatozoïde 🦠, Ver de terre 🪱, via `_drawCreatureHead` partagé serpent/ennemis). Aperçu emoji.
 - [x] **Musique dynamique** (`CT.Audio.setTension`) : la musique d'ambiance monte en tension
       près de l'objectif, sous malus et en combat de boss (no-op si musique coupée).
+- [x] **Annonces dynamiques** (`drawIntro` + `introKind`) : intro spéciale de l'arrivée du Snakator
+      (niv. 3, « ⚠️ ALERTE ») et des boss/hydres (titre empilé), avec vignette rouge pulsée + sting
+      `CT.Audio.alert()` → plus dynamique et immersif.

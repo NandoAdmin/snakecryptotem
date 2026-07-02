@@ -119,6 +119,8 @@ window.CT = window.CT || {};
     this.repelUntil = 0;     // MALUS aimant inversé (repousse la batterie) tant que time < repelUntil
     this.tempWalls = [];     // MALUS obstacles temporaires — [{ x, y, until }]
     this.introUntil = 0;     // bannière d'intro de niveau (serpent figé) tant que time < introUntil
+    this.introKind = 'normal'; // type d'annonce : 'normal' · 'enemy' (Snakator) · 'boss' (plus dramatique)
+    this.introDur = CT.CONFIG.introDuration;   // durée de l'annonce courante (plus longue si spéciale)
     this.resumeUntil = 0;    // compte à rebours « 3·2·1 » à la reprise après pause (serpent figé)
     this.fx = [];
     this.toast = null;
@@ -358,9 +360,16 @@ window.CT = window.CT || {};
   G.startLevel = function (n) {
     this.demo = false;
     this.setupLevel(n);
-    this.introUntil = this.time + CT.CONFIG.introDuration;   // annonce le niveau
+    // Annonce de niveau — plus dynamique pour l'arrivée du Snakator (niv. fromLevel) et les boss.
+    const ec = CT.CONFIG.enemy;
+    this.introKind = this.bossLevel ? 'boss'
+      : (this.enemy && ec && n === ec.fromLevel) ? 'enemy'
+      : 'normal';
+    this.introDur = (this.introKind === 'normal') ? CT.CONFIG.introDuration : CT.CONFIG.introDuration + 0.9;
+    this.introUntil = this.time + this.introDur;   // annonce le niveau (serpent figé)
     // Labo « Départ protégé » : bouclier de grâce après l'annonce de niveau
     if (this.mods && this.mods.startShield) this.shieldUntil = this.introUntil + this.mods.startShield;
+    if (this.introKind !== 'normal' && CT.Audio.alert) CT.Audio.alert();   // sting d'alerte
     this._ach({ level: n });
     this.setState('playing');
   };
@@ -1709,30 +1718,55 @@ window.CT = window.CT || {};
   G.drawIntro = function () {
     if (this.demo || this.time >= this.introUntil) return;
     const ctx = this.ctx, W = this.W, H = this.H, S = Math.min(W, H);
-    const dur = CT.CONFIG.introDuration;
+    const kind = this.introKind || 'normal';
+    const special = kind !== 'normal';                 // 'enemy' / 'boss' → annonce dramatique
+    const dur = this.introDur || CT.CONFIG.introDuration;
     const remaining = this.introUntil - this.time;
     const elapsed = dur - remaining;
     const a = Math.min(U.clamp(elapsed / 0.3, 0, 1), U.clamp(remaining / 0.4, 0, 1));
     const scale = 0.9 + 0.1 * U.clamp(elapsed / 0.3, 0, 1);
     ctx.save();
-    // voile
-    ctx.globalAlpha = a * 0.45; ctx.fillStyle = '#02161a';
+    // voile (rouge sombre pour les alertes)
+    ctx.globalAlpha = a * (special ? 0.55 : 0.45);
+    ctx.fillStyle = special ? '#180310' : '#02161a';
     ctx.fillRect(0, 0, W, H);
+    // vignette d'alerte pulsée (entrée d'ennemi / boss)
+    if (special && !this.reduce) {
+      const p = 0.5 + 0.5 * Math.sin(this.time * 6);
+      ctx.globalAlpha = a * (0.18 + 0.22 * p);
+      const vg = ctx.createRadialGradient(W / 2, H / 2, S * 0.18, W / 2, H / 2, S * 0.78);
+      vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, T.danger);
+      ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+    }
     // textes
     ctx.globalAlpha = a;
-    ctx.translate(W / 2, H * 0.44); ctx.scale(scale, scale);
+    const pop = (special && !this.reduce) ? (1 + 0.035 * Math.sin(this.time * 11)) : 1;   // texte qui « palpite »
+    ctx.translate(W / 2, H * 0.44); ctx.scale(scale * pop, scale * pop);
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    if (this.bossLevel) {
-      const hydra = this.bosses.length === 1 && this.bosses[0].hydra;
-      const nHeads = hydra ? this.bosses[0].heads.length : 0;
+    if (kind === 'enemy') {                            // ⚠️ arrivée du Snakator (niv. 3)
       ctx.fillStyle = T.danger; ctx.shadowColor = T.danger; ctx.shadowBlur = 26;
       ctx.font = '900 ' + Math.round(S * 0.12) + 'px -apple-system, system-ui, sans-serif';
-      ctx.fillText((hydra ? '🐉 HYDRE — NIVEAU ' : '👹 BOSS — NIVEAU ') + this.levelNum, 0, 0);
+      ctx.fillText('⚠️ ALERTE', 0, -S * 0.06);
+      ctx.shadowBlur = 12; ctx.fillStyle = T.text;
+      ctx.font = '800 ' + Math.round(S * 0.058) + 'px -apple-system, system-ui, sans-serif';
+      ctx.fillText('LE SNAKATOR APPARAÎT !', 0, S * 0.04);
+      ctx.fillStyle = T.textDim; ctx.shadowBlur = 0;
+      ctx.font = '700 ' + Math.round(S * 0.033) + 'px -apple-system, system-ui, sans-serif';
+      ctx.fillText('Évitez le serpent rouge… ou mordez-le sous bouclier 🛡️', 0, S * 0.115);
+    } else if (kind === 'boss') {                      // 👹 / 🐉 combat de boss (titre empilé → tient à l'écran)
+      const hydra = this.bosses.length === 1 && this.bosses[0].hydra;
+      const nHeads = hydra ? this.bosses[0].heads.length : 0;
+      ctx.fillStyle = T.textDim; ctx.shadowColor = T.danger; ctx.shadowBlur = 8;
+      ctx.font = '800 ' + Math.round(S * 0.05) + 'px -apple-system, system-ui, sans-serif';
+      ctx.fillText('NIVEAU ' + this.levelNum, 0, -S * 0.095);
+      ctx.fillStyle = T.danger; ctx.shadowColor = T.danger; ctx.shadowBlur = 26;
+      ctx.font = '900 ' + Math.round(S * 0.12) + 'px -apple-system, system-ui, sans-serif';
+      ctx.fillText(hydra ? '🐉 HYDRE' : '👹 BOSS', 0, -S * 0.01);
       ctx.shadowBlur = 10; ctx.fillStyle = T.text;
-      ctx.font = '700 ' + Math.round(S * 0.042) + 'px -apple-system, system-ui, sans-serif';
+      ctx.font = '700 ' + Math.round(S * 0.04) + 'px -apple-system, system-ui, sans-serif';
       ctx.fillText(hydra ? ('Coupez ses ' + nHeads + ' têtes sous bouclier 🛡️ !')
-                         : 'Mordez-le sous bouclier 🛡️ pour le vaincre !', 0, S * 0.11);
-    } else {
+                         : 'Mordez-le sous bouclier 🛡️ pour le vaincre !', 0, S * 0.085);
+    } else {                                           // niveau normal
       ctx.fillStyle = T.cyan; ctx.shadowColor = T.glow; ctx.shadowBlur = 24;
       ctx.font = '900 ' + Math.round(S * 0.13) + 'px -apple-system, system-ui, sans-serif';
       ctx.fillText('NIVEAU ' + this.levelNum, 0, 0);
