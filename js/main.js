@@ -40,7 +40,13 @@
 
   /* ---------------- top de la semaine (écran d'accueil) ---------------- */
   const startBoard = document.getElementById('startBoard');
+  const dailyGhostHint = document.getElementById('dailyGhostHint');
   function renderStartBoard() {
+    // indice du Défi du jour : fantôme à battre (meilleure course du jour sur cette borne)
+    if (dailyGhostHint) {
+      const g = CT.Ghost && CT.Ghost.load();
+      dailyGhostHint.textContent = g ? '· 👻 ' + g.score : '';
+    }
     CT.Leaderboard.fetchBoards().then((b) => {
       const top = (b.weekly || []).slice(0, 3);
       startBoard.innerHTML = '<h3>📅 TOP DE LA SEMAINE</h3>';
@@ -79,8 +85,8 @@
       CT.Leaderboard.fetchBoards(game.lastEntry).then((b) => ({ b, sub }))
     ).then(({ b, sub }) => {
       persoBest.textContent = b.personal;
-      const list = lbScope === 'weekly' ? b.weekly : b.global;
-      const rank = lbScope === 'weekly' ? b.weeklyRank : b.globalRank;
+      const list = lbScope === 'daily' ? (b.daily || []) : lbScope === 'weekly' ? b.weekly : b.global;
+      const rank = lbScope === 'daily' ? (b.dailyRank || 0) : lbScope === 'weekly' ? b.weeklyRank : b.globalRank;
       lbList.innerHTML = '';
       if (!list.length) {
         const li = document.createElement('li');
@@ -109,7 +115,7 @@
   function showOver() {
     overlays.over.classList.remove('hidden');
     nameInput.value = CT.Leaderboard.getName();
-    setScope('weekly');
+    setScope(game.daily ? 'daily' : 'weekly');   // après un Défi du jour → onglet Jour
     renderLeaderboard();
   }
 
@@ -168,10 +174,12 @@
   });
 
   /* ---------------- actions UI ---------------- */
+  // Mode courant : partie normale ou Défi du jour (REJOUER / RECOMMENCER gardent le mode).
+  let dailyMode = false;
   function begin() {
     CT.Audio.unlock();
     CT.Audio.ui();
-    game.startRun();
+    game.startRun(dailyMode ? CT.util.dailySeed() : undefined);
   }
   function nextLevel() {
     CT.Audio.ui();
@@ -189,8 +197,9 @@
   }
   function toggleMute() { CT.Audio.toggleMute(); syncAudioButtons(); }
 
-  document.getElementById('playBtn').addEventListener('click', begin);
-  document.getElementById('retryBtn').addEventListener('click', begin);
+  document.getElementById('playBtn').addEventListener('click', () => { dailyMode = false; begin(); });
+  document.getElementById('dailyBtn').addEventListener('click', () => { dailyMode = true; begin(); });
+  document.getElementById('retryBtn').addEventListener('click', begin);   // garde le mode courant
   document.getElementById('continueBtn').addEventListener('click', nextLevel);
   document.getElementById('resumeBtn').addEventListener('click', () => game.togglePause());
   document.getElementById('restartBtn').addEventListener('click', begin);   // pause → repartir au niveau 1

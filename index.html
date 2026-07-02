@@ -41,6 +41,7 @@
         <p class="tagline">Rechargez la ville. Attrapez les batteries. ⚡</p>
       </div>
       <button id="playBtn" class="btn-primary">JOUER</button>
+      <button id="dailyBtn" class="btn-ghost daily-btn">📅 DÉFI DU JOUR <span id="dailyGhostHint"></span></button>
       <p class="record">🏆 Record : <b id="startBest">0</b></p>
       <div id="startBoard" class="start-board"></div>
       <ul class="howto">
@@ -130,6 +131,7 @@
           <input id="nameInput" type="text" maxlength="14" placeholder="Ton pseudo" autocomplete="off" />
         </div>
         <div class="lb-tabs">
+          <button class="lb-tab" data-scope="daily">☀️ Jour</button>
           <button class="lb-tab active" data-scope="weekly">📅 Semaine</button>
           <button class="lb-tab" data-scope="global">🌍 Global</button>
         </div>
@@ -175,6 +177,7 @@
   <script src="js/lab.js"></script>
   <script src="js/achievements.js"></script>
   <script src="js/skins.js"></script>
+  <script src="js/ghost.js"></script>
   <script src="js/qrcode.js"></script>
   <script src="js/cinematics.js"></script>
   <script src="js/game.js"></script>

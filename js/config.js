@@ -115,6 +115,27 @@ CT.CONFIG = {
     // faible à couper sous bouclier ; le boss tombe quand TOUTES ses têtes sont coupées).
     maxHeads: 3,           // têtes max d'une hydre
     perHeadHpScale: 0.6,   // PV/tête (évite l'éponge ; total ≈ 1,8× un boss simple à 3 têtes)
+    // ATTAQUES : à partir du palier `orbFromTier`, les boss crachent des ORBES lentes qui
+    // visent la tête du joueur (mortelles hors bouclier ; détruites par le bouclier).
+    orbFromTier: 2,        // 1ᵉʳ palier qui tire (10, 15, 20… — le 1ᵉʳ boss reste doux)
+    orbEvery: 12,          // 1 tir tous les N pas du boss (×0.6 si enragé)
+    orbSpeed: 3.0,         // vitesse de l'orbe (cases/s) — lente, esquivable
+    orbLife: 5,            // durée de vie d'une orbe (s)
+    orbMax: 5,             // orbes simultanées maxi (tous boss confondus)
+  },
+
+  /* ÉVÉNEMENTS aléatoires en partie (jeu réel, hors combats de boss, dès `fromLevel`).
+     Annonce bannière + sting, tirés via le PRNG déterministe (this.rng) → même séquence
+     d'événements pour tous sur le Défi du jour. Un seul événement à la fois + temps mort. */
+  events: {
+    fromLevel: 2,          // pas d'événement au niveau 1 (tutoriel)
+    every: 45,             // tentative tous les N pas (hors événement/cooldown)
+    chance: 0.5,           // probabilité à chaque tentative
+    cooldown: 18,          // temps mort après un événement (s)
+    goldDuration: 10,      // 💰 Ruée dorée : durée (s)…
+    goldMult: 2,           //    …et multiplicateur de pièces sur les batteries
+    blackoutDuration: 5,   // 🌑 Blackout : brouillard total (s)
+    rainDuration: 10,      // 🎁 Pluie de power-ups : un power-up dès que le slot est libre (s)
   },
 
   /* Thème — couleurs de jeu. Rebrander = changer ces valeurs. */
@@ -189,6 +210,18 @@ CT.util = {
       t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
       return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
     };
+  },
+  /* Date locale du jour « YYYY-MM-DD » (clé du Défi du jour + du fantôme). */
+  todayStr() {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  },
+  /* Seed 32 bits du Défi du jour (FNV-1a de la date) → même map/spawns pour tous aujourd'hui. */
+  dailySeed(str) {
+    const s = str || CT.util.todayStr();
+    let h = 2166136261;
+    for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return h >>> 0;
   },
   /* Tracé d'un rectangle arrondi (fallback si roundRect absent). */
   rr(ctx, x, y, w, h, r) {

@@ -92,6 +92,17 @@ window.CT = window.CT || {};
     this.runStart = 0;       // horodatage (s) du début de partie (pour la durée)
     this.seed = (Math.random() * 4294967295) >>> 0;  // graine de partie
     this.rng = CT.util.makeRng(this.seed);           // aléa gameplay déterministe
+    this.daily = false;      // Défi du jour (seed de la date → même map pour tous)
+    this.ghost = null;       // fantôme à battre (meilleure course du jour) — { score, frames }
+    this.ghostRec = null;    // enregistrement de la course en cours (Défi du jour)
+    this.ghostIdx = 0;       // curseur de lecture du fantôme (t monotone)
+    this.newGhost = false;   // la partie vient-elle de devenir le fantôme du jour ?
+    this.orbs = [];          // ORBES tirées par les boss — [{ x, y, vx, vy, life }] (cases flottantes)
+    this.sinceEvent = 0;     // pas depuis la dernière tentative d'événement
+    this.eventCooldownUntil = 0; // pas d'événement tant que time < cooldown
+    this.eventBanner = null; // bannière d'annonce d'événement — { text, color, until }
+    this.goldUntil = 0;      // 💰 Ruée dorée : pièces ×N tant que time < goldUntil
+    this.rainUntil = 0;      // 🎁 Pluie de power-ups tant que time < rainUntil
     this.bonusCount = 0;     // nb de power-ups ramassés (métadonnée anti-triche)
     this.combo = 0;
     this.maxComboRun = 0;    // meilleur combo de la partie (récap de fin)
@@ -172,12 +183,16 @@ window.CT = window.CT || {};
   };
 
   /* ---------------- cycle de partie ---------------- */
-  G.startRun = function () {
+  // `seed` optionnelle : fournie = DÉFI DU JOUR (CT.util.dailySeed() → même map pour tous).
+  G.startRun = function (seed) {
     this.reset();
     this.runStart = this.time;
-    this.seed = (Math.random() * 4294967295) >>> 0;
+    this.daily = seed != null;
+    this.seed = this.daily ? (seed >>> 0) : (Math.random() * 4294967295) >>> 0;
     this.rng = CT.util.makeRng(this.seed);   // (re)graine pour la partie scorée
     this.bonusCount = 0;
+    // fantôme (Défi du jour uniquement — même seed = même map, la course est comparable)
+    if (this.daily && CT.Ghost) { this.ghost = CT.Ghost.load(); this.ghostRec = []; this.ghostIdx = 0; }
     this.startLevel(1);
   };
 
@@ -218,6 +233,10 @@ window.CT = window.CT || {};
     this.shieldUntil = 0;
     this.magnetUntil = 0;
     this.doubleUntil = 0;
+    this.goldUntil = 0;
+    this.rainUntil = 0;
+    this.eventBanner = null;
+    this.orbs = [];
     this.introUntil = 0;
     this.fx = [];
     this.toast = null;
@@ -790,6 +809,11 @@ window.CT = window.CT || {};
     // traînée cosmétique (skin acheté) : particules émises sur la case que la tête quitte
     if (this.trailStyle && this.trailStyle !== 'none') this.emitTrail(this.prev[0].x, this.prev[0].y);
 
+    // Défi du jour : journal de course (position de tête + temps + niveau) → fantôme à battre
+    if (this.daily && !this.demo && this.ghostRec && this.ghostRec.length < (CT.Ghost ? CT.Ghost.MAX_FRAMES : 6000)) {
+      this.ghostRec.push([nh.x, nh.y, Math.round((this.time - this.runStart) * 100) / 100, this.levelNum]);
+    }
+
     if (willEat) {
       const tail = this.prev[len - 1];
       this.snake.push({ x: tail.x, y: tail.y });
@@ -812,6 +836,17 @@ window.CT = window.CT || {};
       }
     }
 
+    // ÉVÉNEMENTS aléatoires (jeu réel, hors boss, dès events.fromLevel) — aléa déterministe
+    const EV = CT.CONFIG.events;
+    if (EV && !this.demo && !this.bossLevel && this.levelNum >= EV.fromLevel && this.time >= this.eventCooldownUntil) {
+      if (++this.sinceEvent >= EV.every) {
+        this.sinceEvent = 0;
+        if (this.rng() < EV.chance) this.startEvent();
+      }
+    }
+    // 🎁 Pluie de power-ups : un power-up réapparaît dès que le slot est libre
+    if (this.time < this.rainUntil && !this.bonus) this.spawnBonus();
+
     // BOSS : pas de batterie pour faire apparaître des power-ups → on sème des BOUCLIERS
     // (l'arme contre le boss) à intervalle régulier, de moins en moins souvent par palier.
     if (this.bossLevel && !this.demo && this.bossShieldEvery > 0) {
@@ -828,7 +863,16 @@ window.CT = window.CT || {};
     // serpent ennemi (niv 3+) : il se déplace, puis on reteste le contact avec la tête
     const hostiles = this.hostiles();
     if (hostiles.length && this.state === 'playing') {
-      for (const e of hostiles) this.stepSnake(e);   // chaque ennemi/boss avance d'une case
+      const B = CT.CONFIG.boss;
+      for (const e of hostiles) {
+        this.stepSnake(e);                           // chaque ennemi/boss avance d'une case
+        // ATTAQUE : dès le palier orbFromTier, le boss crache une ORBE qui vise le joueur
+        if (e.boss && e.tier >= (B.orbFromTier || 99)) {
+          e.orbTimer = (e.orbTimer || 0) + 1;
+          const every = e.enraged ? Math.max(4, Math.round(B.orbEvery * 0.6)) : B.orbEvery;   // enragé : tir ↑
+          if (e.orbTimer >= every && this.orbs.length < (B.orbMax || 5)) { e.orbTimer = 0; this.fireOrb(e); }
+        }
+      }
       if (this.time >= this.shieldUntil) {
         if (this.hostileAt(nh.x, nh.y)) return this.die();
       } else {
@@ -953,6 +997,107 @@ window.CT = window.CT || {};
     if (!this.reduce) this.shake = Math.max(this.shake, 0.9);
     if (!this.demo) this.updateHud();
     this.startCinematic();
+  };
+
+  /* ---------------- événements aléatoires ---------------- */
+  // Déclenche un événement surprise (type tiré via this.rng → déterministe) : bannière,
+  // sting, effet temporisé. Un seul à la fois (cooldown géré par l'appelant via eventCooldownUntil).
+  G.startEvent = function () {
+    const EV = CT.CONFIG.events;
+    const types = ['gold', 'blackout', 'rain'];
+    const type = types[(this.rng() * types.length) | 0];
+    let dur, text, color;
+    if (type === 'gold') {              // 💰 pièces ×N sur les batteries
+      dur = EV.goldDuration; this.goldUntil = this.time + dur;
+      text = '💰 RUÉE DORÉE — pièces ×' + EV.goldMult + ' !'; color = T.amber;
+      if (CT.Audio.bonus) CT.Audio.bonus();
+    } else if (type === 'blackout') {   // 🌑 brouillard total (réutilise fogUntil/drawFog)
+      dur = EV.blackoutDuration; this.fogUntil = Math.max(this.fogUntil, this.time + dur);
+      text = '🌑 BLACKOUT !'; color = T.danger;
+      if (CT.Audio.alert) CT.Audio.alert();
+    } else {                            // 🎁 un power-up dès que le slot est libre
+      dur = EV.rainDuration; this.rainUntil = this.time + dur;
+      text = '🎁 PLUIE DE POWER-UPS !'; color = T.glow;
+      if (CT.Audio.bonus) CT.Audio.bonus();
+    }
+    this.eventCooldownUntil = this.time + dur + (EV.cooldown || 15);
+    this.eventBanner = { text, color, until: this.time + 2.2 };
+    this.flash = Math.max(this.flash, 0.5); this.flashColor = color;
+    if (!this.reduce) this.shake = Math.max(this.shake, 0.3);
+    this.haptic([0, 30, 30, 30]);
+  };
+
+  /* ---------------- orbes de boss (projectiles) ---------------- */
+  // Tire une orbe depuis la tête du boss vers la tête du joueur (chemin toroïdal le plus
+  // court). Position/vitesse en cases FLOTTANTES ; mise à jour dans tick (updateOrbs).
+  G.fireOrb = function (e) {
+    const B = CT.CONFIG.boss;
+    const from = e.body[0], to = this.snake[0];
+    let dx = to.x - from.x; if (dx > COLS / 2) dx -= COLS; else if (dx < -COLS / 2) dx += COLS;
+    let dy = to.y - from.y; if (dy > ROWS / 2) dy -= ROWS; else if (dy < -ROWS / 2) dy += ROWS;
+    const d = Math.hypot(dx, dy) || 1;
+    this.orbs.push({
+      x: from.x, y: from.y,
+      vx: (dx / d) * B.orbSpeed, vy: (dy / d) * B.orbSpeed,
+      life: B.orbLife, max: B.orbLife,
+    });
+    if (!this.demo && CT.Audio.appear) CT.Audio.appear();
+  };
+
+  // Avance les orbes (bords toroïdaux), teste le contact avec la tête : bouclier → orbe
+  // DÉTRUITE (éclat), sinon → mort. Appelé chaque frame (dt) pendant la simulation.
+  G.updateOrbs = function (dt) {
+    if (!this.orbs.length) return;
+    const head = this.snake[0];
+    for (let i = this.orbs.length - 1; i >= 0; i--) {
+      const o = this.orbs[i];
+      o.life -= dt;
+      o.x = (o.x + o.vx * dt + COLS) % COLS;
+      o.y = (o.y + o.vy * dt + ROWS) % ROWS;
+      if (o.life <= 0) { this.orbs.splice(i, 1); continue; }
+      let ddx = Math.abs(o.x - head.x); ddx = Math.min(ddx, COLS - ddx);   // distance toroïdale
+      let ddy = Math.abs(o.y - head.y); ddy = Math.min(ddy, ROWS - ddy);
+      if (ddx * ddx + ddy * ddy < 0.55 * 0.55) {
+        this.orbs.splice(i, 1);
+        if (this.time < this.shieldUntil) {          // bouclier : l'orbe éclate sans mal
+          this.spawnFx(head.x, head.y, [T.violet, T.danger, '#ffffff'], 12);
+          if (CT.Audio.smash) CT.Audio.smash();
+          this.haptic(15);
+        } else {
+          return this.die();                          // orbe au visage → mort
+        }
+      }
+    }
+  };
+
+  // Orbe : noyau incandescent + halo pulsé + courte traînée (lisible et menaçant).
+  G.drawOrbs = function () {
+    if (!this.orbs.length) return;
+    const ctx = this.ctx, cell = this.cell;
+    const skin = this.enemySkin || { main: T.danger, aura: T.violet };
+    const pulse = this.reduce ? 0.5 : 0.5 + 0.5 * Math.sin(this.time * 10);
+    for (const o of this.orbs) {
+      const x = (o.x + 0.5) * cell, y = (o.y + 0.5) * cell;
+      const a = U.clamp(o.life / o.max, 0, 1);
+      const r = cell * (0.22 + 0.05 * pulse);
+      ctx.save();
+      ctx.globalAlpha = 0.55 + 0.45 * a;
+      // traînée (opposée à la vitesse)
+      const tl = cell * 0.8;
+      const d = Math.hypot(o.vx, o.vy) || 1;
+      const grad = ctx.createLinearGradient(x, y, x - (o.vx / d) * tl, y - (o.vy / d) * tl);
+      grad.addColorStop(0, skin.aura); grad.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.strokeStyle = grad; ctx.lineWidth = r * 0.9; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - (o.vx / d) * tl, y - (o.vy / d) * tl); ctx.stroke();
+      // noyau
+      ctx.shadowColor = skin.aura; ctx.shadowBlur = 14 + pulse * 10;
+      ctx.fillStyle = skin.main;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#ffffff'; ctx.globalAlpha *= 0.8;
+      ctx.beginPath(); ctx.arc(x, y, r * 0.4, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
   };
 
   // Bouclier : détruit un mur heurté (+ bonus pièces) sans consommer le bouclier.
@@ -1085,6 +1230,7 @@ window.CT = window.CT || {};
       this.lastEat = this.time;
       const dbl = this.time < this.doubleUntil ? 2 : 1;             // power-up double points
       let gain = Math.round((50 + this.levelNum * 10) * this.combo * this.mods.pointMult * dbl); // Labo : surtension + inflation
+      if (this.time < this.goldUntil) gain *= (CT.CONFIG.events.goldMult || 2);   // 💰 événement Ruée dorée
       // Labo « Coup de chance » : proba de doubler pièces + batterie de ce ramassage.
       // (Math.random, pas this.rng → ne décale pas l'aléa déterministe des spawns.)
       const lucky = this.mods.luckChance > 0 && Math.random() < 0.05 * this.mods.luckChance;
@@ -1220,8 +1366,14 @@ window.CT = window.CT || {};
       bonuses: this.bonusCount,
       durationMs: Math.max(0, Math.round((this.time - this.runStart) * 1000)),
       seed: this.seed,
+      daily: this.daily,                               // Défi du jour → classement « Jour »
       ts: Date.now(),
     };
+    // Défi du jour : si la course bat le fantôme, elle DEVIENT le fantôme du jour
+    this.newGhost = false;
+    if (this.daily && CT.Ghost && this.ghostRec && this.points > 0) {
+      this.newGhost = CT.Ghost.maybeSave(this.points, this.ghostRec);
+    }
     // soumet au classement (serveur si configuré) ; l'UI attend cette promesse avant de relire les boards
     this.lastSubmit = this.points > 0 ? CT.Leaderboard.submit(this.lastEntry) : Promise.resolve({ ok: true });
     // verse les ressources de la partie dans la banque du Laboratoire
@@ -1238,7 +1390,8 @@ window.CT = window.CT || {};
         'Score : <b>' + this.points + '</b>' +
         (isRecord ? ' &nbsp;🏆 <b>Nouveau record !</b>' : '') +
         '<span class="over-recap">⏱ ' + dur + ' &nbsp;·&nbsp; ⚡ ' + this.bonusCount +
-        ' power-up' + (this.bonusCount > 1 ? 's' : '') + ' &nbsp;·&nbsp; 🔥 combo ×' + this.maxComboRun + '</span>';
+        ' power-up' + (this.bonusCount > 1 ? 's' : '') + ' &nbsp;·&nbsp; 🔥 combo ×' + this.maxComboRun +
+        (this.newGhost ? ' &nbsp;·&nbsp; 👻 <b>Nouveau fantôme du jour !</b>' : '') + '</span>';
       if (CT.Lab && (this.score > 0 || this.points > 0)) {
         const w = CT.Lab.wallet();
         html += '<br><span class="lab-gain">🔬 +' + this.score + ' 🔋 +' + this.points +
@@ -1379,6 +1532,7 @@ window.CT = window.CT || {};
       }
       if (this.bonus) { this.bonus.life -= dt; if (this.bonus.life <= 0) this.bonus = null; }
       if (this.malus) { this.malus.life -= dt; if (this.malus.life <= 0) this.malus = null; }
+      if (this.orbs.length && this.state === 'playing') this.updateOrbs(dt);   // orbes de boss
       if (this.tempWalls.length) this.expireTempWalls();
       this.updateFx(dt);
       if (this.toast && this.toast.life > 0) this.toast.life -= dt;
@@ -1444,13 +1598,16 @@ window.CT = window.CT || {};
     if (this.food) this.drawFood();
     if (this.bonus) this.drawBonus();
     if (this.malus) this.drawMalus();
+    this.drawGhost();                                  // fantôme du Défi du jour (sous tout le vivant)
     for (const e of this.hostiles()) this.drawHostile(e);
+    this.drawOrbs();                                   // orbes de boss (au-dessus des boss)
     if (this.snake) this.drawSnake();
     this.drawFx();
     if (this.time < this.fogUntil) this.drawFog();   // MALUS brouillage : voile sauf autour de la tête
     this.drawToast();
     this.drawSurcharge();
     this.drawRecordBanner();
+    this.drawEventBanner();
     this.drawIntro();
     this.drawResumeCountdown();
     ctx.restore();   // fin du screen-shake
@@ -1478,6 +1635,9 @@ window.CT = window.CT || {};
       if (rem > 0) items.push({ c: T.amber, t: '🔥×' + this.combo, s: rem });
     }
     if (this.time < this.shieldUntil) items.push({ c: T.blue, t: '🛡️', s: this.shieldUntil - this.time });
+    // événements actifs
+    if (this.time < this.goldUntil) items.push({ c: T.amber, t: '💰', s: this.goldUntil - this.time });
+    if (this.time < this.rainUntil) items.push({ c: T.glow, t: '🎁', s: this.rainUntil - this.time });
     if (this.time < this.slowUntil) items.push({ c: T.cyan, t: '🌀', s: this.slowUntil - this.time });
     if (this.time < this.magnetUntil) items.push({ c: T.violet, t: '🧲', s: this.magnetUntil - this.time });
     if (this.time < this.doubleUntil) items.push({ c: T.pink, t: '×2', s: this.doubleUntil - this.time });
@@ -1774,6 +1934,48 @@ window.CT = window.CT || {};
     ctx.restore();
   };
 
+  // Bannière d'annonce d'ÉVÉNEMENT (« 💰 RUÉE DORÉE ! »…) — transitoire, au-dessus du plateau.
+  G.drawEventBanner = function () {
+    const b = this.eventBanner;
+    if (!b || this.time >= b.until) return;
+    const ctx = this.ctx, W = this.W, H = this.H, S = Math.min(W, H);
+    const total = 2.2, remaining = b.until - this.time, elapsed = total - remaining;
+    const a = Math.min(U.clamp(elapsed / 0.25, 0, 1), U.clamp(remaining / 0.5, 0, 1));
+    const pop = this.reduce ? 1 : 1 + 0.04 * Math.sin(this.time * 14);
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.translate(W / 2, H * 0.24); ctx.scale(pop, pop);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = b.color; ctx.shadowColor = b.color; ctx.shadowBlur = 22;
+    ctx.font = '900 ' + Math.round(S * 0.062) + 'px -apple-system, system-ui, sans-serif';
+    ctx.fillText(b.text, 0, 0);
+    ctx.restore();
+  };
+
+  // Fantôme du Défi du jour : rejoue la meilleure course du jour (translucide) en temps réel.
+  // Affiché seulement quand le fantôme est sur le MÊME niveau que le joueur (même map).
+  G.drawGhost = function () {
+    if (!this.daily || this.demo || !this.ghost || !this.ghost.frames || !this.ghost.frames.length) return;
+    const frames = this.ghost.frames;
+    const t = this.time - this.runStart;
+    while (this.ghostIdx + 1 < frames.length && frames[this.ghostIdx + 1][2] <= t) this.ghostIdx++;
+    const f = frames[this.ghostIdx];
+    if (!f || f[2] > t) return;                        // le fantôme n'a pas encore bougé
+    if (f[3] !== this.levelNum) return;                // fantôme sur un autre niveau (autre map)
+    const ctx = this.ctx, cell = this.cell;
+    const x = (f[0] + 0.5) * cell, y = (f[1] + 0.5) * cell;
+    ctx.save();
+    ctx.globalAlpha = 0.32;
+    ctx.fillStyle = T.glow; ctx.shadowColor = T.glow; ctx.shadowBlur = 12;
+    U.rr(ctx, x - cell * 0.42, y - cell * 0.42, cell * 0.84, cell * 0.84, cell * 0.24); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 0.7;
+    ctx.font = Math.round(cell * 0.6) + 'px -apple-system, system-ui, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('👻', x, y + cell * 0.03);
+    ctx.restore();
+  };
+
   // Bannière d'intro de niveau (« NIVEAU X — Objectif … »), serpent figé.
   G.drawIntro = function () {
     if (this.demo || this.time >= this.introUntil) return;
@@ -1827,6 +2029,11 @@ window.CT = window.CT || {};
       ctx.fillText(hydra ? ('Coupez ses ' + nHeads + ' têtes sous bouclier 🛡️ !')
                          : 'Mordez-le sous bouclier 🛡️ pour le vaincre !', 0, S * 0.085);
     } else {                                           // niveau normal
+      if (this.daily) {                                // badge Défi du jour (map partagée)
+        ctx.fillStyle = T.amber; ctx.shadowColor = T.amber; ctx.shadowBlur = 12;
+        ctx.font = '800 ' + Math.round(S * 0.038) + 'px -apple-system, system-ui, sans-serif';
+        ctx.fillText('📅 DÉFI DU JOUR' + (this.ghost ? '  ·  👻 à battre : ' + this.ghost.score : ''), 0, -S * 0.115);
+      }
       ctx.fillStyle = T.cyan; ctx.shadowColor = T.glow; ctx.shadowBlur = 24;
       ctx.font = '900 ' + Math.round(S * 0.13) + 'px -apple-system, system-ui, sans-serif';
       ctx.fillText('NIVEAU ' + this.levelNum, 0, 0);

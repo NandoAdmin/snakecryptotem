@@ -41,6 +41,13 @@ CT.Leaderboard = (function () {
     return d.getTime();
   }
 
+  // Minuit local du jour courant (classement du Défi du jour).
+  function dayStart(ts) {
+    const d = new Date(ts);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  }
+
   /* ---- validation : déléguée au module partagé CT.ScoringRules (cf. serveur) ---- */
   function rulesCfg() {
     const C = CT.CONFIG;
@@ -75,14 +82,18 @@ CT.Leaderboard = (function () {
     boards(me) {
       const all = read();
       const ws = weekStart(Date.now());
+      const ds = dayStart(Date.now());
       const week = sorted(all.filter((e) => e.ts >= ws));
+      const day = sorted(all.filter((e) => e.daily && e.ts >= ds));   // Défi du jour uniquement
       const glob = sorted(all);
       const name = getName();
       const mine = all.filter((e) => !name || e.name === name);
       return Promise.resolve({
         personal: mine.reduce((m, e) => Math.max(m, e.score), 0),
+        daily: day.slice(0, 5),
         weekly: week.slice(0, 5),
         global: glob.slice(0, 5),
+        dailyRank: rankOf(day, me),
         weeklyRank: rankOf(week, me),
         globalRank: rankOf(glob, me),
       });

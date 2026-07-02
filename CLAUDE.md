@@ -61,6 +61,7 @@ Snake Cryptotem/
 │   ├── lab.js          # CT.Lab — Laboratoire : banque + recherches chronométrées + upgrades permanents
 │   ├── achievements.js # CT.Achievements — quêtes à 5 paliers (Bronze→Diamant) sur stats cumulées
 │   ├── skins.js        # CT.Skins — apparences du serpent (palettes) déblocables aux étoiles de quêtes
+│   ├── ghost.js        # CT.Ghost — fantôme du Défi du jour (meilleure course du jour, rejouée en translucide)
 │   ├── qrcode.js       # CT.QR — générateur de QR code autonome (octet/UTF-8, niveau M) pour la CTA
 │   ├── cinematics.js   # CT.Cinematic — animations de fin de niveau (plusieurs variantes)
 │   ├── game.js         # CT.Game — machine à états, boucle, rendu monde, collisions
@@ -181,6 +182,13 @@ remplace l'objectif batteries : **pas de batterie à ramasser** (`food = null`),
   détecté dans `biteSnake`) → toast « 😡 ENRAGÉ ! » + sting `alert()`, **poursuite implacable**
   (`turnChance × 0.4` dans `stepSnake` — même nombre d'appels rng, déterminisme préservé) et visuel
   chauffé à blanc (`drawHostile` : pulse ×14, aura ×2+, crâne éclairci).
+- **ORBES (attaques)** : dès le palier `orbFromTier` (2 → niveaux 10+), chaque boss **crache une orbe**
+  tous les `orbEvery` pas (×0.6 si enragé, plafond `orbMax` simultanées) qui **vise la tête du joueur**
+  (`fireOrb`, chemin toroïdal). Les orbes vivent en **cases flottantes** (`this.orbs`), avancent dans
+  `tick` (`updateOrbs(dt)`, bords toroïdaux, vie `orbLife` s) : contact tête **hors bouclier → mort**,
+  **sous bouclier → orbe détruite** (éclat + son). Rendu `drawOrbs` : noyau (couleur `enemySkin.main`)
+  + halo pulsé + traînée orientée. Vidées à chaque `setupLevel`. ⚠️ Mouvement par `dt` (pas par pas) →
+  cosmétiquement fluide mais **hors du déterminisme strict pas-à-pas** (à journaliser pour le rejeu).
 - **Boucliers fréquents** : pas de batterie → un **bouclier garanti** (`spawnBonus('shield')`)
   apparaît tous les `bossShieldEvery` pas (`shieldEveryBase` au palier 1, **+`shieldEveryPerTier`
   par palier** → de moins en moins). Spawn câblé dans `step()`. **Malus désactivés** en combat de boss.
@@ -195,6 +203,37 @@ remplace l'objectif batteries : **pas de batterie à ramasser** (`food = null`),
   jonction (losange), têtes en éventail reliées par des **cous**, têtes coupées en **moignons**. Le
   score boss reste **sous le plafond anti-triche** (le plafond suppose déjà une batterie max-combo
   à chaque pas → large marge).
+
+### Défi du jour & fantôme (`CT.util.dailySeed` + `js/ghost.js`)
+Bouton doré **« 📅 DÉFI DU JOUR »** sur l'accueil (`#dailyBtn`, `main.js` : `dailyMode` — REJOUER/
+RECOMMENCER gardent le mode) : la partie démarre avec `startRun(CT.util.dailySeed())` = **FNV-1a de
+la date locale** (`CT.util.todayStr()`) → **même map/spawns/événements pour tous aujourd'hui**.
+- `game.daily = true` : badge « 📅 DÉFI DU JOUR (· 👻 à battre : N) » dans l'intro, entrée de
+  classement marquée `daily: true` → **onglet « ☀️ Jour »** sur l'écran de fin (activé par défaut
+  après un défi ; `boards()` local **et** serveur renvoient `daily[]` + `dailyRank`, filtre
+  `e.daily && e.ts >= minuit`). ⚠️ En prod, le serveur devrait vérifier `seed == dailySeed(date)`.
+- **Fantôme** (`CT.Ghost`, localStorage `ct_ghost`, un seul : le **meilleur du jour**) : pendant un
+  défi, `step()` journalise `[x, y, tSecondes, niveau]` dans `game.ghostRec` (plafond
+  `MAX_FRAMES` = 6000). À la mort, `CT.Ghost.maybeSave(points, frames)` remplace le fantôme si le
+  score le bat (`game.newGhost` → « 👻 Nouveau fantôme du jour ! » dans le récap). Aux tentatives
+  suivantes, `drawGhost` rejoue la course en **temps réel** (curseur `ghostIdx` monotone sur
+  `t = time - runStart`), **seulement si le fantôme est sur le même niveau** (même map) — carré
+  translucide + 👻. L'indice « 👻 score » s'affiche aussi sur le bouton de l'accueil
+  (`#dailyGhostHint`). C'est la 1ʳᵉ brique du journal de partie du **rejeu anti-triche**.
+
+### Événements aléatoires (`CONFIG.events`)
+En jeu réel (jamais en démo, **jamais en combat de boss**, dès `events.fromLevel` = 2), une
+tentative d'événement a lieu tous les `events.every` pas (proba `chance`, via **`this.rng`
+déterministe** → même séquence pour tous sur le Défi du jour). Un seul à la fois +
+`cooldown` s de temps mort (`eventCooldownUntil`). `startEvent()` tire le type, affiche une
+**bannière transitoire** (`drawEventBanner`, texte qui palpite) + flash/sting :
+- **💰 Ruée dorée** (`goldUntil`, `goldDuration` s) : pièces **×`goldMult`** sur les batteries
+  (appliqué dans `onEat`), chip 💰. Sting `bonus()`.
+- **🌑 Blackout** (`blackoutDuration` s) : brouillard total — réutilise `fogUntil`/`drawFog`
+  (chip 🌫️ rouge existant). Sting `alert()`.
+- **🎁 Pluie de power-ups** (`rainUntil`, `rainDuration` s) : dans `step()`, un power-up
+  **réapparaît dès que le slot est libre** (`spawnBonus()`), chip 🎁. Sting `bonus()`.
+Timers purgés à chaque `setupLevel`. Le plafond anti-triche absorbe le ×2 temporaire (marge large).
 
 ---
 
@@ -527,7 +566,7 @@ complet : Reed-Solomon GF(256), sélection de masque par pénalité, BCH format/
 - Couleurs **uniquement** via `CONFIG.theme`.
 - Code attaché à `window.CT`, ordre de chargement des `<script>` important
   (config → audio → input → scoring-rules → leaderboard → lab → achievements →
-  skins → qrcode → cinematics → game → main).
+  skins → ghost → qrcode → cinematics → game → main).
 
 ## 🗺️ Pistes / TODO
 
@@ -606,3 +645,11 @@ complet : Reed-Solomon GF(256), sélection de masque par pénalité, BCH format/
       blanc, toast « 😡 ENRAGÉ ! » + sting (drame de fin de combat).
 - [x] **Chip de combo** (`drawEffects`) : « 🔥×N » + fenêtre restante → le système de combo devient
       lisible pendant la partie.
+- [x] **Défi du jour** (`CT.util.dailySeed` = FNV-1a de la date) : bouton doré sur l'accueil, même
+      map/spawns pour tous aujourd'hui, entrées `daily:true`, onglet « ☀️ Jour » (local + serveur).
+- [x] **Fantôme** (`js/ghost.js`) : journal de course pendant le Défi du jour, le meilleur score du
+      jour devient le fantôme 👻 rejoué en translucide aux tentatives suivantes (1ʳᵉ brique du rejeu).
+- [x] **Événements aléatoires** (`CONFIG.events`, déterministes via this.rng) : 💰 Ruée dorée
+      (pièces ×2), 🌑 Blackout (brouillard total), 🎁 Pluie de power-ups — bannière + sting + chips.
+- [x] **Orbes de boss** (`CONFIG.boss.orb*`, palier ≥ 2) : projectiles lents qui visent le joueur,
+      mortels hors bouclier, détruits sous bouclier ; cadence ↑ si boss enragé.

@@ -35,6 +35,11 @@ function weekStart(ts) {                 // lundi 00:00 (heure SERVEUR)
   d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - day);
   return d.getTime();
 }
+function dayStart(ts) {                  // minuit (heure SERVEUR) — classement du Défi du jour
+  const d = new Date(ts);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
 function sorted(list) { return list.slice().sort((a, b) => b.score - a.score || a.ts - b.ts); }
 function cleanName(n) { return String(n || 'Joueur').replace(/[<>]/g, '').trim().slice(0, 14) || 'Joueur'; }
 function rankOf(list, score) { const i = list.findIndex((e) => e.score <= score); return i >= 0 ? i + 1 : list.length + 1; }
@@ -80,14 +85,18 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'GET' && url.pathname === '/boards') {
     const name = url.searchParams.get('name') || '';
     const ws = weekStart(Date.now());
+    const ds = dayStart(Date.now());
     const week = sorted(scores.filter((e) => e.ts >= ws));
+    const day = sorted(scores.filter((e) => e.daily && e.ts >= ds));   // Défi du jour uniquement
     const glob = sorted(scores);
     const mine = scores.filter((e) => !name || e.name === name);
     const personal = mine.reduce((m, e) => Math.max(m, e.score), 0);
     return send(res, 200, {
       personal,
+      daily: day.slice(0, 5),
       weekly: week.slice(0, 5),
       global: glob.slice(0, 5),
+      dailyRank: personal ? rankOf(day, personal) : 0,
       weeklyRank: personal ? rankOf(week, personal) : 0,
       globalRank: personal ? rankOf(glob, personal) : 0,
     });
@@ -110,6 +119,7 @@ const server = http.createServer(async (req, res) => {
       bonuses: body.bonuses | 0,
       durationMs: body.durationMs | 0,
       seed: body.seed >>> 0,
+      daily: !!body.daily,                         // Défi du jour (en prod : vérifier seed == seed du jour)
       ts: Date.now(),                              // ⚠️ horodatage SERVEUR (jamais le client)
     };
     scores.push(entry);
