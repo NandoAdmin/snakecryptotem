@@ -39,6 +39,19 @@ window.CT = window.CT || {};
   // corps ; 2-3 têtes = déployées en éventail devant (Y qui se sépare / trident).
   const HEAD_SLOTS = { 1: [0], 2: [-1, 1], 3: [-1, 0, 1] };
 
+  // MISSIONS DE PARTIE : pool d'objectifs secondaires (CONFIG.missions.count tirés par run
+  // via this.rng). `prog(g)` lit l'avancement dans l'état du jeu ; récompense en ⚡ versée
+  // au Labo à la fin de la partie (jamais au score → classement/anti-triche intacts).
+  const MISSION_POOL = [
+    { id: 'combo5',  icon: '🔥', label: 'Atteins un combo ×5',         target: 5,   reward: 400, prog: (g) => g.maxComboRun },
+    { id: 'bat25',   icon: '🔋', label: 'Ramasse 25 batteries',        target: 25,  reward: 500, prog: (g) => g.score },
+    { id: 'bonus5',  icon: '⚡', label: 'Ramasse 5 power-ups',         target: 5,   reward: 450, prog: (g) => g.bonusCount },
+    { id: 'walls3',  icon: '🧱', label: 'Brise 3 murs sous bouclier',  target: 3,   reward: 600, prog: (g) => g.wallsRun },
+    { id: 'snak4',   icon: '🐍', label: 'Détruis 4 blocs ennemis',     target: 4,   reward: 600, prog: (g) => g.snakRun },
+    { id: 'surv120', icon: '⏱️', label: 'Survis 2 minutes',            target: 120, reward: 500, prog: (g) => Math.floor(g.time - g.runStart) },
+    { id: 'lvl4',    icon: '🗺️', label: 'Atteins le niveau 4',         target: 4,   reward: 550, prog: (g) => g.levelNum },
+  ];
+
   CT.Game = function (ctx) {
     this.ctx = ctx;
     this.cine = new CT.Cinematic(ctx);
@@ -56,6 +69,7 @@ window.CT = window.CT || {};
 
     // refs DOM pour HUD / stats / bouton continuer
     this.dom = {
+      lvlBox: document.querySelector('.hud-level'),   // réécrit en entier (NIVEAU n / ⏱ CHRONO)
       lvl: document.getElementById('lvlNum'),
       bat: document.getElementById('batCount'),
       need: document.getElementById('batNeed'),
@@ -98,6 +112,18 @@ window.CT = window.CT || {};
     this.ghostIdx = 0;       // curseur de lecture du fantôme (t monotone)
     this.newGhost = false;   // la partie vient-elle de devenir le fantôme du jour ?
     this.orbs = [];          // ORBES tirées par les boss — [{ x, y, vx, vy, life }] (cases flottantes)
+    this.chrono = false;     // MODE CHRONO : 2 minutes, score max (classement dédié)
+    this.chronoEnd = 0;      // fin du chrono (time) — fixée à la fin de l'intro
+    this.chronoExpired = false; // la partie s'est-elle finie au temps (≠ mort par collision) ?
+    this._chronoShown = -1;  // dernière seconde affichée au HUD (maj 1×/s)
+    this.pausedAt = 0;       // horodatage de la mise en pause (gel du chrono)
+    this.portals = [];       // PORTAILS — paires successives [{x,y,pair}, {x,y,pair}, …]
+    this.raceLevel = false;  // niveau COURSE en cours (le Glouton vole les batteries)
+    this.rivalRespawnAt = 0; // retour du Glouton après destruction (time), 0 = pas en attente
+    this.missions = [];      // MISSIONS de partie — [{ id, icon, label, target, reward, prog, done }]
+    this.missionCoins = 0;   // ⚡ gagnées par missions (versées au Labo à la fin, pas au score)
+    this.wallsRun = 0;       // murs brisés cette partie (mission)
+    this.snakRun = 0;        // blocs ennemis détruits cette partie (mission)
     this.sinceEvent = 0;     // pas depuis la dernière tentative d'événement
     this.eventCooldownUntil = 0; // pas d'événement tant que time < cooldown
     this.eventBanner = null; // bannière d'annonce d'événement — { text, color, until }
@@ -184,22 +210,42 @@ window.CT = window.CT || {};
 
   /* ---------------- cycle de partie ---------------- */
   // `seed` optionnelle : fournie = DÉFI DU JOUR (CT.util.dailySeed() → même map pour tous).
-  G.startRun = function (seed) {
+  // `mode` optionnel : 'chrono' = MODE CHRONO (2 min, score max, classement dédié).
+  G.startRun = function (seed, mode) {
     this.reset();
     this.runStart = this.time;
-    this.daily = seed != null;
+    this.chrono = mode === 'chrono';
+    this.daily = !this.chrono && seed != null;
     this.seed = this.daily ? (seed >>> 0) : (Math.random() * 4294967295) >>> 0;
     this.rng = CT.util.makeRng(this.seed);   // (re)graine pour la partie scorée
     this.bonusCount = 0;
     // fantôme (Défi du jour uniquement — même seed = même map, la course est comparable)
     if (this.daily && CT.Ghost) { this.ghost = CT.Ghost.load(); this.ghostRec = []; this.ghostIdx = 0; }
+    // MISSIONS de partie (hors chrono) : tirées via this.rng AVANT les spawns → déterministes
+    // par seed (même trio pour tous sur le Défi du jour).
+    this.missions = [];
+    const MC = CT.CONFIG.missions;
+    if (!this.chrono && MC && MC.count) {
+      const pool = MISSION_POOL.slice();
+      for (let i = 0; i < Math.min(MC.count, pool.length); i++) {
+        const j = (this.rng() * pool.length) | 0;
+        this.missions.push(Object.assign({ done: false }, pool[j]));
+        pool.splice(j, 1);
+      }
+    }
     this.startLevel(1);
   };
 
   // Prépare un niveau (sans changer l'état) — partagé par jeu réel et démo.
   G.setupLevel = function (n) {
     this.levelNum = n;
-    this.level = CT.getLevel(n);
+    // MODE CHRONO : une seule arène sans objectif de niveau (needed infini → jamais de cinématique)
+    if (this.chrono) {
+      const CC = CT.CONFIG.chrono;
+      this.level = { index: n, needed: Infinity, step: CC.step, obstacles: CC.obstacles, pattern: CC.pattern };
+    } else {
+      this.level = CT.getLevel(n);
+    }
     this.batteries = 0;
     this.combo = 0;
     this.snakeColorRgb = hexRgb(this.palette[0]);   // le niveau repart sur la couleur de base
@@ -209,8 +255,13 @@ window.CT = window.CT || {};
     // Murs ↑ et boucliers ↓ à chaque palier ; jamais en démo.
     const BCFG = CT.CONFIG.boss;
     const bossTier = BCFG ? (n / BCFG.everyLevels) : 0;
-    this.bossLevel = !this.demo && BCFG && Number.isInteger(bossTier) && bossTier >= 1;
+    this.bossLevel = !this.demo && !this.chrono && BCFG && Number.isInteger(bossTier) && bossTier >= 1;
     this.bossShieldTimer = 0;
+    // niveau COURSE : le Glouton vole les batteries (offset ≠ 0 mod every → jamais un niveau boss)
+    const RC = CT.CONFIG.race;
+    this.raceLevel = !this.demo && !this.chrono && !this.bossLevel && RC &&
+      n >= RC.fromLevel && n % RC.every === RC.offset;
+    this.rivalRespawnAt = 0;
     if (this.bossLevel) {
       // murs : aucun au 1ᵉʳ palier, puis +wallsPerTier par palier (plafonné)
       const walls = Math.min(BCFG.wallsMax, (bossTier - 1) * BCFG.wallsPerTier);
@@ -252,6 +303,7 @@ window.CT = window.CT || {};
     this.dir = DIRS.right; this.dirQueue = [];
 
     this.generateObstacles();
+    this.spawnPortals();   // PORTAILS (dès portals.fromLevel ; jamais en démo / combat de boss)
     // pas de batterie à ramasser en combat de boss (l'objectif est de vaincre le boss)
     if (this.bossLevel) this.food = null; else this.spawnFood();
     // boss, sinon serpent ennemi à partir du niveau configuré ; jamais en démo (qui cycle
@@ -261,24 +313,76 @@ window.CT = window.CT || {};
     this.bossTier = this.bossLevel ? bossTier : 0;
     const ec = CT.CONFIG.enemy;
     if (this.bossLevel) this.spawnBosses(bossTier);
-    else if (ec && !this.demo && n >= ec.fromLevel) this.spawnEnemy();
+    else if (this.raceLevel) this.spawnEnemy(true);   // COURSE : le Glouton remplace le Snakator
+    else if (ec && !this.demo && (n >= ec.fromLevel || (this.chrono && CT.CONFIG.chrono.enemy))) this.spawnEnemy();
     this.updateHud();
   };
 
   // Place le serpent ennemi sur une case libre, loin du spawn du joueur (centre).
-  G.spawnEnemy = function () {
+  // `race` = true → c'est le GLOUTON (niveau course) : il chasse la batterie, pas le joueur.
+  G.spawnEnemy = function (race) {
     const ec = CT.CONFIG.enemy;
     const cx = Math.floor(COLS / 2), cy = Math.floor(ROWS / 2);
     let x = 2, y = 2, tries = 0;
     do {
       x = 1 + ((this.rng() * (COLS - 2)) | 0);
       y = 1 + ((this.rng() * (ROWS - 2)) | 0);
-    } while (++tries < 200 && (this.obstacleSet.has(this.cellKey(x, y)) ||
+    } while (++tries < 200 && (this.obstacleSet.has(this.cellKey(x, y)) || this.portalTwin(x, y) ||
              (Math.abs(x - cx) + Math.abs(y - cy)) < 7));   // démarre loin du joueur
     const body = [];
     for (let i = 0; i < ec.length; i++) body.push({ x, y });   // empilé → se déploie en bougeant
     const dirs = [DIRS.up, DIRS.down, DIRS.left, DIRS.right];
-    this.enemy = { body, prev: body.map((s) => ({ x: s.x, y: s.y })), dir: dirs[(this.rng() * 4) | 0] };
+    this.enemy = { body, prev: body.map((s) => ({ x: s.x, y: s.y })), dir: dirs[(this.rng() * 4) | 0], race: !!race };
+  };
+
+  /* ---------------- portails de téléportation ---------------- */
+  // Nombre de paires selon le niveau (0 en démo / combat de boss ; 1 en chrono).
+  G.portalPairs = function (n) {
+    const P = CT.CONFIG.portals;
+    if (!P || this.demo || this.bossLevel) return 0;
+    if (this.chrono) return 1;
+    if (n < P.fromLevel) return 0;
+    return Math.min(P.maxPairs || 2, 1 + Math.floor((n - P.fromLevel) / (P.extraEvery || 6)));
+  };
+
+  // Place les paires de portails : cases libres hors couloir de spawn, bouches d'une même
+  // paire éloignées (minDist toroïdal), paires écartées entre elles. Aléa déterministe.
+  G.spawnPortals = function () {
+    this.portals = [];
+    const P = CT.CONFIG.portals;
+    const pairs = this.portalPairs(this.levelNum);
+    if (!pairs) return;
+    const td = (ax, ay, bx, by) => {
+      let dx = Math.abs(ax - bx); dx = Math.min(dx, COLS - dx);
+      let dy = Math.abs(ay - by); dy = Math.min(dy, ROWS - dy);
+      return dx + dy;
+    };
+    const okCell = (x, y) => {
+      if (this.forbidden(x, y)) return false;
+      if (this.obstacleSet.has(this.cellKey(x, y))) return false;
+      for (const q of this.portals) if (td(x, y, q.x, q.y) < 3) return false;
+      return true;
+    };
+    for (let p = 0; p < pairs; p++) {
+      let a = null, b = null, tries = 0;
+      while (tries++ < 300 && !b) {
+        const x = 1 + ((this.rng() * (COLS - 2)) | 0);
+        const y = 1 + ((this.rng() * (ROWS - 2)) | 0);
+        if (!okCell(x, y)) continue;
+        if (!a) { a = { x, y, pair: p }; continue; }
+        if (td(a.x, a.y, x, y) >= (P.minDist || 8)) b = { x, y, pair: p };
+      }
+      if (a && b) this.portals.push(a, b);
+    }
+  };
+
+  // Bouche jumelle du portail en (x,y), ou null si la case n'est pas un portail.
+  G.portalTwin = function (x, y) {
+    for (let i = 0; i < this.portals.length; i++) {
+      const q = this.portals[i];
+      if (q.x === x && q.y === y) return this.portals[(i % 2 === 0) ? i + 1 : i - 1] || null;
+    }
+    return null;
   };
 
   // Nombre de boss simultanés selon le palier (+1 tous les `countEvery` paliers, plafonné).
@@ -323,7 +427,7 @@ window.CT = window.CT || {};
           const h = o.body[0];
           if (Math.abs(x - h.x) + Math.abs(y - h.y) < 6) { farOthers = false; break; }
         }
-        ok = !this.obstacleSet.has(this.cellKey(x, y)) && farCenter && farOthers;
+        ok = !this.obstacleSet.has(this.cellKey(x, y)) && !this.portalTwin(x, y) && farCenter && farOthers;
       } while (++tries < 250 && !ok);
       const body = [];
       for (let i = 0; i < len; i++) body.push({ x, y });
@@ -381,16 +485,23 @@ window.CT = window.CT || {};
   G.startLevel = function (n) {
     this.demo = false;
     this.setupLevel(n);
-    // Annonce de niveau — plus dynamique pour l'arrivée du Snakator (niv. fromLevel) et les boss.
+    // Annonce de niveau — plus dynamique pour l'arrivée du Snakator (niv. fromLevel), les boss,
+    // la COURSE (Glouton) et le mode CHRONO.
     const ec = CT.CONFIG.enemy;
-    this.introKind = this.bossLevel ? 'boss'
+    this.introKind = this.chrono ? 'chrono'
+      : this.bossLevel ? 'boss'
+      : this.raceLevel ? 'race'
       : (this.enemy && ec && n === ec.fromLevel) ? 'enemy'
       : 'normal';
-    this.introDur = (this.introKind === 'normal') ? CT.CONFIG.introDuration : CT.CONFIG.introDuration + 0.9;
+    const alarm = this.introKind === 'enemy' || this.introKind === 'boss' || this.introKind === 'race';
+    this.introDur = CT.CONFIG.introDuration + (alarm ? 0.9 : this.introKind === 'chrono' ? 0.4 : 0);
     this.introUntil = this.time + this.introDur;   // annonce le niveau (serpent figé)
+    // MODE CHRONO : le décompte démarre quand le serpent s'élance (fin de l'annonce)
+    if (this.chrono) this.chronoEnd = this.introUntil + (CT.CONFIG.chrono.duration || 120);
     // Labo « Départ protégé » : bouclier de grâce après l'annonce de niveau
     if (this.mods && this.mods.startShield) this.shieldUntil = this.introUntil + this.mods.startShield;
-    if (this.introKind !== 'normal' && CT.Audio.alert) CT.Audio.alert();   // sting d'alerte
+    if (alarm && CT.Audio.alert) CT.Audio.alert();                          // sting d'alerte
+    else if (this.introKind === 'chrono' && CT.Audio.bonus) CT.Audio.bonus();   // sting « c'est parti »
     this._ach({ level: n });
     this.setState('playing');
   };
@@ -415,9 +526,11 @@ window.CT = window.CT || {};
   };
 
   G.togglePause = function () {
-    if (this.state === 'playing') this.setState('paused');
+    if (this.state === 'playing') { this.pausedAt = this.time; this.setState('paused'); }
     else if (this.state === 'paused') {
       this.resumeUntil = this.time + 1.5;   // 3·2·1 avant de relancer le serpent (le joueur se repositionne)
+      // MODE CHRONO : le temps passé en pause (+ le 3·2·1) ne compte pas
+      if (this.chrono && this.chronoEnd > 0) this.chronoEnd += (this.time - this.pausedAt) + 1.5;
       this.setState('playing');
     }
   };
@@ -484,6 +597,7 @@ window.CT = window.CT || {};
 
   G.isFree = function (x, y) {
     if (this.obstacleSet.has(this.cellKey(x, y))) return false;
+    if (this.portalTwin(x, y)) return false;   // rien ne spawne sur une bouche de portail
     for (const s of this.snake) if (s.x === x && s.y === y) return false;
     if (this.food && this.food.x === x && this.food.y === y) return false;
     if (this.bonus && this.bonus.x === x && this.bonus.y === y) return false;
@@ -771,6 +885,11 @@ window.CT = window.CT || {};
 
   /* ---------------- pas logique ---------------- */
   G.step = function () {
+    // MODE CHRONO : temps écoulé → fin de partie (score encaissé, pas une « mort » par collision)
+    if (this.chrono && !this.demo && this.chronoEnd > 0 && this.time >= this.chronoEnd) {
+      this.chronoExpired = true;
+      return this.die();
+    }
     if (this.dirQueue.length) this.dir = this.dirQueue.shift();   // applique un virage par pas
     const head = this.snake[0];
     const nh = { x: head.x + this.dir.x, y: head.y + this.dir.y };
@@ -779,6 +898,16 @@ window.CT = window.CT || {};
     // traversée des bords : on ressort en face (plateau toroïdal)
     nh.x = (nh.x + COLS) % COLS;
     nh.y = (nh.y + ROWS) % ROWS;
+
+    // PORTAIL : entrer par une bouche → ressortir par l'autre (direction conservée)
+    const twin = this.portalTwin(nh.x, nh.y);
+    if (twin) {
+      this.spawnFx(nh.x, nh.y, [T.cyan, T.violet, '#ffffff'], 10);
+      nh.x = twin.x; nh.y = twin.y;
+      this.spawnFx(nh.x, nh.y, [T.cyan, T.violet, '#ffffff'], 10);
+      if (!this.demo && CT.Audio.appear) CT.Audio.appear();
+      this.haptic(15);
+    }
 
     const willEat = this.food && nh.x === this.food.x && nh.y === this.food.y;
 
@@ -827,6 +956,16 @@ window.CT = window.CT || {};
     // MALUS : on a foncé dedans → effet selon le type (indépendant des batteries)
     if (this.malus && nh.x === this.malus.x && nh.y === this.malus.y) this.onEatMalus();
 
+    // COURSE : le Glouton détruit revient après un court répit
+    if (this.raceLevel && !this.enemy && this.rivalRespawnAt > 0 && this.time >= this.rivalRespawnAt) {
+      this.rivalRespawnAt = 0;
+      this.spawnEnemy(true);
+      const rh = this.enemy.body[0];
+      this.spawnFx(rh.x, rh.y, [T.amber, T.glow, '#ffffff'], 16);
+      this.spawnToast('🏁 LE GLOUTON REVIENT !', rh.x, rh.y);
+      if (CT.Audio.alert) CT.Audio.alert();
+    }
+
     // apparition aléatoire d'un malus (jeu réel hors boss ; aléa déterministe this.rng)
     if (!this.demo && !this.bossLevel && !this.malus) {
       const M = CT.CONFIG.malus;
@@ -866,6 +1005,7 @@ window.CT = window.CT || {};
       const B = CT.CONFIG.boss;
       for (const e of hostiles) {
         this.stepSnake(e);                           // chaque ennemi/boss avance d'une case
+        if (e.race) this.rivalEats(e);               // COURSE : le Glouton vole la batterie ?
         // ATTAQUE : dès le palier orbFromTier, le boss crache une ORBE qui vise le joueur
         if (e.boss && e.tier >= (B.orbFromTier || 99)) {
           e.orbTimer = (e.orbTimer || 0) + 1;
@@ -879,6 +1019,47 @@ window.CT = window.CT || {};
         const hit = this.hostileAt(nh.x, nh.y);   // BOUCLIER : un hostile a foncé sur notre tête → on le mord
         if (hit) this.biteSnake(hit, nh.x, nh.y);
       }
+    }
+
+    // MISSIONS : vérifie les objectifs secondaires (compteurs mis à jour pendant ce pas)
+    this.checkMissions();
+  };
+
+  // COURSE : la tête du Glouton est-elle sur la batterie ? Il la mange → il grandit et
+  // VOTRE objectif recule d'une batterie (la tension de la course).
+  G.rivalEats = function (e) {
+    const f = this.food;
+    if (!f || !e.body.length) return;
+    const h = e.body[0];
+    if (h.x !== f.x || h.y !== f.y) return;
+    const R = CT.CONFIG.race;
+    const max = CT.CONFIG.malus.maxEnemyLen || 14;
+    for (let i = 0; i < (R.grow || 1) && e.body.length < max; i++) {
+      const t2 = e.body[e.body.length - 1];
+      e.body.push({ x: t2.x, y: t2.y });
+      if (e.prev) e.prev.push({ x: t2.x, y: t2.y });
+    }
+    this.batteries = Math.max(0, this.batteries - 1);   // l'objectif recule
+    this.spawnFx(f.x, f.y, [T.amber, T.danger, '#ffffff'], 16);
+    this.spawnToast('😋 BATTERIE VOLÉE !', f.x, f.y);
+    this.flash = Math.max(this.flash, 0.45); this.flashColor = T.amber;
+    if (CT.Audio.malus) CT.Audio.malus();
+    this.spawnFood();
+    this.updateHud();
+  };
+
+  // MISSIONS : marque les objectifs atteints (toast + ⚡ vers le Labo, jamais au score).
+  G.checkMissions = function () {
+    if (this.demo || !this.missions || !this.missions.length) return;
+    for (const m of this.missions) {
+      if (m.done || m.prog(this) < m.target) continue;
+      m.done = true;
+      this.missionCoins += m.reward;
+      const head = this.snake[0];
+      this.spawnToast('🎯 MISSION ✓  +' + m.reward + ' ⚡', head.x, head.y);
+      this.flash = Math.max(this.flash, 0.6); this.flashColor = T.glow;
+      this.haptic([0, 30, 30, 60]);
+      if (CT.Audio.achievement) CT.Audio.achievement();
     }
   };
 
@@ -918,6 +1099,7 @@ window.CT = window.CT || {};
         // « TÊTE COUPÉE » seulement s'il reste des têtes (sinon killBoss affichera la victoire)
         this.spawnToast((justCut && stillAlive) ? '🗡️ TÊTE COUPÉE !' : '💥 −' + dmg + ' PV', x, y);
         this._ach({ snakator: dmg });   // alimente la quête « Tueur de Snakator »
+        this.snakRun += dmg;            // + la mission « blocs ennemis »
         if (justCut && CT.Audio.achievement) CT.Audio.achievement();
         this.updateHud();
       }
@@ -945,6 +1127,8 @@ window.CT = window.CT || {};
     const destroyed = removed.length;
     if (headHit) {
       this.enemy = null;                   // destruction totale
+      // le GLOUTON (niveau course) n'est jamais éliminé pour de bon : il revient après un répit
+      if (e.race && this.raceLevel) this.rivalRespawnAt = this.time + ((CT.CONFIG.race && CT.CONFIG.race.respawn) || 6);
     } else {
       e.body.splice(idx);                  // coupe la queue au point d'impact
       if (e.prev) e.prev.splice(idx);
@@ -960,8 +1144,9 @@ window.CT = window.CT || {};
       const gain = (CT.CONFIG.enemy.bitePoints || 40) * this.levelNum * destroyed;
       this.points += gain;
       this._scored();
-      this.spawnToast((headHit ? '💥 SNAKATOR DÉTRUIT +' : '✂️ +') + gain, x, y);
+      this.spawnToast((headHit ? (e.race ? '💥 GLOUTON DÉTRUIT +' : '💥 SNAKATOR DÉTRUIT +') : '✂️ +') + gain, x, y);
       this._ach({ snakator: destroyed });
+      this.snakRun += destroyed;           // mission « blocs ennemis »
       if (headHit && CT.Audio.achievement) CT.Audio.achievement();
       this.updateHud();
     }
@@ -1120,6 +1305,7 @@ window.CT = window.CT || {};
       this._scored();
       this.spawnToast('🧱 +' + gain, x, y);
       this._ach({ walls: 1 });
+      this.wallsRun++;                     // mission « murs brisés »
       this.updateHud();
     }
   };
@@ -1159,6 +1345,18 @@ window.CT = window.CT || {};
         // enragé (< 50 % PV) : quasi plus d'imprévu → poursuite implacable
         const tc = e.enraged ? CT.CONFIG.boss.turnChance * 0.4 : CT.CONFIG.boss.turnChance;
         nd = (this.rng() < tc) ? opts[(this.rng() * opts.length) | 0] : bestOpt;
+      } else if (e.race && this.food) {
+        // GLOUTON (niveau course) : fonce sur la BATTERIE (pas sur le joueur), chemin toroïdal.
+        const fd = this.food;
+        const td = (a, b2, n) => { const r = Math.abs(a - b2); return Math.min(r, n - r); };
+        let bestD = 1e9, bestOpt = opts[0];
+        for (const d of opts) {
+          const nx = (head.x + d.x + COLS) % COLS, ny = (head.y + d.y + ROWS) % ROWS;
+          const dist = td(nx, fd.x, COLS) + td(ny, fd.y, ROWS);
+          if (dist < bestD) { bestD = dist; bestOpt = d; }
+        }
+        const tc = (CT.CONFIG.race && CT.CONFIG.race.turnChance) || 0.1;
+        nd = (this.rng() < tc) ? opts[(this.rng() * opts.length) | 0] : bestOpt;
       } else {
         const straight = opts.find((d) => d.x === e.dir.x && d.y === e.dir.y);
         const turn = this.rng() < CT.CONFIG.enemy.turnChance;
@@ -1166,7 +1364,10 @@ window.CT = window.CT || {};
       }
     }
     e.dir = nd;
-    const nx = (head.x + nd.x + COLS) % COLS, ny = (head.y + nd.y + ROWS) % ROWS;
+    let nx = (head.x + nd.x + COLS) % COLS, ny = (head.y + nd.y + ROWS) % ROWS;
+    // les hostiles empruntent aussi les portails (entrée → sortie jumelle)
+    const tw = this.portalTwin(nx, ny);
+    if (tw) { this.spawnFx(nx, ny, [T.cyan, T.violet], 6); nx = tw.x; ny = tw.y; }
     e.prev = e.body.map((s) => ({ x: s.x, y: s.y }));
     for (let i = e.body.length - 1; i >= 1; i--) { e.body[i].x = e.prev[i - 1].x; e.body[i].y = e.prev[i - 1].y; }
     e.body[0] = { x: nx, y: ny };
@@ -1367,6 +1568,7 @@ window.CT = window.CT || {};
       durationMs: Math.max(0, Math.round((this.time - this.runStart) * 1000)),
       seed: this.seed,
       daily: this.daily,                               // Défi du jour → classement « Jour »
+      chrono: this.chrono,                             // Mode Chrono → classement « ⏱ Chrono »
       ts: Date.now(),
     };
     // Défi du jour : si la course bat le fantôme, elle DEVIENT le fantôme du jour
@@ -1377,7 +1579,8 @@ window.CT = window.CT || {};
     // soumet au classement (serveur si configuré) ; l'UI attend cette promesse avant de relire les boards
     this.lastSubmit = this.points > 0 ? CT.Leaderboard.submit(this.lastEntry) : Promise.resolve({ ok: true });
     // verse les ressources de la partie dans la banque du Laboratoire
-    if (CT.Lab) CT.Lab.bank({ batteries: this.score, points: this.points });
+    // (+ les ⚡ des missions accomplies — récompense hors score, donc hors classement)
+    if (CT.Lab) CT.Lab.bank({ batteries: this.score, points: this.points + (this.missionCoins || 0) });
     // succès liés à la fin de partie (+ comptage des parties jouées)
     this._ach({ score: this.points, durationMs: this.lastEntry.durationMs, bankPts: this.points, game: 1 });
 
@@ -1392,9 +1595,16 @@ window.CT = window.CT || {};
         '<span class="over-recap">⏱ ' + dur + ' &nbsp;·&nbsp; ⚡ ' + this.bonusCount +
         ' power-up' + (this.bonusCount > 1 ? 's' : '') + ' &nbsp;·&nbsp; 🔥 combo ×' + this.maxComboRun +
         (this.newGhost ? ' &nbsp;·&nbsp; 👻 <b>Nouveau fantôme du jour !</b>' : '') + '</span>';
-      if (CT.Lab && (this.score > 0 || this.points > 0)) {
+      // récap des missions de partie (✅ accomplies / ▫️ manquées + ⚡ gagnées)
+      if (this.missions && this.missions.length) {
+        const done = this.missions.filter((m) => m.done).length;
+        html += '<span class="over-missions">🎯 Missions ' + done + '/' + this.missions.length + ' : ' +
+          this.missions.map((m) => (m.done ? '✅' : '▫️') + ' ' + m.icon).join(' &nbsp;') +
+          (this.missionCoins ? ' &nbsp;·&nbsp; <b>+' + this.missionCoins + ' ⚡</b>' : '') + '</span>';
+      }
+      if (CT.Lab && (this.score > 0 || this.points > 0 || this.missionCoins > 0)) {
         const w = CT.Lab.wallet();
-        html += '<br><span class="lab-gain">🔬 +' + this.score + ' 🔋 +' + this.points +
+        html += '<br><span class="lab-gain">🔬 +' + this.score + ' 🔋 +' + (this.points + (this.missionCoins || 0)) +
           ' ⚡ au Labo <small>(total ' + w.bat + ' 🔋 · ' + w.pts + ' ⚡)</small></span>';
       }
       this.dom.overStats.innerHTML = html;
@@ -1474,9 +1684,25 @@ window.CT = window.CT || {};
 
   /* ---------------- HUD ---------------- */
   G.updateHud = function () {
-    if (this.dom.lvl) this.dom.lvl.textContent = this.levelNum;
+    // libellé de gauche : « NIVEAU n » ou « ⏱ CHRONO » (réécrit en entier à chaque maj)
+    if (this.dom.lvlBox) {
+      if (this.chrono) this.dom.lvlBox.textContent = '⏱ CHRONO';
+      else this.dom.lvlBox.innerHTML = 'NIVEAU <b>' + this.levelNum + '</b>';
+    }
     const boss = this.bossLevel && this.bosses.length;
-    if (boss) {
+    if (this.chrono) {
+      // MODE CHRONO : la barre affiche le TEMPS RESTANT (elle se vide) à la place des batteries
+      const D = CT.CONFIG.chrono.duration || 120;
+      const rem = this.chronoEnd > 0 ? Math.max(0, Math.ceil(this.chronoEnd - this.time)) : D;
+      if (this.dom.bat) this.dom.bat.textContent = rem;
+      if (this.dom.need) this.dom.need.textContent = D;
+      if (this.dom.unit) this.dom.unit.textContent = '⏱';
+      if (this.dom.fill) this.dom.fill.style.width = (100 * rem / D) + '%';
+      if (this.dom.progress) {
+        this.dom.progress.classList.remove('boss');
+        this.dom.progress.classList.toggle('near-goal', rem <= (CT.CONFIG.chrono.warnAt || 10));   // pulse de fin
+      }
+    } else if (boss) {
       // en combat de boss, la barre affiche les PV CUMULÉS (toutes têtes) à la place des batteries
       const { hp, max } = this.bossesHp();
       if (this.dom.bat) this.dom.bat.textContent = hp;
@@ -1548,6 +1774,12 @@ window.CT = window.CT || {};
       this.renderWorld();
     }
 
+    // MODE CHRONO : rafraîchit le compte à rebours du HUD une fois par seconde
+    if (this.chrono && !this.demo && this.state === 'playing' && this.chronoEnd > 0) {
+      const remS = Math.max(0, Math.ceil(this.chronoEnd - this.time));
+      if (remS !== this._chronoShown) { this._chronoShown = remS; this.updateHud(); }
+    }
+
     // Musique dynamique : la tension monte près de l'objectif, sous malus, ou en combat de boss.
     if (CT.Audio && CT.Audio.setTension) {
       let tn = 0;
@@ -1560,6 +1792,7 @@ window.CT = window.CT || {};
           if (rem > 0 && rem <= 2) tn = Math.max(tn, 0.6);                          // objectif proche
         }
         if (this.time < this.rushUntil || this.time < this.fogUntil || this.time < this.repelUntil) tn = Math.max(tn, 0.85); // sous malus
+        if (this.chrono && this.chronoEnd > 0 && this.chronoEnd - this.time <= 15) tn = Math.max(tn, 0.85);  // dernières secondes du chrono
       }
       if (Math.abs(tn - (this._tension || 0)) > 0.02) { this._tension = tn; CT.Audio.setTension(tn); }
     }
@@ -1595,6 +1828,7 @@ window.CT = window.CT || {};
     ctx.restore();
 
     this.drawObstacles();
+    this.drawPortals();                                // portails de téléportation (sous le vivant)
     if (this.food) this.drawFood();
     if (this.bonus) this.drawBonus();
     if (this.malus) this.drawMalus();
@@ -1614,6 +1848,7 @@ window.CT = window.CT || {};
 
     this.drawEffects();   // chips d'effets actifs (hors shake, style HUD)
     this.drawBossBar();   // barre de PV du boss (hors shake)
+    this.drawChronoWarning();   // dernières secondes du mode chrono (hors shake)
 
     // flash plein écran
     if (this.flash > 0) {
@@ -1981,7 +2216,7 @@ window.CT = window.CT || {};
     if (this.demo || this.time >= this.introUntil) return;
     const ctx = this.ctx, W = this.W, H = this.H, S = Math.min(W, H);
     const kind = this.introKind || 'normal';
-    const special = kind !== 'normal';                 // 'enemy' / 'boss' → annonce dramatique
+    const alarm = kind === 'enemy' || kind === 'boss' || kind === 'race';   // annonce dramatique
     const dur = this.introDur || CT.CONFIG.introDuration;
     const remaining = this.introUntil - this.time;
     const elapsed = dur - remaining;
@@ -1989,11 +2224,11 @@ window.CT = window.CT || {};
     const scale = 0.9 + 0.1 * U.clamp(elapsed / 0.3, 0, 1);
     ctx.save();
     // voile (rouge sombre pour les alertes)
-    ctx.globalAlpha = a * (special ? 0.55 : 0.45);
-    ctx.fillStyle = special ? '#180310' : '#02161a';
+    ctx.globalAlpha = a * (alarm ? 0.55 : 0.45);
+    ctx.fillStyle = alarm ? '#180310' : '#02161a';
     ctx.fillRect(0, 0, W, H);
-    // vignette d'alerte pulsée (entrée d'ennemi / boss)
-    if (special && !this.reduce) {
+    // vignette d'alerte pulsée (entrée d'ennemi / boss / course)
+    if (alarm && !this.reduce) {
       const p = 0.5 + 0.5 * Math.sin(this.time * 6);
       ctx.globalAlpha = a * (0.18 + 0.22 * p);
       const vg = ctx.createRadialGradient(W / 2, H / 2, S * 0.18, W / 2, H / 2, S * 0.78);
@@ -2002,7 +2237,7 @@ window.CT = window.CT || {};
     }
     // textes
     ctx.globalAlpha = a;
-    const pop = (special && !this.reduce) ? (1 + 0.035 * Math.sin(this.time * 11)) : 1;   // texte qui « palpite »
+    const pop = (alarm && !this.reduce) ? (1 + 0.035 * Math.sin(this.time * 11)) : 1;   // texte qui « palpite »
     ctx.translate(W / 2, H * 0.44); ctx.scale(scale * pop, scale * pop);
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     if (kind === 'enemy') {                            // ⚠️ arrivée du Snakator (niv. 3)
@@ -2028,6 +2263,30 @@ window.CT = window.CT || {};
       ctx.font = '700 ' + Math.round(S * 0.04) + 'px -apple-system, system-ui, sans-serif';
       ctx.fillText(hydra ? ('Coupez ses ' + nHeads + ' têtes sous bouclier 🛡️ !')
                          : 'Mordez-le sous bouclier 🛡️ pour le vaincre !', 0, S * 0.085);
+    } else if (kind === 'race') {                      // 🏁 niveau COURSE (le Glouton)
+      ctx.fillStyle = T.textDim; ctx.shadowColor = T.amber; ctx.shadowBlur = 8;
+      ctx.font = '800 ' + Math.round(S * 0.05) + 'px -apple-system, system-ui, sans-serif';
+      ctx.fillText('NIVEAU ' + this.levelNum, 0, -S * 0.095);
+      ctx.fillStyle = T.amber; ctx.shadowColor = T.amber; ctx.shadowBlur = 26;
+      ctx.font = '900 ' + Math.round(S * 0.115) + 'px -apple-system, system-ui, sans-serif';
+      ctx.fillText('🏁 COURSE', 0, -S * 0.01);
+      ctx.shadowBlur = 10; ctx.fillStyle = T.text;
+      ctx.font = '700 ' + Math.round(S * 0.04) + 'px -apple-system, system-ui, sans-serif';
+      ctx.fillText('Le GLOUTON vole vos batteries !', 0, S * 0.085);
+      ctx.fillStyle = T.textDim; ctx.shadowBlur = 0;
+      ctx.font = '700 ' + Math.round(S * 0.03) + 'px -apple-system, system-ui, sans-serif';
+      ctx.fillText('Chaque vol recule l\'objectif — mordez-le sous bouclier 🛡️', 0, S * 0.145);
+    } else if (kind === 'chrono') {                    // ⏱ MODE CHRONO
+      ctx.fillStyle = T.amber; ctx.shadowColor = T.amber; ctx.shadowBlur = 24;
+      ctx.font = '900 ' + Math.round(S * 0.12) + 'px -apple-system, system-ui, sans-serif';
+      ctx.fillText('⏱ CHRONO', 0, 0);
+      ctx.shadowBlur = 10; ctx.fillStyle = T.text;
+      ctx.font = '700 ' + Math.round(S * 0.045) + 'px -apple-system, system-ui, sans-serif';
+      const mins = Math.round((CT.CONFIG.chrono.duration || 120) / 60);
+      ctx.fillText(mins + ' minute' + (mins > 1 ? 's' : '') + ' — score maximum !', 0, S * 0.1);
+      ctx.fillStyle = T.textDim; ctx.shadowBlur = 0;
+      ctx.font = '700 ' + Math.round(S * 0.032) + 'px -apple-system, system-ui, sans-serif';
+      ctx.fillText('Le temps file, le serpent accélère… tenez bon 🔋', 0, S * 0.16);
     } else {                                           // niveau normal
       if (this.daily) {                                // badge Défi du jour (map partagée)
         ctx.fillStyle = T.amber; ctx.shadowColor = T.amber; ctx.shadowBlur = 12;
@@ -2040,7 +2299,65 @@ window.CT = window.CT || {};
       ctx.shadowBlur = 10; ctx.fillStyle = T.text;
       ctx.font = '700 ' + Math.round(S * 0.045) + 'px -apple-system, system-ui, sans-serif';
       ctx.fillText('Objectif : ' + this.level.needed + ' batteries 🔋', 0, S * 0.11);
+      // MISSIONS de la partie (affichées au départ, niveau 1 uniquement)
+      if (this.levelNum === 1 && this.missions && this.missions.length) {
+        ctx.shadowBlur = 0;
+        ctx.font = '700 ' + Math.round(S * 0.03) + 'px -apple-system, system-ui, sans-serif';
+        this.missions.forEach((m, i) => {
+          ctx.fillStyle = T.textDim;
+          ctx.fillText('🎯 ' + m.label + '  ·  +' + m.reward + ' ⚡', 0, S * (0.175 + i * 0.045));
+        });
+      }
     }
+    ctx.restore();
+  };
+
+  // Portails : vortex à deux anneaux contre-rotatifs (couleur par paire) + cœur sombre.
+  G.drawPortals = function () {
+    if (!this.portals.length) return;
+    const ctx = this.ctx, cell = this.cell;
+    const colors = [[T.cyan, T.glow], [T.violet, T.pink]];   // une teinte par paire
+    for (const q of this.portals) {
+      const pal = colors[q.pair % colors.length];
+      const x = (q.x + 0.5) * cell, y = (q.y + 0.5) * cell;
+      const rot = this.reduce ? 0.8 : this.time * 2.4;
+      const r = cell * 0.46;
+      ctx.save();
+      ctx.translate(x, y);
+      // cœur sombre (la « bouche »)
+      ctx.fillStyle = 'rgba(2,10,14,0.85)';
+      ctx.beginPath(); ctx.arc(0, 0, r * 0.72, 0, Math.PI * 2); ctx.fill();
+      // anneaux tourbillon
+      ctx.lineWidth = Math.max(2, cell * 0.09); ctx.lineCap = 'round';
+      ctx.strokeStyle = pal[0]; ctx.shadowColor = pal[0]; ctx.shadowBlur = 12;
+      ctx.beginPath(); ctx.arc(0, 0, r, rot, rot + Math.PI * 1.25); ctx.stroke();
+      ctx.strokeStyle = pal[1]; ctx.shadowColor = pal[1];
+      ctx.beginPath(); ctx.arc(0, 0, r * 0.6, -rot * 1.4, -rot * 1.4 + Math.PI * 1.1); ctx.stroke();
+      // étincelle centrale pulsée
+      ctx.shadowBlur = 8; ctx.fillStyle = pal[1];
+      ctx.globalAlpha = 0.55 + (this.reduce ? 0 : 0.45 * Math.sin(this.time * 5 + q.pair * 2));
+      ctx.beginPath(); ctx.arc(0, 0, r * 0.16, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+  };
+
+  // MODE CHRONO : gros compte à rebours pulsé (haut du plateau) sur les dernières secondes.
+  G.drawChronoWarning = function () {
+    if (!this.chrono || this.demo || this.state !== 'playing' || this.chronoEnd <= 0) return;
+    if (this.time < this.introUntil) return;
+    const rem = this.chronoEnd - this.time;
+    if (rem <= 0 || rem > (CT.CONFIG.chrono.warnAt || 10)) return;
+    const ctx = this.ctx, W = this.W, cell = this.cell;
+    const n = Math.ceil(rem);
+    const frac = 1 - (rem - Math.floor(rem));           // 0→1 dans la seconde courante
+    const scale = this.reduce ? 1 : 1.28 - 0.28 * Math.min(1, frac * 3);   // pop à chaque seconde
+    const col = rem <= 5 ? T.danger : T.amber;
+    ctx.save();
+    ctx.translate(W / 2, cell * 1.6); ctx.scale(scale, scale);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = col; ctx.shadowColor = col; ctx.shadowBlur = 18;
+    ctx.font = '900 ' + Math.round(cell * 1.15) + 'px -apple-system, system-ui, sans-serif';
+    ctx.fillText('⏱ ' + n, 0, 0);
     ctx.restore();
   };
 
@@ -2112,7 +2429,9 @@ window.CT = window.CT || {};
   G.drawHostile = function (e) {
     if (!e) return;
     const ctx = this.ctx, cell = this.cell;
-    const skin = this.enemySkin || { main: T.danger, aura: T.violet };   // apparence achetée
+    // apparence achetée — sauf le GLOUTON (niveau course) : signature DORÉE (il convoite les batteries)
+    const skin = e.race ? { main: T.amber, aura: T.glow }
+      : (this.enemySkin || { main: T.danger, aura: T.violet });
     const eStyle = this.enemyHeadStyle || 'classic';   // visage acheté (classic/drole/agressif/ete)
     const boss = !!e.boss;                             // le BOSS est plus gros + aura « danger »
     const enraged = boss && !!e.enraged;               // < 50 % PV : pulse nerveux + aura chauffée
@@ -2220,7 +2539,9 @@ window.CT = window.CT || {};
       const cur = e.body[i], pv = (e.prev && e.prev[i]) || cur;
       let dx = cur.x - pv.x; if (dx > 1) dx -= COLS; else if (dx < -1) dx += COLS;   // court chemin toroïdal
       let dy = cur.y - pv.y; if (dy > 1) dy -= ROWS; else if (dy < -1) dy += ROWS;
-      const gx = pv.x + dx * t, gy = pv.y + dy * t;
+      // saut de portail : pas d'interpolation (le segment ressort directement de l'autre bouche)
+      const jump = Math.abs(dx) > 1 || Math.abs(dy) > 1;
+      const gx = jump ? cur.x : pv.x + dx * t, gy = jump ? cur.y : pv.y + dy * t;
       const isLead = i === 0;
       const drawSkull = isLead && !hydra;              // hydre : body[0] = jonction du cou (losange), pas un crâne
       const f = i / Math.max(1, e.body.length - 1);    // 0 = tête, 1 = queue
@@ -2282,16 +2603,33 @@ window.CT = window.CT || {};
       const c = this.snake[i];
       let dx = c.x - p.x; if (dx > 1) dx -= COLS; else if (dx < -1) dx += COLS;
       let dy = c.y - p.y; if (dy > 1) dy -= ROWS; else if (dy < -1) dy += ROWS;
-      g.push({ x: p.x + dx * t, y: p.y + dy * t });
+      // saut de PORTAIL (déplacement > 1 case même après correction toroïdale) : pas
+      // d'interpolation — le segment « pop » directement à la sortie du portail
+      if (Math.abs(dx) > 1 || Math.abs(dy) > 1) g.push({ x: c.x, y: c.y });
+      else g.push({ x: p.x + dx * t, y: p.y + dy * t });
     }
     const px = (gx) => (gx + 0.5) * cell;
     const py = (gy) => (gy + 0.5) * cell;
+
+    // deux maillons sont-ils reliés ? (cases adjacentes, toroïdal) — faux de part et d'autre
+    // d'un portail → le câble est COUPÉ à la traversée (il « entre » d'un côté, « sort » de l'autre)
+    const adj = (u, v) => {
+      let ddx = Math.abs(u.x - v.x); ddx = Math.min(ddx, COLS - ddx);
+      let ddy = Math.abs(u.y - v.y); ddy = Math.min(ddy, ROWS - ddy);
+      return ddx + ddy <= 1;
+    };
+    const linked = (i) => {
+      if (!this.portals.length) return true;   // pas de portail sur la map → toujours relié
+      const pa = this.prev[i] || this.snake[i], pb = this.prev[i + 1] || this.snake[i + 1];
+      return adj(this.snake[i], this.snake[i + 1]) && adj(pa, pb);
+    };
 
     // câble (dégradé tête→queue) ; couleur courante du serpent (change par batterie)
     const headHex = rgbToHex(this.snakeColorRgb);
     const tailHex = mix(headHex, T.bg1, 0.55);   // s'assombrit vers la queue
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     for (let i = 0; i < len - 1; i++) {
+      if (!linked(i)) continue;                        // maillon en travers d'un portail : câble coupé
       const f = i / Math.max(1, len - 1);
       const color = mix(headHex, tailHex, f);
       const w = cell * (0.6 - 0.2 * f);

@@ -85,8 +85,12 @@
       CT.Leaderboard.fetchBoards(game.lastEntry).then((b) => ({ b, sub }))
     ).then(({ b, sub }) => {
       persoBest.textContent = b.personal;
-      const list = lbScope === 'daily' ? (b.daily || []) : lbScope === 'weekly' ? b.weekly : b.global;
-      const rank = lbScope === 'daily' ? (b.dailyRank || 0) : lbScope === 'weekly' ? b.weeklyRank : b.globalRank;
+      const list = lbScope === 'daily' ? (b.daily || [])
+        : lbScope === 'chrono' ? (b.chrono || [])
+        : lbScope === 'weekly' ? b.weekly : b.global;
+      const rank = lbScope === 'daily' ? (b.dailyRank || 0)
+        : lbScope === 'chrono' ? (b.chronoRank || 0)
+        : lbScope === 'weekly' ? b.weeklyRank : b.globalRank;
       lbList.innerHTML = '';
       if (!list.length) {
         const li = document.createElement('li');
@@ -112,10 +116,14 @@
     });
   }
 
+  const overTitle = document.querySelector('#overScreen .overlay-title');
   function showOver() {
     overlays.over.classList.remove('hidden');
+    // fin au temps (mode chrono) ≠ mort par collision
+    if (overTitle) overTitle.textContent = game.chronoExpired ? '⏱️ TEMPS ÉCOULÉ !' : 'BATTERIE DÉCHARGÉE';
     nameInput.value = CT.Leaderboard.getName();
-    setScope(game.daily ? 'daily' : 'weekly');   // après un Défi du jour → onglet Jour
+    // après un Défi du jour → onglet Jour ; après un Chrono → onglet Chrono
+    setScope(game.chrono ? 'chrono' : game.daily ? 'daily' : 'weekly');
     renderLeaderboard();
   }
 
@@ -174,12 +182,13 @@
   });
 
   /* ---------------- actions UI ---------------- */
-  // Mode courant : partie normale ou Défi du jour (REJOUER / RECOMMENCER gardent le mode).
-  let dailyMode = false;
+  // Mode courant : 'normal' · 'daily' (Défi du jour) · 'chrono' (2 min, score max).
+  // REJOUER / RECOMMENCER gardent le mode.
+  let runMode = 'normal';
   function begin() {
     CT.Audio.unlock();
     CT.Audio.ui();
-    game.startRun(dailyMode ? CT.util.dailySeed() : undefined);
+    game.startRun(runMode === 'daily' ? CT.util.dailySeed() : undefined, runMode);
   }
   function nextLevel() {
     CT.Audio.ui();
@@ -197,8 +206,9 @@
   }
   function toggleMute() { CT.Audio.toggleMute(); syncAudioButtons(); }
 
-  document.getElementById('playBtn').addEventListener('click', () => { dailyMode = false; begin(); });
-  document.getElementById('dailyBtn').addEventListener('click', () => { dailyMode = true; begin(); });
+  document.getElementById('playBtn').addEventListener('click', () => { runMode = 'normal'; begin(); });
+  document.getElementById('dailyBtn').addEventListener('click', () => { runMode = 'daily'; begin(); });
+  document.getElementById('chronoBtn').addEventListener('click', () => { runMode = 'chrono'; begin(); });
   document.getElementById('retryBtn').addEventListener('click', begin);   // garde le mode courant
   document.getElementById('continueBtn').addEventListener('click', nextLevel);
   document.getElementById('resumeBtn').addEventListener('click', () => game.togglePause());
@@ -222,10 +232,19 @@
       if (game.bossLevel && game.bosses && game.bosses.length) {
         const hp = game.bossesHp();
         obj = '<b>' + hp.hp + '</b>/' + hp.max + ' ❤️ (boss)';
+      } else if (game.chrono) {
+        const rem = game.chronoEnd > 0 ? Math.max(0, Math.ceil(game.chronoEnd - game.time)) : 0;
+        obj = '<b>' + rem + '</b> s ⏱';
       } else {
         obj = '<b>' + game.batteries + '</b>/' + game.level.needed + ' 🔋';
       }
-      el.innerHTML = 'Niveau <b>' + game.levelNum + '</b> · Score <b>' + game.points + '</b> · ' + obj;
+      el.innerHTML = (game.chrono ? '⏱ Chrono' : 'Niveau <b>' + game.levelNum + '</b>') +
+        ' · Score <b>' + game.points + '</b> · ' + obj;
+      // missions de la partie (✅ faites / 🎯 en cours)
+      if (game.missions && game.missions.length) {
+        el.innerHTML += '<span class="over-missions">' +
+          game.missions.map((m) => (m.done ? '✅' : '🎯') + ' ' + m.label).join('<br>') + '</span>';
+      }
     }
     syncAudioButtons();
   }

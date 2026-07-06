@@ -235,6 +235,75 @@ déterministe** → même séquence pour tous sur le Défi du jour). Un seul à 
   **réapparaît dès que le slot est libre** (`spawnBonus()`), chip 🎁. Sting `bonus()`.
 Timers purgés à chaque `setupLevel`. Le plafond anti-triche absorbe le ×2 temporaire (marge large).
 
+### Mode Chrono (`CONFIG.chrono`, bouton « ⏱️ CHRONO — 2 MIN »)
+Mode dédié aux bornes de bar : **une seule arène** (`pattern: 'pillars'`, Snakator dès le
+départ, 1 paire de portails), **`duration` = 120 s**, **score max**. `startRun(seed, 'chrono')`
+→ `game.chrono` ; `main.js` gère le mode via `runMode` (`'normal' | 'daily' | 'chrono'`,
+REJOUER/RECOMMENCER le gardent). Détails :
+- **Pas de niveaux ni de cinématique** : `level.needed = Infinity` (setupLevel), `levelNum`
+  reste 1. Le serpent accélère par batterie comme d'habitude (plancher `minStep`).
+- **Décompte** : `chronoEnd = introUntil + duration` (fixé dans `startLevel`) ; la **pause ne
+  compte pas** (`togglePause` décale `chronoEnd` de la durée de pause + le 3·2·1). Le HUD
+  bascule : libellé « ⏱ CHRONO » (`dom.lvlBox`), **barre = temps restant** qui se vide
+  (`unit` ⏱, rafraîchie 1×/s dans `tick` via `_chronoShown`, classe `near-goal` ≤ `warnAt`).
+  Sur les `warnAt` = 10 dernières s, `drawChronoWarning` affiche un **gros compte à rebours
+  pulsé** (ambre puis rouge ≤ 5 s) + tension musicale ≥ 0,85 sur les 15 dernières s.
+- **Fin au temps** : testée en tête de `step()` → `chronoExpired = true` + `die()` ; l'écran
+  de fin titre « **⏱️ TEMPS ÉCOULÉ !** » (sinon « BATTERIE DÉCHARGÉE » même en chrono si mort
+  par collision). Entrée marquée **`chrono: true`** → **classement DÉDIÉ** (onglet « ⏱ Chrono »,
+  actif par défaut après un chrono) ; les scores chrono sont **exclus** de Jour/Semaine/Global
+  (local `boards()` **et** serveur). Pas de missions ni de Défi du jour en chrono ; validation
+  anti-triche inchangée (le plafond dépend déjà de `durationMs`).
+
+### Portails de téléportation (`CONFIG.portals`, dès le niveau `fromLevel` = 4)
+Des **paires de vortex** (1 paire au niveau 4, +1 toutes les `extraEvery` = 6, plafond
+`maxPairs` = 2 ; **jamais** en démo / combat de boss ; 1 paire en chrono) placées par
+`spawnPortals` (via `this.rng` → déterministe, bouches d'une paire à ≥ `minDist` = 9 cases
+toroïdales, hors couloir de spawn, jamais sur un obstacle). **Entrer par une bouche →
+ressortir par l'autre, direction conservée** : dans `step()`, si la case d'arrivée `nh` est
+un portail (`portalTwin`), `nh` devient la bouche jumelle (éclats aux deux bouts + son).
+**Les hostiles les empruntent aussi** (même règle dans `stepSnake`). Détails :
+- `isFree` exclut les bouches (rien ne spawne dessus) ; `spawnEnemy`/`spawnBosses` les évitent.
+- **Rendu** (`drawPortals`, sous le vivant) : cœur sombre + 2 arcs en contre-rotation +
+  étincelle pulsée ; couleur **par paire** (cyan/glow puis violet/rose).
+- **Rendu de la traversée** : un déplacement > 1 case (après correction toroïdale) est un
+  **saut de portail** → pas d'interpolation (le segment « pop » à la sortie), et le **câble
+  est coupé** au portail (`linked(i)` dans `drawSnake` : maillons non adjacents en grille →
+  pas de tronçon dessiné). Même « snap » dans `drawHostile`.
+
+### Niveau COURSE — le Glouton (`CONFIG.race`, niveaux 7, 12, 17…)
+Aux niveaux `fromLevel` + k·`every` (**`n % every === offset`**, offset = 2 → jamais un
+niveau boss ; jamais en démo/chrono), le Snakator est remplacé par le **GLOUTON**
+(`spawnEnemy(true)` → `enemy.race`), un rival **DORÉ** (skin forcé ambre/glow dans
+`drawHostile`, prioritaire sur `CT.BossSkins`) qui **chasse la BATTERIE** au lieu du joueur
+(branche `e.race` de `stepSnake` : glouton vers `this.food`, imprévu `race.turnChance`).
+- **Vol** (`rivalEats`, testé après chaque pas du rival) : s'il atteint la batterie, il la
+  mange → **`batteries − 1`** (l'objectif recule), il **grandit** de `race.grow` bloc(s)
+  (plafond `malus.maxEnemyLen`), toast « 😋 BATTERIE VOLÉE ! » + son malus, la batterie
+  réapparaît ailleurs.
+- Mortel au contact hors bouclier (mécanique Snakator inchangée) ; **sous bouclier on le
+  mord** — tête-à-tête = destruction (« 💥 GLOUTON DÉTRUIT »)… mais il **revient** après
+  `race.respawn` = 6 s (`rivalRespawnAt`, réarmé dans `biteSnake`, respawn dans `step()`
+  avec toast « 🏁 LE GLOUTON REVIENT ! »).
+- **Intro dédiée** (`introKind: 'race'`) : « 🏁 COURSE / Le GLOUTON vole vos batteries ! »,
+  vignette d'alarme + sting (comme enemy/boss). Les malus qui allongent l'ennemi allongent
+  aussi le Glouton (c'est `this.enemy`).
+
+### Missions de partie (`CONFIG.missions`, hors chrono/démo)
+À chaque `startRun`, **3 objectifs secondaires** sont tirés du pool `MISSION_POOL` (game.js :
+combo ×5, 25 batteries, 5 power-ups, 3 murs brisés, 4 blocs ennemis, survivre 2 min,
+atteindre le niveau 4) **via `this.rng` AVANT les spawns** → déterministes par seed (même
+trio pour tous sur le Défi du jour). Chaque mission = `{ id, icon, label, target, reward,
+prog(g), done }` ; compteurs de run dédiés `wallsRun`/`snakRun` (smashWall/biteSnake).
+- `checkMissions()` (fin de `step()`) marque les missions accomplies : toast
+  « 🎯 MISSION ✓ +N ⚡ » + flash + jingle. La récompense s'accumule dans **`missionCoins`**
+  et est **versée au Labo** à la mort (`bank({points: points + missionCoins})`) — **jamais
+  au score** → classement et plafond anti-triche intacts (c'est le sink économique qui
+  finance la Boutique).
+- **UI** : listées dans l'**intro du niveau 1** (sous l'objectif), sur l'**écran pause**
+  (✅/🎯 par ligne, `showPause`) et dans le **récap de fin** (`.over-missions` : ✅/▫️ par
+  icône + total ⚡, avant la ligne `lab-gain` qui inclut désormais les ⚡ missions).
+
 ---
 
 ## 🎨 Identité visuelle (d'après logo.png + Station.jpeg)
@@ -653,3 +722,16 @@ complet : Reed-Solomon GF(256), sélection de masque par pénalité, BCH format/
       (pièces ×2), 🌑 Blackout (brouillard total), 🎁 Pluie de power-ups — bannière + sting + chips.
 - [x] **Orbes de boss** (`CONFIG.boss.orb*`, palier ≥ 2) : projectiles lents qui visent le joueur,
       mortels hors bouclier, détruits sous bouclier ; cadence ↑ si boss enragé.
+- [x] **Mode Chrono** (`CONFIG.chrono`, bouton « ⏱️ CHRONO — 2 MIN ») : une arène, 2 minutes,
+      score max ; barre HUD = temps restant, compte à rebours pulsé, pause gelée, fin
+      « ⏱️ TEMPS ÉCOULÉ ! » et **classement dédié** (onglet ⏱, exclu de Jour/Semaine/Global,
+      local + serveur).
+- [x] **Portails de téléportation** (`CONFIG.portals`, dès niv. 4) : paires de vortex
+      déterministes (1→2 paires), direction conservée, hostiles téléportés aussi, câble coupé
+      à la traversée (pas d'interpolation sur un saut).
+- [x] **Niveau COURSE** (`CONFIG.race`, niveaux 7, 12, 17…) : le GLOUTON doré chasse la
+      batterie — chaque vol recule l'objectif et le fait grandir ; destructible sous bouclier
+      mais revient après 6 s ; intro « 🏁 COURSE » dédiée.
+- [x] **Missions de partie** (`CONFIG.missions` + `MISSION_POOL`) : 3 objectifs secondaires
+      par run (déterministes par seed), récompense ⚡ versée au Labo (jamais au score) ;
+      affichées à l'intro niv. 1, en pause et au récap de fin.

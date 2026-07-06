@@ -83,9 +83,13 @@ CT.Leaderboard = (function () {
       const all = read();
       const ws = weekStart(Date.now());
       const ds = dayStart(Date.now());
-      const week = sorted(all.filter((e) => e.ts >= ws));
-      const day = sorted(all.filter((e) => e.daily && e.ts >= ds));   // Défi du jour uniquement
-      const glob = sorted(all);
+      // les scores CHRONO (2 min) ont leur classement dédié — ils ne se comparent pas
+      // aux parties normales, donc exclus de Jour / Semaine / Global
+      const norm = all.filter((e) => !e.chrono);
+      const week = sorted(norm.filter((e) => e.ts >= ws));
+      const day = sorted(norm.filter((e) => e.daily && e.ts >= ds));   // Défi du jour uniquement
+      const glob = sorted(norm);
+      const chrono = sorted(all.filter((e) => e.chrono));
       const name = getName();
       const mine = all.filter((e) => !name || e.name === name);
       return Promise.resolve({
@@ -93,9 +97,11 @@ CT.Leaderboard = (function () {
         daily: day.slice(0, 5),
         weekly: week.slice(0, 5),
         global: glob.slice(0, 5),
+        chrono: chrono.slice(0, 5),
         dailyRank: rankOf(day, me),
         weeklyRank: rankOf(week, me),
         globalRank: rankOf(glob, me),
+        chronoRank: rankOf(chrono, me),
       });
     },
   };

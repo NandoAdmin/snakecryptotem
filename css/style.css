@@ -157,6 +157,8 @@ html, body {
 .over-stats { color: var(--text-dim); font-size: 16px; line-height: 1.6; }
 .over-stats b { color: var(--cyan); }
 .over-recap { display: block; margin-top: 6px; font-size: 13px; color: var(--text-dim); letter-spacing: 0.3px; }
+.over-missions { display: block; margin-top: 4px; font-size: 13px; color: var(--text-dim); letter-spacing: 0.3px; }
+.over-missions b { color: var(--charge); }
 .lab-gain { display: inline-block; margin-top: 8px; color: var(--charge); font-weight: 700; font-size: 14px; }
 .lab-gain small { color: var(--text-dim); font-weight: 600; }
 
@@ -177,6 +179,10 @@ html, body {
 .daily-btn { border-color: rgba(255, 194, 75, 0.55); color: var(--amber); font-weight: 800; }
 .daily-btn:hover { border-color: var(--amber); color: var(--amber); }
 .daily-btn span { font-weight: 700; opacity: 0.85; }
+
+/* Mode Chrono : bouton cyan (2 minutes, score max, classement dédié) */
+.chrono-btn { border-color: rgba(38, 224, 224, 0.55); color: var(--cyan); font-weight: 800; }
+.chrono-btn:hover { border-color: var(--cyan); color: var(--glow); }
 
 /* Top de la semaine sur l'écran d'accueil (mode attract) */
 .start-board {

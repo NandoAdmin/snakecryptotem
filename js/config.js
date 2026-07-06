@@ -124,6 +124,49 @@ CT.CONFIG = {
     orbMax: 5,             // orbes simultanées maxi (tous boss confondus)
   },
 
+  /* MODE CHRONO : une seule arène, `duration` secondes, score maximum. Pas de niveaux ni
+     de cinématique — la partie s'arrête quand le temps tombe à zéro (ou à la mort).
+     Classement DÉDIÉ (onglet « ⏱ Chrono ») : les scores chrono ne polluent pas les autres. */
+  chrono: {
+    duration: 120,       // durée de la partie (s)
+    step: 130,           // intervalle de départ (ms) — soutenu d'entrée
+    obstacles: 12,       // arène : quelques piliers
+    pattern: 'pillars',
+    enemy: true,         // le Snakator rôde dès le départ (danger constant)
+    warnAt: 10,          // compte à rebours pulsé sur les N dernières secondes
+  },
+
+  /* PORTAILS de téléportation : paires de vortex sur la map (dès `fromLevel`, jamais en
+     démo ni en combat de boss). Entrer par une bouche → ressortir par l'autre, direction
+     conservée. Les hostiles (Snakator, Glouton) les empruntent aussi. Placement via le
+     PRNG déterministe (même map pour tous sur le Défi du jour). */
+  portals: {
+    fromLevel: 4,        // 1ʳᵉ paire à partir de ce niveau
+    extraEvery: 6,       // +1 paire tous les N niveaux au-delà
+    maxPairs: 2,         // plafond de paires simultanées
+    minDist: 9,          // distance toroïdale minimale entre les deux bouches d'une paire
+  },
+
+  /* NIVEAU COURSE (« Le Glouton ») : aux niveaux `fromLevel` + k·`every` (offset ≠ 0 → jamais
+     un niveau boss), un serpent rival DORÉ mange les batteries à votre place — chaque vol
+     recule votre objectif d'une batterie (et le fait grandir). Mortel au contact hors
+     bouclier ; détruit d'une morsure tête-à-tête sous bouclier, mais il REVIENT. */
+  race: {
+    fromLevel: 7,        // 1ᵉʳ niveau course
+    every: 5, offset: 2, // niveaux ≡ offset (mod every) : 7, 12, 17, 22… (jamais n%5=0 = boss)
+    turnChance: 0.10,    // imprévu de course (bas = fonce droit sur la batterie)
+    respawn: 6,          // s avant le retour du Glouton après destruction
+    grow: 1,             // blocs gagnés par batterie volée (plafond malus.maxEnemyLen)
+  },
+
+  /* MISSIONS DE PARTIE : à chaque partie (hors chrono/démo), `count` objectifs secondaires
+     sont tirés via le PRNG déterministe (même trio pour tous sur le Défi du jour). Chaque
+     mission accomplie rapporte des pièces ⚡ versées au Labo à la fin de la partie —
+     JAMAIS au score (le classement et l'anti-triche ne bougent pas). */
+  missions: {
+    count: 3,            // missions tirées par partie
+  },
+
   /* ÉVÉNEMENTS aléatoires en partie (jeu réel, hors combats de boss, dès `fromLevel`).
      Annonce bannière + sting, tirés via le PRNG déterministe (this.rng) → même séquence
      d'événements pour tous sur le Défi du jour. Un seul événement à la fois + temps mort. */

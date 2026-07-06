@@ -86,9 +86,12 @@ const server = http.createServer(async (req, res) => {
     const name = url.searchParams.get('name') || '';
     const ws = weekStart(Date.now());
     const ds = dayStart(Date.now());
-    const week = sorted(scores.filter((e) => e.ts >= ws));
-    const day = sorted(scores.filter((e) => e.daily && e.ts >= ds));   // Défi du jour uniquement
-    const glob = sorted(scores);
+    // scores CHRONO exclus des classements normaux (mode dédié, non comparable)
+    const norm = scores.filter((e) => !e.chrono);
+    const week = sorted(norm.filter((e) => e.ts >= ws));
+    const day = sorted(norm.filter((e) => e.daily && e.ts >= ds));   // Défi du jour uniquement
+    const glob = sorted(norm);
+    const chrono = sorted(scores.filter((e) => e.chrono));
     const mine = scores.filter((e) => !name || e.name === name);
     const personal = mine.reduce((m, e) => Math.max(m, e.score), 0);
     return send(res, 200, {
@@ -96,9 +99,11 @@ const server = http.createServer(async (req, res) => {
       daily: day.slice(0, 5),
       weekly: week.slice(0, 5),
       global: glob.slice(0, 5),
+      chrono: chrono.slice(0, 5),
       dailyRank: personal ? rankOf(day, personal) : 0,
       weeklyRank: personal ? rankOf(week, personal) : 0,
       globalRank: personal ? rankOf(glob, personal) : 0,
+      chronoRank: personal ? rankOf(chrono, personal) : 0,
     });
   }
 
@@ -120,6 +125,7 @@ const server = http.createServer(async (req, res) => {
       durationMs: body.durationMs | 0,
       seed: body.seed >>> 0,
       daily: !!body.daily,                         // Défi du jour (en prod : vérifier seed == seed du jour)
+      chrono: !!body.chrono,                       // Mode Chrono → classement dédié
       ts: Date.now(),                              // ⚠️ horodatage SERVEUR (jamais le client)
     };
     scores.push(entry);
