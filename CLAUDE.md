@@ -512,15 +512,23 @@ Méta-progression persistante (localStorage `ct_lab`) qui donne de la durée de 
   visé** (`researchTimeMs(l+1)`, utilisé par tous les upgrades) : 30 s · 1 min · 3 min
   · 5 min · 10 min · 30 min · 1 h · 2 h · 4 h · 8 h · 12 h · 16 h · 24 h · 30 h · 36 h …
   puis **+6 h par niveau** au-delà (idle / retour différé).
-- **12 améliorations** (`CT.Lab.UPGRADES`, plusieurs niveaux) : Surtension (+10 %
+- **16 améliorations** (`CT.Lab.UPGRADES`, plusieurs niveaux) : Surtension (+10 %
   points/batterie), Bouclier renforcé (+1 s), Surcharge prolongée (+1 s), Aimant
   longue portée (+1 s), Double prolongé (+1 s de double points), Combo facile
   (+0,5 s de fenêtre), R&D power-ups (fréquence), **Rendement R&D** (+5 %/niv de
   ressources versées, max 15), **Départ protégé** (+1 s/niv de bouclier en début de
   niveau), **Inflation** (+5 %/niv de pièces par objet ; coûte **uniquement des pièces**
   ⚡ : 100·250·500·750…), **Coup de chance** (+5 %/niv de proba, à chaque objet, de
-  **×2 pièces + batterie** de ce ramassage) et **Double coupe** (+5 %/niv de proba que le
-  **coupe-câble** retire **2 blocs** de queue au lieu d'1).
+  **×2 pièces + batterie** de ce ramassage), **Double coupe** (+5 %/niv de proba que le
+  **coupe-câble** retire **2 blocs** de queue au lieu d'1). — **Survie / économie / méta**
+  (n'affectent PAS le score par batterie → plafond anti-triche intact) : **Antivirus** 🦠
+  (+5 %/niv de proba de **neutraliser un malus** ramassé, max 10 ; `mods.malusResist`,
+  proc via `Math.random` dans `onEatMalus`), **Seconde chance** 🔁 (`mods.revives`, max 2 :
+  à la mort par **collision** — pas au temps écoulé du chrono — consomme 1 réanimation →
+  `reviveGrace` = bouclier de grâce 3 s ; `game.revivesLeft` figé au `startRun`, garde dans
+  `die()`), **Prime de mission** 🎯 (+20 %/niv de ⚡ sur les missions via `mods.missionMult`,
+  appliqué dans `checkMissions` → banque, pas au score), **Labo accéléré** ⏩ (−5 %/niv de
+  **temps de recherche**, plancher −25 %, appliqué dans `startResearch` — lab-interne).
 - **Effets** : `CT.Lab.effects()` → `game.mods` (figé au `startRun`), appliqué dans
   `onEat` (points/combo/fréquence + `pointMult` = surtension + inflation + proc
   `luckChance` via `Math.random` pour ne pas décaler l'aléa des spawns), `onEatBonus`

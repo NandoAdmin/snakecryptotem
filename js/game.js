@@ -202,7 +202,8 @@ window.CT = window.CT || {};
     this.demo = false;
     // modificateurs issus du Laboratoire (R&D), figés au début de la partie
     this.mods = (window.CT && CT.Lab && CT.Lab.effects) ? CT.Lab.effects()
-      : { pointMult: 1, shieldBonus: 0, slowBonus: 0, magnetBonus: 0, doubleBonus: 0, comboWindowBonus: 0, bonusEveryDelta: 0, bankMult: 1, startShield: 0, luckChance: 0, cutDoubleChance: 0 };
+      : { pointMult: 1, shieldBonus: 0, slowBonus: 0, magnetBonus: 0, doubleBonus: 0, comboWindowBonus: 0, bonusEveryDelta: 0, bankMult: 1, startShield: 0, luckChance: 0, cutDoubleChance: 0, malusResist: 0, revives: 0, missionMult: 1 };
+    this.revivesLeft = 0;    // réanimations restantes (Labo « Seconde chance »), fixées au startRun
     this.updateHud();
     this.loadPersonalBest();
   };
@@ -267,6 +268,8 @@ window.CT = window.CT || {};
     // ONBOARDING : première partie NORMALE jamais vue → tutoriel guidé (une seule fois)
     this.tutorial = !this.chrono && !this.versus && !this.daily && !isChallenge && !this._seen();
     if (this.tutorial) this._markSeen();
+    // Labo « Seconde chance » : réanimations disponibles pour cette partie
+    this.revivesLeft = (this.mods && this.mods.revives) || 0;
     this.startLevel(1);
   };
 
@@ -871,6 +874,18 @@ window.CT = window.CT || {};
   G.onEatMalus = function () {
     const m = this.malus, M = CT.CONFIG.malus;
     this.malus = null;
+    // Labo « Antivirus » : proba (5 %/niv) de NEUTRALISER le malus (Math.random → ne décale
+    // pas l'aléa déterministe des spawns). Feedback rassurant, aucun effet négatif appliqué.
+    if (!this.demo && this.mods.malusResist > 0 && Math.random() < 0.05 * this.mods.malusResist) {
+      const head = this.snake[0];
+      this.flash = Math.max(this.flash, 0.5); this.flashColor = T.blue;
+      this.spawnFx(head.x, head.y, [T.blue, T.cyan, '#ffffff'], 16);
+      if (CT.Audio.shield) CT.Audio.shield();
+      this.haptic(20);
+      this.spawnToast('🦠 MALUS NEUTRALISÉ', head.x, head.y);
+      this.updateHud();
+      return;
+    }
     this.flash = Math.max(this.flash, 0.7); this.flashColor = T.danger;
     if (!this.reduce) this.shake = Math.max(this.shake, 0.45);
     this.haptic([0, 60, 40, 60]);
@@ -1241,9 +1256,11 @@ window.CT = window.CT || {};
     for (const m of this.missions) {
       if (m.done || m.prog(this) < m.target) continue;
       m.done = true;
-      this.missionCoins += m.reward;
+      // Labo « Prime de mission » : bonus ⚡ sur la récompense (versée au Labo, pas au score)
+      const reward = Math.round(m.reward * (this.mods.missionMult || 1));
+      this.missionCoins += reward;
       const head = this.snake[0];
-      this.spawnToast(t('mission.toast', { n: m.reward }), head.x, head.y);
+      this.spawnToast(t('mission.toast', { n: reward }), head.x, head.y);
       this.flash = Math.max(this.flash, 0.6); this.flashColor = T.glow;
       this.haptic([0, 30, 30, 60]);
       if (CT.Audio.achievement) CT.Audio.achievement();
@@ -1735,9 +1752,29 @@ window.CT = window.CT || {};
     }
   };
 
+  // Labo « Seconde chance » : bouclier de grâce à la place de la mort (traverse murs / câble /
+  // ennemis / orbes le temps de se dégager). Consomme une réanimation.
+  G.reviveGrace = function () {
+    this.shieldUntil = this.time + 3;
+    this.flash = 1; this.flashColor = T.blue;
+    if (!this.reduce) this.shake = Math.max(this.shake, 0.6);
+    const head = this.snake[0];
+    this.spawnFx(head.x, head.y, [T.blue, T.cyan, '#ffffff', T.glow], 30);
+    this.spawnToast('🔁 SECONDE CHANCE !', head.x, head.y);
+    if (CT.Audio.achievement) CT.Audio.achievement();
+    this.haptic([0, 60, 40, 90]);
+  };
+
   G.die = function () {
     // En démo, on ne meurt pas : on relance simplement le tableau.
     if (this.demo) { this.restartDemo(); return; }
+    // Labo « Seconde chance » : mort par COLLISION uniquement (pas au temps écoulé du chrono),
+    // en jeu réel → réanimation avec bouclier de grâce au lieu du game over.
+    if (!this.versus && !this.chronoExpired && this.revivesLeft > 0 && this.state === 'playing') {
+      this.revivesLeft--;
+      this.reviveGrace();
+      return;
+    }
 
     this.flash = 1; this.flashColor = T.danger;
     this.shake = this.reduce ? 0 : 1;

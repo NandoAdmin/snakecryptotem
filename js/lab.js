@@ -86,6 +86,27 @@ CT.Lab = (function () {
       desc: (l) => (l * 5) + '% de chance d\'enlever 2 blocs (au lieu d\'1) au coupe-câble',
       cost: (l) => ({ bat: 18 * (l + 1), pts: 900 * (l + 1) }), time: (l) => researchTimeMs(l + 1),
     },
+    // — survie / économie / méta (n'affectent PAS le score par batterie → plafond anti-triche intact) —
+    antivirus: {
+      name: 'Antivirus', icon: '🦠', max: 10,
+      desc: (l) => (l * 5) + '% de chance de neutraliser un malus ramassé',
+      cost: (l) => ({ bat: 16 * (l + 1), pts: 800 * (l + 1) }), time: (l) => researchTimeMs(l + 1),
+    },
+    phenix: {
+      name: 'Seconde chance', icon: '🔁', max: 2,
+      desc: (l) => l + ' réanimation' + (l > 1 ? 's' : '') + ' par partie (bouclier de grâce à la mort)',
+      cost: (l) => ({ bat: 60 * (l + 1), pts: 4000 * (l + 1) }), time: (l) => researchTimeMs(l + 4),
+    },
+    mission: {
+      name: 'Prime de mission', icon: '🎯', max: 5,
+      desc: (l) => '+' + (l * 20) + '% de ⚡ sur les missions accomplies',
+      cost: (l) => ({ bat: 22 * (l + 1), pts: 900 * (l + 1) }), time: (l) => researchTimeMs(l + 1),
+    },
+    labspeed: {
+      name: 'Labo accéléré', icon: '⏩', max: 5,
+      desc: (l) => '−' + (l * 5) + '% de temps de recherche',
+      cost: (l) => ({ bat: 28 * (l + 1), pts: 1100 * (l + 1) }), time: (l) => researchTimeMs(l + 2),
+    },
   };
 
   function load() { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { return {}; } }
@@ -134,7 +155,10 @@ CT.Lab = (function () {
     if (!r.ok) return r;
     const s = state();
     s.wallet.bat -= r.cost.bat; s.wallet.pts -= r.cost.pts;
-    s.research = { key, endsAt: Date.now() + r.time, durationMs: r.time };
+    // « Labo accéléré » : réduit le temps de recherche (−5 %/niveau, plancher −25 %)
+    const mult = Math.max(0.75, 1 - 0.05 * (s.up.labspeed || 0));
+    const time = Math.round(r.time * mult);
+    s.research = { key, endsAt: Date.now() + time, durationMs: time };
     save(s);
     return { ok: true };
   }
@@ -167,6 +191,9 @@ CT.Lab = (function () {
       startShield: 0.5 * level('depart'),        // s de bouclier au début de chaque niveau (0,5/niv)
       luckChance: level('chance'),               // ×5 % proba de ×2 (pièces+batterie) par objet
       cutDoubleChance: level('doublecoupe'),     // ×5 % proba d'enlever 2 blocs au coupe-câble
+      malusResist: level('antivirus'),           // ×5 % proba de neutraliser un malus
+      revives: level('phenix'),                  // réanimations par partie (bouclier de grâce)
+      missionMult: 1 + 0.20 * level('mission'),  // ×⚡ sur les récompenses de mission (banque)
     };
   }
 
@@ -175,7 +202,7 @@ CT.Lab = (function () {
 
   // Modificateurs neutres (avant chargement / fallback).
   function neutral() {
-    return { pointMult: 1, shieldBonus: 0, slowBonus: 0, magnetBonus: 0, doubleBonus: 0, comboWindowBonus: 0, bonusEveryDelta: 0, bankMult: 1, startShield: 0, luckChance: 0, cutDoubleChance: 0 };
+    return { pointMult: 1, shieldBonus: 0, slowBonus: 0, magnetBonus: 0, doubleBonus: 0, comboWindowBonus: 0, bonusEveryDelta: 0, bankMult: 1, startShield: 0, luckChance: 0, cutDoubleChance: 0, malusResist: 0, revives: 0, missionMult: 1 };
   }
 
   return {
