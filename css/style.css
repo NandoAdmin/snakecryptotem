@@ -137,7 +137,7 @@ html, body {
   gap: 18px; padding: 24px; text-align: center;
   background: radial-gradient(90% 90% at 50% 40%, rgba(2, 22, 26, 0.78), rgba(2, 22, 26, 0.94));
   backdrop-filter: blur(6px);
-  animation: fade 0.35s ease both;
+  animation: overlayIn 0.34s cubic-bezier(0.2, 0.7, 0.3, 1) both;
   overflow-y: auto;   /* jamais de contenu inaccessible sur écran court */
 }
 /* Écran d'accueil : fond plus clair pour laisser voir la démo qui tourne derrière */
@@ -146,7 +146,8 @@ html, body {
 }
 .overlay-clear { background: transparent; backdrop-filter: none; justify-content: flex-end; padding-bottom: clamp(40px, 12vh, 120px); pointer-events: none; }
 .overlay-clear > * { pointer-events: auto; }
-@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+/* entrée d'overlay : léger fondu + montée + zoom (désactivé sous prefers-reduced-motion) */
+@keyframes overlayIn { from { opacity: 0; transform: translateY(10px) scale(0.985); } to { opacity: 1; transform: none; } }
 
 .brand { display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .brand-logo {
