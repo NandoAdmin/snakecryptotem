@@ -30,6 +30,20 @@ CT.CONFIG = {
   minStep: 72,             // intervalle le plus court (ms) — plancher de vitesse
   speedupPerBattery: 3,    // ms retirés par batterie ramassée (accélération douce → parties plus longues/faciles)
 
+  /* DIFFICULTÉ (réglage joueur, écran Options) : ajuste la vitesse de départ, l'accélération
+     et la densité d'obstacles. Appliquée UNIQUEMENT en partie NORMALE solo — jamais en Défi
+     du jour / défi d'ami (map partagée), ni en chrono / duel (config propre) → ces classements
+     restent équitables. Le plancher `minStep` et l'objectif ne changent PAS → le plafond
+     anti-triche (`scoring-rules`) reste une borne supérieure valide dans tous les modes. */
+  difficulty: {
+    default: 'normal',
+    modes: {
+      easy:   { stepMult: 1.25, obstacleMult: 0.5, speedupMult: 0.7 },  // plus lent, moins d'obstacles
+      normal: { stepMult: 1.0,  obstacleMult: 1.0, speedupMult: 1.0 },
+      hard:   { stepMult: 0.82, obstacleMult: 1.5, speedupMult: 1.3 },  // plus rapide, plus d'obstacles
+    },
+  },
+
   /* Durée de la bannière d'intro de niveau (s) — serpent figé le temps de l'annonce */
   introDuration: 1.7,
 
@@ -256,6 +270,24 @@ CT.getLevel = function (n) {
     obstacles: Math.min(40, last.obstacles + extra * 4),
     pattern: procPatterns[(extra - 1) % procPatterns.length],
   };
+};
+
+/* Difficulté sélectionnée (persistée `ct_diff`) → mode { stepMult, obstacleMult, speedupMult }.
+   Repli sur `normal` si valeur inconnue. */
+CT.getDifficultyId = function () {
+  const D = CT.CONFIG.difficulty;
+  let id = D.default;
+  try { id = localStorage.getItem('ct_diff') || D.default; } catch (e) {}
+  return D.modes[id] ? id : D.default;
+};
+CT.getDifficulty = function () {
+  const D = CT.CONFIG.difficulty;
+  return D.modes[CT.getDifficultyId()] || D.modes.normal;
+};
+CT.setDifficulty = function (id) {
+  if (!CT.CONFIG.difficulty.modes[id]) return false;
+  try { localStorage.setItem('ct_diff', id); } catch (e) {}
+  return true;
 };
 
 /* Biome (décor de lieu) du niveau n : change toutes les 3 niveaux, puis cycle. */

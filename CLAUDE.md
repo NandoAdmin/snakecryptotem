@@ -466,18 +466,39 @@ particules de célébration (`_emitCelebrate`) ; téléphone + power bank + câb
 **classement global**. API à base de Promesses (compatible backend distant) :
 `submit(entry)`, `fetchBoards(me)`, `relabelLast(name)`, `getName/setName`,
 `useRemote(endpoint, token)`. À la mort, `game.die()` soumet une entrée
-`{ name, score, level, batteries, bonuses, durationMs, seed, ts }`. L'écran de
-fin affiche le pseudo (modifiable), un classement à onglets Semaine/Global (top
-5, ligne du joueur surlignée), le rang et le record perso. L'**écran d'accueil**
-affiche le **top 3 de la semaine** (mode attract — visible sur les écrans en bar).
-**⚠️ Anti-triche :** le backend local (localStorage) **n'est pas** sécurisé —
-c'est un placeholder. La validation vit dans `js/scoring-rules.js`
-(`CT.ScoringRules.validate` / `maxPlausibleScore`), **partagée à l'identique**
-entre le navigateur et le **serveur Node de référence**
-(`server/leaderboard-server.js`) → source unique. Le serveur revalide, **horodate
-côté serveur**, limite le débit et rejette les scores aberrants. Brancher le jeu :
-`CT.Leaderboard.useRemote('http://localhost:8124')`. Voir
+`{ name, score, level, batteries, bonuses, durationMs, seed, daily, chrono, diff, steps, journal, ts }` ;
+le client remote ajoute un **`nonce` + `cts`** (horodatage client) à chaque POST (anti-rejeu).
+L'écran de fin affiche le pseudo (modifiable), un classement à onglets Jour/Semaine/Global/Chrono
+(top 5, ligne du joueur surlignée), le rang et le record perso. L'**écran d'accueil** affiche le
+**top 3 de la semaine** (mode attract — visible sur les écrans en bar).
+**⚠️ Anti-triche :** le backend local (localStorage) **n'est pas** sécurisé — c'est un placeholder.
+La validation vit dans `js/scoring-rules.js` (`CT.ScoringRules.validate` / `maxPlausibleScore`),
+**partagée à l'identique** navigateur ↔ **serveur Node de référence** (`server/leaderboard-server.js`).
+Le serveur (durci pour la prod) : revalide le plafond, **valide le journal d'inputs** (rejeu déterministe
+étape 1, `js/sim-core.js`), **horodate côté serveur**, exige un **token de borne** (`CT_TOKENS`), rejette
+le **rejeu** (nonce à usage unique + fenêtre d'horloge), sert en **HTTPS** si certificats fournis
+(`CT_TLS_KEY`/`CT_TLS_CERT`) et persiste dans une **vraie base** (`node:sqlite` si dispo, sinon JSON
+atomique). Brancher le jeu : `CT.Leaderboard.useRemote('http://localhost:8124', token)`. Voir
 [docs/anti-cheat.md](docs/anti-cheat.md).
+
+### Difficulté (`CONFIG.difficulty` + `CT.getDifficulty`)
+Réglage joueur (écran Options, persisté `ct_diff`, sélecteur ⚔️ Facile/Normal/Difficile) qui ajuste
+la **vitesse de départ** (`stepMult`), l'**accélération** (`speedupMult` → `game.speedup`) et la
+**densité d'obstacles** (`obstacleMult`). Appliqué dans `setupLevel` **uniquement en partie NORMALE
+solo** — jamais en démo / Défi du jour / défi d'ami (map partagée), ni en chrono / duel (config
+propre) → les classements dédiés restent équitables et les maps partagées identiques. Le plancher
+`minStep` et l'objectif ne changent **pas** → le plafond anti-triche reste une borne valide (Difficile
+n'exploite pas la faille). Entrée taguée `diff`.
+
+### Rejeu déterministe — étape 1 (`js/sim-core.js` → `CT.SimCore`)
+Fondation du modèle « speedrun » (cf. docs/anti-cheat.md) : `game.step()` incrémente `stepCount` et
+`setDir` journalise chaque virage joueur `[pas, codeDir]` dans `game.journal` (plafond `MAX_TURNS`) ;
+`die()` joint `steps` + `journal` (encodé compact) à l'entrée. Le serveur revérifie via
+`CT.SimCore.validateJournal` : nb de pas cohérent avec la durée (plancher `minStep`) et les batteries,
+journal monotone, codes valides. `makeRng` y est une **copie exacte** de `CT.util.makeRng` (le serveur
+peut reconstruire la même séquence d'aléa). **Étape 2 (à faire)** : moteur de re-simulation headless
+partagé qui **recalcule le score canonique** — bloqué par l'extraction de `game.step`/spawns en module
+partagé + le retrait de l'aléa non journalé (`Math.random` du « coup de chance », orbes en `dt`).
 
 ### Laboratoire / R&D (`js/lab.js` → `CT.Lab`)
 Méta-progression persistante (localStorage `ct_lab`) qui donne de la durée de vie.
@@ -719,9 +740,10 @@ complet : Reed-Solomon GF(256), sélection de masque par pénalité, BCH format/
 - Couleurs **uniquement** via `CONFIG.theme` (les options d'accessibilité MUTENT ces valeurs).
 - Texte visible via **`CT.i18n.t()`** / attributs `data-i18n` (FR/EN/ES) — pas de chaîne UI en dur.
 - Code attaché à `window.CT`, ordre de chargement des `<script>` important
-  (config → **access** → **i18n** → audio → input → scoring-rules → leaderboard → lab →
-  achievements → skins → ghost → qrcode → cinematics → game → main). `access.js` juste après
+  (config → **access** → **i18n** → audio → input → scoring-rules → **sim-core** → leaderboard →
+  lab → achievements → skins → ghost → qrcode → cinematics → game → main). `access.js` juste après
   `config.js` (thème d'accessibilité avant capture par `game.js`) ; `i18n.js` juste après.
+  `sim-core.js` (rejeu déterministe) partagé navigateur ↔ Node comme `scoring-rules.js`.
 
 ## 🗺️ Pistes / TODO
 
@@ -744,10 +766,14 @@ complet : Reed-Solomon GF(256), sélection de masque par pénalité, BCH format/
       (backend local placeholder, interface prête pour serveur — voir docs/anti-cheat.md).
 - [x] **Serveur de classement de référence** (Node pur : revalidation + horodatage
       serveur + rate-limit + validation partagée `scoring-rules.js`).
-- [ ] **Durcir le serveur pour la prod** : auth + nonce anti-rejeu + HTTPS + vraie base.
+- [x] **Serveur durci pour la prod** : token de borne (`CT_TOKENS`), nonce anti-rejeu + fenêtre
+      d'horloge, HTTPS (`CT_TLS_*`), vraie base (`node:sqlite` sinon JSON atomique). Ouvert en dev.
 - [x] **Aléa gameplay déterministe** : spawns (food/obstacles/bonus) via PRNG ensemençable
       `CT.util.makeRng(seed)` → parties reproductibles (base du rejeu serveur).
-- [ ] **Rejeu déterministe (suite)** : journal d'inputs + moteur de rejeu côté serveur.
+- [x] **Rejeu déterministe — étape 1** : journal d'inputs client (`game.journal`, `steps`) +
+      validation structurelle serveur (`js/sim-core.js` `validateJournal`). **Étape 2 (TODO)** :
+      re-simulation headless partagée recalculant le score canonique (extraire `game.step` +
+      retirer `Math.random`/orbes-`dt` du chemin de score).
 - [x] Power-up « Aimant » (batterie violette → attire la batterie vers le serpent).
 - [x] Musique d'ambiance optionnelle (pad génératif WebAudio, opt-in, persistée).
 - [x] **Laboratoire / R&D** : banque batteries+points, recherches chronométrées
@@ -831,6 +857,9 @@ complet : Reed-Solomon GF(256), sélection de masque par pénalité, BCH format/
       batteries, premier à 15 / dernier survivant gagne ; `stepVersus`, rendu + scoreboard dédiés.
 - [x] **Défi d'un ami par QR** (`game.challenge`) : QR (`CT.QR`) encodant seed+score+pseudo →
       l'ami rejoue la même map avec le score à battre ; « DÉFI RELEVÉ / MANQUÉ » à la fin.
+- [x] **Réglage de difficulté** (`CONFIG.difficulty`) : Facile/Normal/Difficile (vitesse +
+      accélération + obstacles), sélecteur Options, appliqué en partie normale solo (maps
+      partagées / classements dédiés intacts), plancher `minStep` inchangé (anti-triche valide).
 - [x] **Multi-langue FR/EN/ES** (`js/i18n.js` → `CT.i18n`) : coque UI + runtime + catalogues
       (Labo/Quêtes/Skins/Missions) traduits, sélecteur dans Options, langue persistée +
       auto-détectée. Attributs `data-i18n` pour le HTML, `t()` pour le dynamique.

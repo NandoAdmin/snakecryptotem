@@ -126,6 +126,10 @@ window.CT = window.CT || {};
     this.wallsRun = 0;       // murs brisés cette partie (mission)
     this.snakRun = 0;        // blocs ennemis détruits cette partie (mission)
     this.biome = null;       // décor de lieu du niveau (bar/ciné/bowling/disco/laser)
+    this.speedup = CT.CONFIG.speedupPerBattery;   // accélération par batterie (× difficulté)
+    this.diffId = 'normal';  // difficulté appliquée à la partie (tag de classement)
+    this.stepCount = 0;      // nb de pas logiques de la partie (rejeu déterministe)
+    this.journal = [];       // journal d'inputs [ [pas, codeDir], … ] (rejeu déterministe)
     this.tutorial = false;   // première partie guidée (onboarding) en cours ?
     this.challenge = null;   // défi d'un ami (QR) — { seed, score, name } ou null
     this.challengeWon = false; // le défi vient-il d'être relevé (score dépassé) ?
@@ -282,6 +286,19 @@ window.CT = window.CT || {};
       this.level = { index: n, needed: Infinity, step: CC.step, obstacles: CC.obstacles, pattern: CC.pattern };
     } else {
       this.level = CT.getLevel(n);
+    }
+    // DIFFICULTÉ (partie NORMALE solo uniquement — pas en démo/chrono/daily/défi d'ami, pour
+    // garder les maps partagées identiques et les classements dédiés équitables).
+    this.speedup = CT.CONFIG.speedupPerBattery;
+    this.diffId = 'normal';
+    if (!this.demo && !this.chrono && !this.daily && !this.challenge && CT.getDifficulty) {
+      const dm = CT.getDifficulty();
+      this.diffId = CT.getDifficultyId();
+      this.level = Object.assign({}, this.level, {
+        step: Math.max(CT.CONFIG.minStep, Math.round(this.level.step * dm.stepMult)),
+        obstacles: Math.max(0, Math.round(this.level.obstacles * dm.obstacleMult)),
+      });
+      this.speedup = CT.CONFIG.speedupPerBattery * dm.speedupMult;
     }
     this.batteries = 0;
     this.combo = 0;
@@ -717,6 +734,10 @@ window.CT = window.CT || {};
     if (nd.x === ref.x && nd.y === ref.y) return;     // déjà cette direction → ignore
     if (queue.length >= 2) return;                    // file courte = réactivité (max 2 virages)
     queue.push(nd);
+    // journal d'inputs (rejeu déterministe) : virage du JOUEUR en partie scorée
+    if (!p2 && !this.demo && CT.SimCore && this.journal.length < CT.SimCore.MAX_TURNS) {
+      this.journal.push([this.stepCount, CT.SimCore.DIR_CODE[name]]);
+    }
     CT.Audio.turn();
   };
 
@@ -1055,6 +1076,7 @@ window.CT = window.CT || {};
       this.chronoExpired = true;
       return this.die();
     }
+    if (!this.demo) this.stepCount++;                             // compteur de pas (rejeu déterministe)
     if (this.dirQueue.length) this.dir = this.dirQueue.shift();   // applique un virage par pas
     const head = this.snake[0];
     const nh = { x: head.x + this.dir.x, y: head.y + this.dir.y };
@@ -1584,7 +1606,7 @@ window.CT = window.CT || {};
     this.haptic(12);
     this.stepInterval = Math.max(
       CT.CONFIG.minStep / 1000,
-      (this.level.step - this.batteries * CT.CONFIG.speedupPerBattery) / 1000
+      (this.level.step - this.batteries * this.speedup) / 1000
     );
 
     // Score + combo (uniquement en jeu réel, pas en démo)
@@ -1734,6 +1756,9 @@ window.CT = window.CT || {};
       seed: this.seed,
       daily: this.daily,                               // Défi du jour → classement « Jour »
       chrono: this.chrono,                             // Mode Chrono → classement « ⏱ Chrono »
+      diff: this.diffId,                               // difficulté appliquée (easy/normal/hard)
+      steps: this.stepCount,                           // nb de pas (rejeu déterministe)
+      journal: (CT.SimCore ? CT.SimCore.encodeJournal(this.journal) : ''),  // journal d'inputs compact
       ts: Date.now(),
     };
     // Défi du jour : si la course bat le fantôme, elle DEVIENT le fantôme du jour

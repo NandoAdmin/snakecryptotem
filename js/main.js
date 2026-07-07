@@ -573,11 +573,14 @@
   const optColorblind = document.getElementById('optColorblind');
   const optContrast = document.getElementById('optContrast');
   const langBtns = optionsScreenEl.querySelectorAll('.opt-lang');
+  const diffBtns = optionsScreenEl.querySelectorAll('.opt-diff');
   function renderOptions() {
     const setBtn = (btn, on) => { btn.textContent = on ? t('word.on') : t('word.off'); btn.classList.toggle('on', on); btn.setAttribute('aria-checked', on ? 'true' : 'false'); };
     if (CT.Access) { setBtn(optColorblind, CT.Access.isColorblind()); setBtn(optContrast, CT.Access.isContrast()); }
     const cur = CT.i18n ? CT.i18n.get() : 'fr';
     langBtns.forEach((b) => b.classList.toggle('on', b.dataset.lang === cur));
+    const curDiff = CT.getDifficultyId ? CT.getDifficultyId() : 'normal';
+    diffBtns.forEach((b) => b.classList.toggle('on', b.dataset.diff === curDiff));
   }
   function openOptions() {
     overlays.start.classList.add('hidden');
@@ -592,6 +595,7 @@
   optColorblind.addEventListener('click', () => { if (CT.Access) CT.Access.toggle('colorblind'); CT.Audio.ui(); renderOptions(); });
   optContrast.addEventListener('click', () => { if (CT.Access) CT.Access.toggle('contrast'); CT.Audio.ui(); renderOptions(); });
   langBtns.forEach((b) => b.addEventListener('click', () => { if (CT.i18n) CT.i18n.setLang(b.dataset.lang); CT.Audio.ui(); renderOptions(); }));
+  diffBtns.forEach((b) => b.addEventListener('click', () => { if (CT.setDifficulty) CT.setDifficulty(b.dataset.diff); CT.Audio.ui(); renderOptions(); }));
   document.getElementById('optionsBtn').addEventListener('click', () => { CT.Audio.unlock(); CT.Audio.ui(); openOptions(); });
   document.getElementById('optionsCloseBtn').addEventListener('click', () => { CT.Audio.ui(); closeOptions(); });
 

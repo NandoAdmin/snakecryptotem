@@ -211,11 +211,11 @@ html, body {
 }
 .opt-toggle.on { background: linear-gradient(135deg, var(--cyan), var(--teal)); color: #022; border-color: transparent; }
 .opt-langs { display: flex; gap: 6px; flex: 0 0 auto; }
-.opt-lang {
+.opt-lang, .opt-diff {
   min-width: 40px; padding: 8px 10px; border-radius: 10px; cursor: pointer; font-weight: 800;
   background: transparent; border: 1px solid var(--glass-brd); color: var(--text-dim);
 }
-.opt-lang.on { background: linear-gradient(135deg, var(--cyan), var(--teal)); color: #022; border-color: transparent; }
+.opt-lang.on, .opt-diff.on { background: linear-gradient(135deg, var(--cyan), var(--teal)); color: #022; border-color: transparent; }
 
 /* Défi d'un ami (QR sur l'écran de fin) */
 .defi-btn { border-color: rgba(255, 194, 75, 0.5); color: var(--amber); }

@@ -115,22 +115,31 @@ CT.Leaderboard = (function () {
   function loadPending() { try { return JSON.parse(localStorage.getItem(PENDING) || '[]'); } catch (e) { return []; } }
   function savePending(a) { try { localStorage.setItem(PENDING, JSON.stringify(a.slice(-50))); } catch (e) {} }
 
+  // Nonce à usage unique par tentative d'envoi (anti-rejeu serveur). Frais à chaque POST →
+  // un renvoi (file hors-ligne) obtient un nouveau nonce (pas de blocage sur un 409).
+  function newNonce() {
+    try { if (crypto && crypto.randomUUID) return crypto.randomUUID(); } catch (e) {}
+    return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+  }
+
   function makeRemote(endpoint, token) {
     const headers = Object.assign({ 'Content-Type': 'application/json' }, token ? { Authorization: 'Bearer ' + token } : {});
     const post = (path, body) => fetch(endpoint + path, { method: 'POST', headers, body: JSON.stringify(body) }).then((r) => r.json());
+    // ajoute nonce + horodatage client à l'entrée soumise (anti-rejeu)
+    const stamp = (entry) => Object.assign({ nonce: newNonce(), cts: Date.now() }, entry);
 
     // Vide la file d'attente (best-effort, séquentiel, silencieux).
     function flushPending() {
       const a = loadPending();
       if (!a.length) return Promise.resolve();
-      return post('/scores', a[0])
+      return post('/scores', stamp(a[0]))
         .then((res) => { if (res && res.ok) { savePending(a.slice(1)); return flushPending(); } })
         .catch(() => {});
     }
 
     return {
       submit(entry) {
-        return post('/scores', entry)
+        return post('/scores', stamp(entry))
           .then((res) => {
             if (res && res.ok) { flushPending(); return res; }          // accepté par le serveur
             if (res && res.reason) return res;                          // refusé (triche) : ne pas mettre en file
