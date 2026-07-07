@@ -2794,19 +2794,34 @@ window.CT = window.CT || {};
   };
 
   G.drawObstacles = function () {
-    const ctx = this.ctx, cell = this.cell, pad = cell * 0.08;
+    const ctx = this.ctx, cell = this.cell, pad = cell * 0.08, r = cell * 0.18;
+    const dr = hexRgb(T.danger), hatch = 'rgba(' + dr.join(',') + ',0.42)';   // suit T.danger (mode daltonien)
     for (const o of this.obstacles) {
       const x = o.x * cell + pad, y = o.y * cell + pad, s = cell - pad * 2;
       ctx.save();
+      // corps : dégradé sombre teinté danger (profondeur) + halo
       ctx.shadowColor = T.danger; ctx.shadowBlur = 8;
-      ctx.fillStyle = '#0c1a1e';
-      U.rr(ctx, x, y, s, s, cell * 0.18); ctx.fill();
+      const g = ctx.createLinearGradient(x, y, x, y + s);
+      g.addColorStop(0, mix('#0c1a1e', T.danger, 0.22));
+      g.addColorStop(1, '#0a161a');
+      ctx.fillStyle = g;
+      U.rr(ctx, x, y, s, s, r); ctx.fill();
       ctx.shadowBlur = 0;
+      // hachures danger (deux diagonales), clippées au tuile arrondie
+      ctx.save();
+      U.rr(ctx, x, y, s, s, r); ctx.clip();
+      ctx.strokeStyle = hatch; ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(x + s * 0.14, y + s * 0.86); ctx.lineTo(x + s * 0.86, y + s * 0.14);
+      ctx.moveTo(x + s * 0.5, y + s * 0.92); ctx.lineTo(x + s * 0.92, y + s * 0.5);
+      ctx.stroke();
+      ctx.restore();
+      // reflet biseauté (arête haute) → aspect « tuile » en relief
+      ctx.strokeStyle = 'rgba(255,255,255,0.14)'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(x + r, y + 1.5); ctx.lineTo(x + s - r, y + 1.5); ctx.stroke();
+      // contour danger
       ctx.strokeStyle = T.danger; ctx.lineWidth = 2;
-      U.rr(ctx, x, y, s, s, cell * 0.18); ctx.stroke();
-      // hachure danger
-      ctx.strokeStyle = 'rgba(255,91,110,0.5)'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(x + s * 0.25, y + s * 0.75); ctx.lineTo(x + s * 0.75, y + s * 0.25); ctx.stroke();
+      U.rr(ctx, x, y, s, s, r); ctx.stroke();
       ctx.restore();
     }
   };
