@@ -464,10 +464,18 @@ html, body {
   border: 1px solid var(--glass-brd); cursor: pointer;
   padding: 12px 32px; border-radius: 99px;
   font-size: 14px; font-weight: 700; letter-spacing: 1px;
-  color: var(--text-dim); background: transparent;
-  transition: color 0.2s ease, border-color 0.2s ease;
+  color: var(--text-dim);
+  background: var(--glass); backdrop-filter: blur(8px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
+  transition: color 0.2s ease, border-color 0.2s ease, transform 0.12s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
-.btn-ghost:hover { color: var(--text); border-color: var(--cyan); }
+.btn-ghost:hover {
+  color: var(--text); border-color: var(--cyan);
+  transform: translateY(-2px);
+  background: rgba(19, 181, 184, 0.16);
+  box-shadow: 0 10px 26px rgba(38, 224, 224, 0.26);
+}
+.btn-ghost:active { transform: translateY(0) scale(0.97); }
 
 /* D-pad tactile ----------------------------------------------- */
 #dpad {
