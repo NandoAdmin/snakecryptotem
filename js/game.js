@@ -9,6 +9,7 @@ window.CT = window.CT || {};
   const T = CT.CONFIG.theme;
   const COLS = CT.CONFIG.cols;
   const ROWS = CT.CONFIG.rows;
+  const t = (k, p) => (CT.i18n ? CT.i18n.t(k, p) : k);   // i18n (repli = clé)
 
   /* ---- helpers couleur ---- */
   function hexRgb(h) {
@@ -124,6 +125,20 @@ window.CT = window.CT || {};
     this.missionCoins = 0;   // ⚡ gagnées par missions (versées au Labo à la fin, pas au score)
     this.wallsRun = 0;       // murs brisés cette partie (mission)
     this.snakRun = 0;        // blocs ennemis détruits cette partie (mission)
+    this.biome = null;       // décor de lieu du niveau (bar/ciné/bowling/disco/laser)
+    this.tutorial = false;   // première partie guidée (onboarding) en cours ?
+    this.challenge = null;   // défi d'un ami (QR) — { seed, score, name } ou null
+    this.challengeWon = false; // le défi vient-il d'être relevé (score dépassé) ?
+    this.versus = false;     // MODE 2 JOUEURS (duel local, même tablette)
+    this.snake2 = null;      // serpent du joueur 2 (versus)
+    this.prev2 = null;
+    this.dir2 = DIRS.left;
+    this.dirQueue2 = [];
+    this.food2 = null;       // batterie du joueur 2 (versus)
+    this.score2 = 0;         // batteries du joueur 2 (versus)
+    this.color2Rgb = null;   // couleur courante du serpent 2 (versus)
+    this.color2Target = null;
+    this.versusWinner = 0;   // 0 = aucun · 1 = J1 · 2 = J2 · 3 = égalité (versus terminé)
     this.sinceEvent = 0;     // pas depuis la dernière tentative d'événement
     this.eventCooldownUntil = 0; // pas d'événement tant que time < cooldown
     this.eventBanner = null; // bannière d'annonce d'événement — { text, color, until }
@@ -210,22 +225,34 @@ window.CT = window.CT || {};
 
   /* ---------------- cycle de partie ---------------- */
   // `seed` optionnelle : fournie = DÉFI DU JOUR (CT.util.dailySeed() → même map pour tous).
-  // `mode` optionnel : 'chrono' = MODE CHRONO (2 min, score max, classement dédié).
+  // `mode` optionnel : 'chrono' (2 min, score max) · 'versus' (2 joueurs) · 'challenge'
+  // (défi d'un ami reçu par QR : même map + score à battre, cf. this.pendingChallenge).
   G.startRun = function (seed, mode) {
     this.reset();
     this.runStart = this.time;
     this.chrono = mode === 'chrono';
-    this.daily = !this.chrono && seed != null;
-    this.seed = this.daily ? (seed >>> 0) : (Math.random() * 4294967295) >>> 0;
+    this.versus = mode === 'versus';
+    const isChallenge = mode === 'challenge';
+    // DÉFI D'UN AMI (QR) : rejoue la map de l'ami (seed) avec son score à battre
+    if (isChallenge && this.pendingChallenge) {
+      this.challenge = {
+        seed: this.pendingChallenge.seed >>> 0,
+        score: this.pendingChallenge.score | 0,
+        name: this.pendingChallenge.name || 'un ami',
+      };
+      seed = this.challenge.seed;
+    }
+    this.daily = !this.chrono && !this.versus && !isChallenge && seed != null;
+    this.seed = (this.daily || isChallenge) ? (seed >>> 0) : (Math.random() * 4294967295) >>> 0;
     this.rng = CT.util.makeRng(this.seed);   // (re)graine pour la partie scorée
     this.bonusCount = 0;
     // fantôme (Défi du jour uniquement — même seed = même map, la course est comparable)
     if (this.daily && CT.Ghost) { this.ghost = CT.Ghost.load(); this.ghostRec = []; this.ghostIdx = 0; }
-    // MISSIONS de partie (hors chrono) : tirées via this.rng AVANT les spawns → déterministes
-    // par seed (même trio pour tous sur le Défi du jour).
+    // MISSIONS de partie (hors chrono / versus) : tirées via this.rng AVANT les spawns →
+    // déterministes par seed (même trio pour tous sur le Défi du jour).
     this.missions = [];
     const MC = CT.CONFIG.missions;
-    if (!this.chrono && MC && MC.count) {
+    if (!this.chrono && !this.versus && MC && MC.count) {
       const pool = MISSION_POOL.slice();
       for (let i = 0; i < Math.min(MC.count, pool.length); i++) {
         const j = (this.rng() * pool.length) | 0;
@@ -233,12 +260,22 @@ window.CT = window.CT || {};
         pool.splice(j, 1);
       }
     }
+    // ONBOARDING : première partie NORMALE jamais vue → tutoriel guidé (une seule fois)
+    this.tutorial = !this.chrono && !this.versus && !this.daily && !isChallenge && !this._seen();
+    if (this.tutorial) this._markSeen();
     this.startLevel(1);
   };
+
+  // Première partie déjà vue ? (drapeau localStorage, borne partagée → une fois par appareil)
+  G._seen = function () { try { return localStorage.getItem('ct_seen') === '1'; } catch (e) { return true; } };
+  G._markSeen = function () { try { localStorage.setItem('ct_seen', '1'); } catch (e) {} };
 
   // Prépare un niveau (sans changer l'état) — partagé par jeu réel et démo.
   G.setupLevel = function (n) {
     this.levelNum = n;
+    this.biome = CT.getBiome(n);   // décor de lieu (bar/ciné/bowling/disco/laser)
+    // MODE 2 JOUEURS : arène de duel dédiée (deux serpents, deux batteries) → setup à part
+    if (this.versus) { this.setupVersus(); return; }
     // MODE CHRONO : une seule arène sans objectif de niveau (needed infini → jamais de cinématique)
     if (this.chrono) {
       const CC = CT.CONFIG.chrono;
@@ -316,6 +353,128 @@ window.CT = window.CT || {};
     else if (this.raceLevel) this.spawnEnemy(true);   // COURSE : le Glouton remplace le Snakator
     else if (ec && !this.demo && (n >= ec.fromLevel || (this.chrono && CT.CONFIG.chrono.enemy))) this.spawnEnemy();
     this.updateHud();
+  };
+
+  /* ---------------- mode 2 joueurs (versus) ---------------- */
+  // Arène de duel : deux serpents opposés (J1 cyan à gauche, J2 rose à droite), chacun sa
+  // batterie sur sa moitié. Pas de power-ups / ennemis / malus (duel épuré et équitable).
+  G.setupVersus = function () {
+    const V = CT.CONFIG.versus;
+    this.level = { index: 1, needed: V.target, step: V.step, obstacles: V.obstacles, pattern: V.pattern };
+    this.batteries = 0; this.score2 = 0; this.combo = 0;
+    this.stepInterval = V.step / 1000; this.effInterval = this.stepInterval; this.acc = 0;
+    // neutralise tous les systèmes solo
+    this.bonus = null; this.malus = null; this.enemy = null; this.bosses = []; this.orbs = [];
+    this.bossLevel = false; this.raceLevel = false; this.bossTier = 0;
+    this.slowUntil = 0; this.shieldUntil = 0; this.magnetUntil = 0; this.doubleUntil = 0;
+    this.rushUntil = 0; this.fogUntil = 0; this.repelUntil = 0; this.goldUntil = 0; this.rainUntil = 0;
+    this.tempWalls = []; this.portals = []; this.eventBanner = null;
+    this.fx = []; this.toast = null; this.flash = 0; this.shake = 0;
+    this.introUntil = 0; this.versusWinner = 0;
+    // couleurs fixes (lisibilité du duel) : J1 cyan, J2 rose
+    this.snakeColorRgb = hexRgb(T.cyan); this.snakeColorTarget = hexRgb(T.cyan);
+    this.color2Rgb = hexRgb(T.pink); this.color2Target = hexRgb(T.pink);
+    const cy = Math.floor(ROWS / 2), x1 = 4, x2 = COLS - 5;
+    this.snake = [{ x: x1, y: cy }, { x: x1 - 1, y: cy }, { x: x1 - 2, y: cy }, { x: x1 - 3, y: cy }];
+    this.prev = this.snake.map((s) => ({ x: s.x, y: s.y })); this.dir = DIRS.right; this.dirQueue = [];
+    this.snake2 = [{ x: x2, y: cy }, { x: x2 + 1, y: cy }, { x: x2 + 2, y: cy }, { x: x2 + 3, y: cy }];
+    this.prev2 = this.snake2.map((s) => ({ x: s.x, y: s.y })); this.dir2 = DIRS.left; this.dirQueue2 = [];
+    this.generateObstacles();
+    // dégage les cases de spawn + le couloir de départ des deux serpents (jamais piégés)
+    for (const s of this.snake) this._clearObstacle(s.x, s.y);
+    for (const s of this.snake2) this._clearObstacle(s.x, s.y);
+    for (let i = 1; i <= 4; i++) { this._clearObstacle((x1 + i) % COLS, cy); this._clearObstacle((x2 - i + COLS) % COLS, cy); }
+    this.food = this.freeVersusCell('left');
+    this.food2 = this.freeVersusCell('right');
+    this.updateHud();
+  };
+
+  // Retire un obstacle d'une case (nettoyage des couloirs de spawn en versus).
+  G._clearObstacle = function (x, y) {
+    const k = this.cellKey(x, y);
+    if (!this.obstacleSet.has(k)) return;
+    this.obstacleSet.delete(k);
+    const i = this.obstacles.findIndex((o) => o.x === x && o.y === y);
+    if (i >= 0) this.obstacles.splice(i, 1);
+  };
+
+  // Case libre pour une batterie de duel (évite obstacles + les 2 serpents + les 2 batteries).
+  // `side` biaise le tirage sur la moitié gauche/droite (chacun sa batterie).
+  G.freeVersusCell = function (side) {
+    const free = (x, y) => {
+      if (this.obstacleSet.has(this.cellKey(x, y))) return false;
+      for (const s of this.snake) if (s.x === x && s.y === y) return false;
+      for (const s of this.snake2) if (s.x === x && s.y === y) return false;
+      if (this.food && this.food.x === x && this.food.y === y) return false;
+      if (this.food2 && this.food2.x === x && this.food2.y === y) return false;
+      return true;
+    };
+    const half = COLS / 2;
+    let tries = 0;
+    while (tries++ < 300) {
+      let x = 1 + ((this.rng() * (COLS - 2)) | 0);
+      const y = 1 + ((this.rng() * (ROWS - 2)) | 0);
+      if (side === 'left') x = 1 + ((this.rng() * (half - 1)) | 0);
+      else if (side === 'right') x = Math.ceil(half) + ((this.rng() * (half - 2)) | 0);
+      if (free(x, y)) return { x, y, born: this.time };
+    }
+    for (let y = 1; y < ROWS - 1; y++) for (let x = 1; x < COLS - 1; x++) if (free(x, y)) return { x, y, born: this.time };
+    return { x: 1, y: 1, born: this.time };
+  };
+
+  // Un pas de duel : avance les deux serpents, gère batteries + collisions + victoire.
+  // Collisions testées APRÈS déplacement (obstacle · propre corps · corps adverse ; tête-à-tête
+  // = égalité). Premier à `target` batteries — ou dernier survivant — gagne.
+  G.stepVersus = function () {
+    const V = CT.CONFIG.versus;
+    if (this.dirQueue.length) this.dir = this.dirQueue.shift();
+    if (this.dirQueue2.length) this.dir2 = this.dirQueue2.shift();
+    const nh1 = { x: (this.snake[0].x + this.dir.x + COLS) % COLS, y: (this.snake[0].y + this.dir.y + ROWS) % ROWS };
+    const nh2 = { x: (this.snake2[0].x + this.dir2.x + COLS) % COLS, y: (this.snake2[0].y + this.dir2.y + ROWS) % ROWS };
+    const eat1 = this.food && nh1.x === this.food.x && nh1.y === this.food.y;
+    const eat2 = this.food2 && nh2.x === this.food2.x && nh2.y === this.food2.y;
+    // avance J1
+    this.prev = this.snake.map((s) => ({ x: s.x, y: s.y }));
+    for (let i = this.snake.length - 1; i >= 1; i--) { this.snake[i].x = this.prev[i - 1].x; this.snake[i].y = this.prev[i - 1].y; }
+    this.snake[0] = nh1;
+    if (eat1) { const t = this.prev[this.prev.length - 1]; this.snake.push({ x: t.x, y: t.y }); this.prev.push({ x: t.x, y: t.y }); }
+    // avance J2
+    this.prev2 = this.snake2.map((s) => ({ x: s.x, y: s.y }));
+    for (let i = this.snake2.length - 1; i >= 1; i--) { this.snake2[i].x = this.prev2[i - 1].x; this.snake2[i].y = this.prev2[i - 1].y; }
+    this.snake2[0] = nh2;
+    if (eat2) { const t = this.prev2[this.prev2.length - 1]; this.snake2.push({ x: t.x, y: t.y }); this.prev2.push({ x: t.x, y: t.y }); }
+    // effets de ramassage
+    if (eat1) { this.batteries++; this.spawnFx(nh1.x, nh1.y, [T.cyan, T.glow, '#ffffff']); this.food = this.freeVersusCell('left'); this.flash = Math.max(this.flash, 0.4); this.flashColor = T.cyan; CT.Audio.pickup(1); }
+    if (eat2) { this.score2++; this.spawnFx(nh2.x, nh2.y, [T.pink, '#ffffff']); this.food2 = this.freeVersusCell('right'); this.flash = Math.max(this.flash, 0.4); this.flashColor = T.pink; CT.Audio.pickup(1); }
+    // collisions (après déplacement)
+    const collide = (h, self, other) => {
+      if (this.obstacleSet.has(this.cellKey(h.x, h.y))) return true;
+      for (let i = 1; i < self.length; i++) if (self[i].x === h.x && self[i].y === h.y) return true;
+      for (let i = 0; i < other.length; i++) if (other[i].x === h.x && other[i].y === h.y) return true;
+      return false;
+    };
+    const headOn = nh1.x === nh2.x && nh1.y === nh2.y;
+    const w1 = this.batteries >= V.target, w2 = this.score2 >= V.target;
+    this.updateHud();
+    if (headOn) return this.versusEnd(3);
+    if (w1 && w2) return this.versusEnd(3);
+    if (w1) return this.versusEnd(1);
+    if (w2) return this.versusEnd(2);
+    const d1 = collide(nh1, this.snake, this.snake2), d2 = collide(nh2, this.snake2, this.snake);
+    if (d1 && d2) return this.versusEnd(3);
+    if (d1) return this.versusEnd(2);
+    if (d2) return this.versusEnd(1);
+  };
+
+  // Fin d'un duel : 1 = J1 · 2 = J2 · 3 = égalité. Pas de classement (mode non scoré).
+  G.versusEnd = function (winner) {
+    this.versusWinner = winner;
+    this.flash = 1; this.flashColor = winner === 1 ? T.cyan : winner === 2 ? T.pink : T.amber;
+    this.shake = this.reduce ? 0 : 0.85;
+    this.haptic([0, 60, 40, 120]);
+    if (winner === 3) { if (CT.Audio.gameover) CT.Audio.gameover(); }
+    else if (CT.Audio.achievement) CT.Audio.achievement();
+    this.setState('over');
   };
 
   // Place le serpent ennemi sur une case libre, loin du spawn du joueur (centre).
@@ -488,13 +647,14 @@ window.CT = window.CT || {};
     // Annonce de niveau — plus dynamique pour l'arrivée du Snakator (niv. fromLevel), les boss,
     // la COURSE (Glouton) et le mode CHRONO.
     const ec = CT.CONFIG.enemy;
-    this.introKind = this.chrono ? 'chrono'
+    this.introKind = this.versus ? 'versus'
+      : this.chrono ? 'chrono'
       : this.bossLevel ? 'boss'
       : this.raceLevel ? 'race'
       : (this.enemy && ec && n === ec.fromLevel) ? 'enemy'
       : 'normal';
     const alarm = this.introKind === 'enemy' || this.introKind === 'boss' || this.introKind === 'race';
-    this.introDur = CT.CONFIG.introDuration + (alarm ? 0.9 : this.introKind === 'chrono' ? 0.4 : 0);
+    this.introDur = CT.CONFIG.introDuration + (alarm ? 0.9 : (this.introKind === 'chrono' || this.introKind === 'versus') ? 0.4 : 0);
     this.introUntil = this.time + this.introDur;   // annonce le niveau (serpent figé)
     // MODE CHRONO : le décompte démarre quand le serpent s'élance (fin de l'annonce)
     if (this.chrono) this.chronoEnd = this.introUntil + (CT.CONFIG.chrono.duration || 120);
@@ -541,17 +701,22 @@ window.CT = window.CT || {};
   };
 
   /* ---------------- entrées ---------------- */
-  G.setDir = function (name) {
+  // `group` : 'p1' (flèches/swipe/D-pad) ou 'p2' (WASD). En solo, les deux pilotent le
+  // serpent unique ; en versus, 'p2' pilote le 2ᵉ serpent (WASD contre les flèches).
+  G.setDir = function (name, group) {
     if (this.state !== 'playing') return;
     const nd = DIRS[name];
     if (!nd) return;
+    const p2 = this.versus && group === 'p2';
+    const queue = p2 ? this.dirQueue2 : this.dirQueue;
+    const cur = p2 ? this.dir2 : this.dir;
     // référence = dernier virage en file (sinon la direction courante) → permet d'enchaîner
     // deux quarts de tour serrés (ex. ↑ puis ←) sans que le 2ᵉ soit rejeté à tort comme demi-tour
-    const ref = this.dirQueue.length ? this.dirQueue[this.dirQueue.length - 1] : this.dir;
+    const ref = queue.length ? queue[queue.length - 1] : cur;
     if (nd.x === -ref.x && nd.y === -ref.y) return;   // interdit le demi-tour (relatif à la file)
     if (nd.x === ref.x && nd.y === ref.y) return;     // déjà cette direction → ignore
-    if (this.dirQueue.length >= 2) return;            // file courte = réactivité (max 2 virages)
-    this.dirQueue.push(nd);
+    if (queue.length >= 2) return;                    // file courte = réactivité (max 2 virages)
+    queue.push(nd);
     CT.Audio.turn();
   };
 
@@ -1056,7 +1221,7 @@ window.CT = window.CT || {};
       m.done = true;
       this.missionCoins += m.reward;
       const head = this.snake[0];
-      this.spawnToast('🎯 MISSION ✓  +' + m.reward + ' ⚡', head.x, head.y);
+      this.spawnToast(t('mission.toast', { n: m.reward }), head.x, head.y);
       this.flash = Math.max(this.flash, 0.6); this.flashColor = T.glow;
       this.haptic([0, 30, 30, 60]);
       if (CT.Audio.achievement) CT.Audio.achievement();
@@ -1194,15 +1359,15 @@ window.CT = window.CT || {};
     let dur, text, color;
     if (type === 'gold') {              // 💰 pièces ×N sur les batteries
       dur = EV.goldDuration; this.goldUntil = this.time + dur;
-      text = '💰 RUÉE DORÉE — pièces ×' + EV.goldMult + ' !'; color = T.amber;
+      text = t('event.gold', { n: EV.goldMult }); color = T.amber;
       if (CT.Audio.bonus) CT.Audio.bonus();
     } else if (type === 'blackout') {   // 🌑 brouillard total (réutilise fogUntil/drawFog)
       dur = EV.blackoutDuration; this.fogUntil = Math.max(this.fogUntil, this.time + dur);
-      text = '🌑 BLACKOUT !'; color = T.danger;
+      text = t('event.blackout'); color = T.danger;
       if (CT.Audio.alert) CT.Audio.alert();
     } else {                            // 🎁 un power-up dès que le slot est libre
       dur = EV.rainDuration; this.rainUntil = this.time + dur;
-      text = '🎁 PLUIE DE POWER-UPS !'; color = T.glow;
+      text = t('event.rain'); color = T.glow;
       if (CT.Audio.bonus) CT.Audio.bonus();
     }
     this.eventCooldownUntil = this.time + dur + (EV.cooldown || 15);
@@ -1576,6 +1741,8 @@ window.CT = window.CT || {};
     if (this.daily && CT.Ghost && this.ghostRec && this.points > 0) {
       this.newGhost = CT.Ghost.maybeSave(this.points, this.ghostRec);
     }
+    // Défi d'un ami (QR) : score dépassé → défi relevé
+    this.challengeWon = !!(this.challenge && this.points > this.challenge.score);
     // soumet au classement (serveur si configuré) ; l'UI attend cette promesse avant de relire les boards
     this.lastSubmit = this.points > 0 ? CT.Leaderboard.submit(this.lastEntry) : Promise.resolve({ ok: true });
     // verse les ressources de la partie dans la banque du Laboratoire
@@ -1587,25 +1754,29 @@ window.CT = window.CT || {};
     if (this.dom.overStats) {
       const totalS = Math.floor(this.lastEntry.durationMs / 1000);
       const dur = Math.floor(totalS / 60) + ':' + String(totalS % 60).padStart(2, '0');
+      const pu = this.bonusCount > 1 ? t('word.powerups') : t('word.powerup');
       let html =
-        'Niveau atteint : <b>' + this.levelNum + '</b><br>' +
-        'Batteries livrées : <b>' + this.score + '</b><br>' +
-        'Score : <b>' + this.points + '</b>' +
-        (isRecord ? ' &nbsp;🏆 <b>Nouveau record !</b>' : '') +
-        '<span class="over-recap">⏱ ' + dur + ' &nbsp;·&nbsp; ⚡ ' + this.bonusCount +
-        ' power-up' + (this.bonusCount > 1 ? 's' : '') + ' &nbsp;·&nbsp; 🔥 combo ×' + this.maxComboRun +
-        (this.newGhost ? ' &nbsp;·&nbsp; 👻 <b>Nouveau fantôme du jour !</b>' : '') + '</span>';
+        t('over.level') + '<b>' + this.levelNum + '</b><br>' +
+        t('over.batteries') + '<b>' + this.score + '</b><br>' +
+        t('over.score') + '<b>' + this.points + '</b>' +
+        (isRecord ? t('over.record') : '') +
+        '<span class="over-recap">' + t('over.recap', { dur, n: this.bonusCount, pu, combo: this.maxComboRun }) +
+        (this.newGhost ? t('over.newghost') : '') + '</span>';
+      // Défi d'un ami (QR) : relevé ou non
+      if (this.challenge) {
+        html += '<span class="over-missions">' + t('over.challenge', { name: this.challenge.name, score: this.challenge.score }) +
+          (this.challengeWon ? t('over.challenge.won') : t('over.challenge.lost')) + '</span>';
+      }
       // récap des missions de partie (✅ accomplies / ▫️ manquées + ⚡ gagnées)
       if (this.missions && this.missions.length) {
         const done = this.missions.filter((m) => m.done).length;
-        html += '<span class="over-missions">🎯 Missions ' + done + '/' + this.missions.length + ' : ' +
+        html += '<span class="over-missions">' + t('over.missions', { done, total: this.missions.length }) +
           this.missions.map((m) => (m.done ? '✅' : '▫️') + ' ' + m.icon).join(' &nbsp;') +
           (this.missionCoins ? ' &nbsp;·&nbsp; <b>+' + this.missionCoins + ' ⚡</b>' : '') + '</span>';
       }
       if (CT.Lab && (this.score > 0 || this.points > 0 || this.missionCoins > 0)) {
         const w = CT.Lab.wallet();
-        html += '<br><span class="lab-gain">🔬 +' + this.score + ' 🔋 +' + (this.points + (this.missionCoins || 0)) +
-          ' ⚡ au Labo <small>(total ' + w.bat + ' 🔋 · ' + w.pts + ' ⚡)</small></span>';
+        html += '<br><span class="lab-gain">' + t('over.labgain', { bat: this.score, pts: this.points + (this.missionCoins || 0), b: w.bat, p: w.pts }) + '</span>';
       }
       this.dom.overStats.innerHTML = html;
     }
@@ -1684,13 +1855,22 @@ window.CT = window.CT || {};
 
   /* ---------------- HUD ---------------- */
   G.updateHud = function () {
-    // libellé de gauche : « NIVEAU n » ou « ⏱ CHRONO » (réécrit en entier à chaque maj)
+    // libellé de gauche : « NIVEAU n » · « ⏱ CHRONO » · « 👥 DUEL »
     if (this.dom.lvlBox) {
-      if (this.chrono) this.dom.lvlBox.textContent = '⏱ CHRONO';
-      else this.dom.lvlBox.innerHTML = 'NIVEAU <b>' + this.levelNum + '</b>';
+      if (this.versus) this.dom.lvlBox.textContent = t('hud.duel');
+      else if (this.chrono) this.dom.lvlBox.textContent = t('hud.chrono');
+      else this.dom.lvlBox.innerHTML = t('hud.level') + ' <b>' + this.levelNum + '</b>';
     }
     const boss = this.bossLevel && this.bosses.length;
-    if (this.chrono) {
+    if (this.versus) {
+      // DUEL : la barre HUD montre l'avance de J1 (le scoreboard canvas montre les deux)
+      const V = CT.CONFIG.versus;
+      if (this.dom.bat) this.dom.bat.textContent = this.batteries;
+      if (this.dom.need) this.dom.need.textContent = V.target;
+      if (this.dom.unit) this.dom.unit.textContent = '🔋';
+      if (this.dom.fill) this.dom.fill.style.width = (100 * this.batteries / V.target) + '%';
+      if (this.dom.progress) { this.dom.progress.classList.remove('boss', 'near-goal'); }
+    } else if (this.chrono) {
       // MODE CHRONO : la barre affiche le TEMPS RESTANT (elle se vide) à la place des batteries
       const D = CT.CONFIG.chrono.duration || 120;
       const rem = this.chronoEnd > 0 ? Math.max(0, Math.ceil(this.chronoEnd - this.time)) : D;
@@ -1751,7 +1931,7 @@ window.CT = window.CT || {};
         let steps = 0;
         while (this.acc >= this.effInterval && steps < 5) {
           this.acc -= this.effInterval;
-          this.step();
+          if (this.versus) this.stepVersus(); else this.step();
           steps++;
           if (!(this.state === 'playing' || (this.state === 'start' && this.demo))) break;
         }
@@ -1802,10 +1982,12 @@ window.CT = window.CT || {};
   G.renderWorld = function () {
     const ctx = this.ctx, W = this.W, H = this.H, cell = this.cell;
 
-    // fond
+    // fond — teinté par le BIOME du niveau (bar/ciné/bowling/disco/laser)
+    const tint = (this.biome && T[this.biome.tint]) || T.teal;
     const g = ctx.createRadialGradient(W / 2, H * 0.35, 20, W / 2, H * 0.5, Math.max(W, H) * 0.75);
-    g.addColorStop(0, '#073238'); g.addColorStop(0.55, T.bg1); g.addColorStop(1, T.bg0);
+    g.addColorStop(0, mix(T.bg1, tint, 0.30)); g.addColorStop(0.55, T.bg1); g.addColorStop(1, T.bg0);
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    this.drawBiome(tint);   // motif décoratif du lieu (derrière la grille, fixe)
 
     // screen-shake : décale le plateau (le fond reste fixe pour éviter les bords vides)
     ctx.save();
@@ -1828,16 +2010,26 @@ window.CT = window.CT || {};
     ctx.restore();
 
     this.drawObstacles();
-    this.drawPortals();                                // portails de téléportation (sous le vivant)
-    if (this.food) this.drawFood();
-    if (this.bonus) this.drawBonus();
-    if (this.malus) this.drawMalus();
-    this.drawGhost();                                  // fantôme du Défi du jour (sous tout le vivant)
-    for (const e of this.hostiles()) this.drawHostile(e);
-    this.drawOrbs();                                   // orbes de boss (au-dessus des boss)
-    if (this.snake) this.drawSnake();
-    this.drawFx();
-    if (this.time < this.fogUntil) this.drawFog();   // MALUS brouillage : voile sauf autour de la tête
+    if (this.versus) {
+      // DUEL : deux batteries + deux serpents (aucun système solo)
+      if (this.food) this.drawVersusFood(this.food, T.cyan);
+      if (this.food2) this.drawVersusFood(this.food2, T.pink);
+      this.drawVersusSnake(this.snake, this.prev, this.dir, T.cyan, '1');
+      this.drawVersusSnake(this.snake2, this.prev2, this.dir2, T.pink, '2');
+      this.drawFx();
+    } else {
+      this.drawPortals();                              // portails de téléportation (sous le vivant)
+      if (this.food) this.drawFood();
+      if (this.bonus) this.drawBonus();
+      if (this.malus) this.drawMalus();
+      this.drawGhost();                                // fantôme du Défi du jour (sous tout le vivant)
+      for (const e of this.hostiles()) this.drawHostile(e);
+      this.drawOrbs();                                 // orbes de boss (au-dessus des boss)
+      if (this.snake) this.drawSnake();
+      this.drawFx();
+      if (this.time < this.fogUntil) this.drawFog();   // MALUS brouillage : voile sauf autour de la tête
+      this.drawTutorial();                             // onboarding (première partie)
+    }
     this.drawToast();
     this.drawSurcharge();
     this.drawRecordBanner();
@@ -1849,6 +2041,7 @@ window.CT = window.CT || {};
     this.drawEffects();   // chips d'effets actifs (hors shake, style HUD)
     this.drawBossBar();   // barre de PV du boss (hors shake)
     this.drawChronoWarning();   // dernières secondes du mode chrono (hors shake)
+    this.drawVersusHud();   // scoreboard du duel (hors shake)
 
     // flash plein écran
     if (this.flash > 0) {
@@ -2127,7 +2320,7 @@ window.CT = window.CT || {};
     ctx.shadowColor = T.cyan; ctx.shadowBlur = 14;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.font = '800 ' + (cell * 0.85).toFixed(0) + 'px -apple-system, system-ui, sans-serif';
-    ctx.fillText('⚡ SURCHARGE', W / 2, cell * 1.3);
+    ctx.fillText(t('banner.surcharge'), W / 2, cell * 1.3);
     ctx.restore();
   };
 
@@ -2165,7 +2358,7 @@ window.CT = window.CT || {};
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillStyle = T.amber; ctx.shadowColor = T.amber; ctx.shadowBlur = 24;
     ctx.font = '900 ' + Math.round(S * 0.085) + 'px -apple-system, system-ui, sans-serif';
-    ctx.fillText('🏆 RECORD BATTU !', 0, 0);
+    ctx.fillText(t('banner.record'), 0, 0);
     ctx.restore();
   };
 
@@ -2240,72 +2433,92 @@ window.CT = window.CT || {};
     const pop = (alarm && !this.reduce) ? (1 + 0.035 * Math.sin(this.time * 11)) : 1;   // texte qui « palpite »
     ctx.translate(W / 2, H * 0.44); ctx.scale(scale * pop, scale * pop);
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const lvlTxt = t('hud.level') + ' ' + this.levelNum;
     if (kind === 'enemy') {                            // ⚠️ arrivée du Snakator (niv. 3)
       ctx.fillStyle = T.danger; ctx.shadowColor = T.danger; ctx.shadowBlur = 26;
       ctx.font = '900 ' + Math.round(S * 0.12) + 'px -apple-system, system-ui, sans-serif';
-      ctx.fillText('⚠️ ALERTE', 0, -S * 0.06);
+      ctx.fillText(t('intro.enemy.alert'), 0, -S * 0.06);
       ctx.shadowBlur = 12; ctx.fillStyle = T.text;
       ctx.font = '800 ' + Math.round(S * 0.058) + 'px -apple-system, system-ui, sans-serif';
-      ctx.fillText('LE SNAKATOR APPARAÎT !', 0, S * 0.04);
+      ctx.fillText(t('intro.enemy.title'), 0, S * 0.04);
       ctx.fillStyle = T.textDim; ctx.shadowBlur = 0;
       ctx.font = '700 ' + Math.round(S * 0.033) + 'px -apple-system, system-ui, sans-serif';
-      ctx.fillText('Évitez le serpent rouge… ou mordez-le sous bouclier 🛡️', 0, S * 0.115);
+      ctx.fillText(t('intro.enemy.sub'), 0, S * 0.115);
     } else if (kind === 'boss') {                      // 👹 / 🐉 combat de boss (titre empilé → tient à l'écran)
       const hydra = this.bosses.length === 1 && this.bosses[0].hydra;
       const nHeads = hydra ? this.bosses[0].heads.length : 0;
       ctx.fillStyle = T.textDim; ctx.shadowColor = T.danger; ctx.shadowBlur = 8;
       ctx.font = '800 ' + Math.round(S * 0.05) + 'px -apple-system, system-ui, sans-serif';
-      ctx.fillText('NIVEAU ' + this.levelNum, 0, -S * 0.095);
+      ctx.fillText(lvlTxt, 0, -S * 0.095);
       ctx.fillStyle = T.danger; ctx.shadowColor = T.danger; ctx.shadowBlur = 26;
       ctx.font = '900 ' + Math.round(S * 0.12) + 'px -apple-system, system-ui, sans-serif';
-      ctx.fillText(hydra ? '🐉 HYDRE' : '👹 BOSS', 0, -S * 0.01);
+      ctx.fillText(hydra ? t('intro.hydra') : t('intro.boss'), 0, -S * 0.01);
       ctx.shadowBlur = 10; ctx.fillStyle = T.text;
       ctx.font = '700 ' + Math.round(S * 0.04) + 'px -apple-system, system-ui, sans-serif';
-      ctx.fillText(hydra ? ('Coupez ses ' + nHeads + ' têtes sous bouclier 🛡️ !')
-                         : 'Mordez-le sous bouclier 🛡️ pour le vaincre !', 0, S * 0.085);
+      ctx.fillText(hydra ? t('intro.hydra.sub', { n: nHeads }) : t('intro.boss.sub'), 0, S * 0.085);
     } else if (kind === 'race') {                      // 🏁 niveau COURSE (le Glouton)
       ctx.fillStyle = T.textDim; ctx.shadowColor = T.amber; ctx.shadowBlur = 8;
       ctx.font = '800 ' + Math.round(S * 0.05) + 'px -apple-system, system-ui, sans-serif';
-      ctx.fillText('NIVEAU ' + this.levelNum, 0, -S * 0.095);
+      ctx.fillText(lvlTxt, 0, -S * 0.095);
       ctx.fillStyle = T.amber; ctx.shadowColor = T.amber; ctx.shadowBlur = 26;
       ctx.font = '900 ' + Math.round(S * 0.115) + 'px -apple-system, system-ui, sans-serif';
-      ctx.fillText('🏁 COURSE', 0, -S * 0.01);
+      ctx.fillText(t('intro.race'), 0, -S * 0.01);
       ctx.shadowBlur = 10; ctx.fillStyle = T.text;
       ctx.font = '700 ' + Math.round(S * 0.04) + 'px -apple-system, system-ui, sans-serif';
-      ctx.fillText('Le GLOUTON vole vos batteries !', 0, S * 0.085);
+      ctx.fillText(t('intro.race.sub1'), 0, S * 0.085);
       ctx.fillStyle = T.textDim; ctx.shadowBlur = 0;
       ctx.font = '700 ' + Math.round(S * 0.03) + 'px -apple-system, system-ui, sans-serif';
-      ctx.fillText('Chaque vol recule l\'objectif — mordez-le sous bouclier 🛡️', 0, S * 0.145);
+      ctx.fillText(t('intro.race.sub2'), 0, S * 0.145);
     } else if (kind === 'chrono') {                    // ⏱ MODE CHRONO
       ctx.fillStyle = T.amber; ctx.shadowColor = T.amber; ctx.shadowBlur = 24;
       ctx.font = '900 ' + Math.round(S * 0.12) + 'px -apple-system, system-ui, sans-serif';
-      ctx.fillText('⏱ CHRONO', 0, 0);
+      ctx.fillText(t('intro.chrono'), 0, 0);
       ctx.shadowBlur = 10; ctx.fillStyle = T.text;
       ctx.font = '700 ' + Math.round(S * 0.045) + 'px -apple-system, system-ui, sans-serif';
       const mins = Math.round((CT.CONFIG.chrono.duration || 120) / 60);
-      ctx.fillText(mins + ' minute' + (mins > 1 ? 's' : '') + ' — score maximum !', 0, S * 0.1);
+      ctx.fillText(t('intro.chrono.sub', { mins, unit: mins > 1 ? t('word.minutes') : t('word.minute') }), 0, S * 0.1);
       ctx.fillStyle = T.textDim; ctx.shadowBlur = 0;
       ctx.font = '700 ' + Math.round(S * 0.032) + 'px -apple-system, system-ui, sans-serif';
-      ctx.fillText('Le temps file, le serpent accélère… tenez bon 🔋', 0, S * 0.16);
+      ctx.fillText(t('intro.chrono.sub2'), 0, S * 0.16);
+    } else if (kind === 'versus') {                    // 👥 duel 2 joueurs
+      ctx.fillStyle = T.cyan; ctx.shadowColor = T.glow; ctx.shadowBlur = 24;
+      ctx.font = '900 ' + Math.round(S * 0.12) + 'px -apple-system, system-ui, sans-serif';
+      ctx.fillText(t('intro.versus'), 0, -S * 0.02);
+      ctx.shadowBlur = 10; ctx.fillStyle = T.text;
+      ctx.font = '700 ' + Math.round(S * 0.04) + 'px -apple-system, system-ui, sans-serif';
+      ctx.fillText(t('intro.versus.sub', { n: CT.CONFIG.versus.target }), 0, S * 0.07);
+      ctx.fillStyle = T.textDim; ctx.shadowBlur = 0;
+      ctx.font = '700 ' + Math.round(S * 0.03) + 'px -apple-system, system-ui, sans-serif';
+      ctx.fillText(t('intro.versus.sub2'), 0, S * 0.135);
     } else {                                           // niveau normal
       if (this.daily) {                                // badge Défi du jour (map partagée)
         ctx.fillStyle = T.amber; ctx.shadowColor = T.amber; ctx.shadowBlur = 12;
         ctx.font = '800 ' + Math.round(S * 0.038) + 'px -apple-system, system-ui, sans-serif';
-        ctx.fillText('📅 DÉFI DU JOUR' + (this.ghost ? '  ·  👻 à battre : ' + this.ghost.score : ''), 0, -S * 0.115);
+        ctx.fillText(t('intro.daily') + (this.ghost ? t('intro.daily.ghost', { score: this.ghost.score }) : ''), 0, -S * 0.115);
+      } else if (this.challenge) {                     // badge Défi d'un ami (QR)
+        ctx.fillStyle = T.amber; ctx.shadowColor = T.amber; ctx.shadowBlur = 12;
+        ctx.font = '800 ' + Math.round(S * 0.036) + 'px -apple-system, system-ui, sans-serif';
+        ctx.fillText(t('intro.challenge', { name: this.challenge.name, score: this.challenge.score }), 0, -S * 0.115);
+      } else if (this.biome) {                         // badge du lieu (biome Cryptotem)
+        const bn = (CT.i18n && CT.i18n.biome(this.biome.id)) || this.biome.name;
+        ctx.fillStyle = (T[this.biome.tint] || T.teal); ctx.shadowColor = (T[this.biome.tint] || T.teal); ctx.shadowBlur = 12;
+        ctx.font = '800 ' + Math.round(S * 0.038) + 'px -apple-system, system-ui, sans-serif';
+        ctx.fillText(this.biome.icon + ' ' + bn, 0, -S * 0.115);
       }
       ctx.fillStyle = T.cyan; ctx.shadowColor = T.glow; ctx.shadowBlur = 24;
       ctx.font = '900 ' + Math.round(S * 0.13) + 'px -apple-system, system-ui, sans-serif';
-      ctx.fillText('NIVEAU ' + this.levelNum, 0, 0);
+      ctx.fillText(lvlTxt, 0, 0);
       ctx.shadowBlur = 10; ctx.fillStyle = T.text;
       ctx.font = '700 ' + Math.round(S * 0.045) + 'px -apple-system, system-ui, sans-serif';
-      ctx.fillText('Objectif : ' + this.level.needed + ' batteries 🔋', 0, S * 0.11);
+      ctx.fillText(t('intro.objective', { n: this.level.needed }), 0, S * 0.11);
       // MISSIONS de la partie (affichées au départ, niveau 1 uniquement)
       if (this.levelNum === 1 && this.missions && this.missions.length) {
         ctx.shadowBlur = 0;
         ctx.font = '700 ' + Math.round(S * 0.03) + 'px -apple-system, system-ui, sans-serif';
         this.missions.forEach((m, i) => {
           ctx.fillStyle = T.textDim;
-          ctx.fillText('🎯 ' + m.label + '  ·  +' + m.reward + ' ⚡', 0, S * (0.175 + i * 0.045));
+          const ml = (CT.i18n && CT.i18n.mission(m.id)) || m.label;
+          ctx.fillText('🎯 ' + ml + '  ·  +' + m.reward + ' ⚡', 0, S * (0.175 + i * 0.045));
         });
       }
     }
@@ -2358,6 +2571,163 @@ window.CT = window.CT || {};
     ctx.fillStyle = col; ctx.shadowColor = col; ctx.shadowBlur = 18;
     ctx.font = '900 ' + Math.round(cell * 1.15) + 'px -apple-system, system-ui, sans-serif';
     ctx.fillText('⏱ ' + n, 0, 0);
+    ctx.restore();
+  };
+
+  // Décor thématique du lieu (derrière la grille, fixe). Subtil (basse opacité).
+  G.drawBiome = function (tint) {
+    const b = this.biome; if (!b) return;
+    const ctx = this.ctx, W = this.W, H = this.H, motif = b.motif;
+    ctx.save();
+    if (motif === 'skyline') {                         // 🍸 bar : immeubles + fenêtres allumées
+      let x = 0, i = 0;
+      while (x < W) {
+        const bw = W * 0.08 + (i % 3) * W * 0.02, bh = H * (0.12 + 0.06 * ((i * 7) % 5));
+        ctx.globalAlpha = 0.18; ctx.fillStyle = mix(T.bg0, tint, 0.4);
+        ctx.fillRect(x, H - bh, bw * 0.92, bh);
+        ctx.globalAlpha = 0.10; ctx.fillStyle = tint;
+        for (let wy = H - bh + 8; wy < H - 8; wy += 14) for (let wx = x + 6; wx < x + bw * 0.92 - 6; wx += 12) ctx.fillRect(wx, wy, 5, 6);
+        x += bw; i++;
+      }
+    } else if (motif === 'film') {                     // 🎬 ciné : bandes de pellicule sur les côtés
+      const sw = W * 0.06;
+      ctx.globalAlpha = 0.16; ctx.fillStyle = mix(T.bg0, tint, 0.5);
+      ctx.fillRect(0, 0, sw, H); ctx.fillRect(W - sw, 0, sw, H);
+      ctx.globalAlpha = 0.45; ctx.fillStyle = T.bg0;
+      for (let y = 8; y < H; y += 26) { ctx.fillRect(sw * 0.28, y, sw * 0.44, 14); ctx.fillRect(W - sw + sw * 0.28, y, sw * 0.44, 14); }
+    } else if (motif === 'lanes') {                    // 🎳 bowling : pistes en perspective
+      ctx.globalAlpha = 0.14; ctx.strokeStyle = mix(T.bg0, tint, 0.6); ctx.lineWidth = 2;
+      const cxb = W / 2;
+      for (let k = -3; k <= 3; k++) { ctx.beginPath(); ctx.moveTo(cxb + k * W * 0.16, H); ctx.lineTo(cxb + k * W * 0.03, H * 0.2); ctx.stroke(); }
+    } else if (motif === 'disco') {                    // 🪩 disco : rayons balayants depuis le haut
+      const cxb = W / 2, cyb = H * 0.14;
+      ctx.globalAlpha = 0.10;
+      for (let k = 0; k < 10; k++) {
+        const a = (k / 10) * Math.PI * 2 + (this.reduce ? 0 : this.time * 0.3);
+        ctx.fillStyle = k % 2 ? tint : T.violet;
+        ctx.beginPath(); ctx.moveTo(cxb, cyb);
+        ctx.lineTo(cxb + Math.cos(a) * W, cyb + Math.sin(a) * H);
+        ctx.lineTo(cxb + Math.cos(a + 0.15) * W, cyb + Math.sin(a + 0.15) * H);
+        ctx.closePath(); ctx.fill();
+      }
+    } else if (motif === 'laser') {                    // 🔫 laser game : faisceaux diagonaux croisés
+      ctx.globalAlpha = 0.12; ctx.lineWidth = 3; ctx.lineCap = 'round';
+      for (let k = 0; k < 5; k++) {
+        const off = (k / 5) * H;
+        ctx.strokeStyle = k % 2 ? tint : T.danger;
+        ctx.beginPath(); ctx.moveTo(0, off); ctx.lineTo(W, off - H * 0.5); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, H - off); ctx.lineTo(W, H - off + H * 0.5); ctx.stroke();
+      }
+    }
+    ctx.restore();
+  };
+
+  // Batterie de duel (versus) dans la couleur du joueur.
+  G.drawVersusFood = function (f, col) {
+    const ctx = this.ctx, cell = this.cell;
+    const cx = (f.x + 0.5) * cell, cy = (f.y + 0.5) * cell;
+    const pulse = 0.5 + 0.5 * Math.sin(this.time * 5);
+    const bw = cell * 0.6 * (1 + pulse * 0.06), bh = cell * 0.42 * (1 + pulse * 0.06);
+    ctx.save(); ctx.translate(cx, cy);
+    ctx.shadowColor = col; ctx.shadowBlur = 14 + pulse * 10;
+    ctx.fillStyle = '#08252a'; U.rr(ctx, -bw / 2, -bh / 2, bw, bh, bh * 0.28); ctx.fill();
+    ctx.shadowBlur = 0; ctx.strokeStyle = col; ctx.lineWidth = 2;
+    U.rr(ctx, -bw / 2, -bh / 2, bw, bh, bh * 0.28); ctx.stroke();
+    ctx.fillStyle = col; ctx.fillRect(bw / 2, -bh * 0.18, bw * 0.10, bh * 0.36);
+    ctx.fillStyle = mix(col, '#ffffff', 0.4);
+    for (let i = 0; i < 3; i++) ctx.fillRect(-bw * 0.32 + i * bw * 0.22, -bh * 0.22, bw * 0.12, bh * 0.44);
+    ctx.restore();
+  };
+
+  // Serpent de duel (versus) : câble coloré interpolé (traversée des bords) + tête numérotée.
+  G.drawVersusSnake = function (snake, prev, dir, colHex, label) {
+    const ctx = this.ctx, cell = this.cell;
+    const t = this.state === 'playing' ? U.clamp(this.acc / this.effInterval, 0, 1) : 0;
+    const len = snake.length, boardW = COLS * cell, boardH = ROWS * cell;
+    const g = [];
+    for (let i = 0; i < len; i++) {
+      const p = prev[i] || snake[i], c = snake[i];
+      let dx = c.x - p.x; if (dx > 1) dx -= COLS; else if (dx < -1) dx += COLS;
+      let dy = c.y - p.y; if (dy > 1) dy -= ROWS; else if (dy < -1) dy += ROWS;
+      g.push({ x: p.x + dx * t, y: p.y + dy * t });
+    }
+    const px = (gx) => (gx + 0.5) * cell, py = (gy) => (gy + 0.5) * cell;
+    const tailHex = mix(colHex, T.bg1, 0.55);
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    for (let i = 0; i < len - 1; i++) {
+      const f = i / Math.max(1, len - 1);
+      const color = mix(colHex, tailHex, f), w = cell * (0.6 - 0.2 * f), blur = i < 3 ? 12 : 4;
+      const a = g[i], b = g[i + 1], ax = px(a.x), ay = py(a.y), bx = px(b.x), by = py(b.y);
+      if (Math.abs(a.x - b.x) > COLS / 2) {
+        if (a.x < b.x) { this._cable(ax, ay, bx - boardW, by, color, w, blur); this._cable(ax + boardW, ay, bx, by, color, w, blur); }
+        else { this._cable(ax, ay, bx + boardW, by, color, w, blur); this._cable(ax - boardW, ay, bx, by, color, w, blur); }
+      } else if (Math.abs(a.y - b.y) > ROWS / 2) {
+        if (a.y < b.y) { this._cable(ax, ay, bx, by - boardH, color, w, blur); this._cable(ax, ay + boardH, bx, by, color, w, blur); }
+        else { this._cable(ax, ay, bx, by + boardH, color, w, blur); this._cable(ax, ay - boardH, bx, by, color, w, blur); }
+      } else this._cable(ax, ay, bx, by, color, w, blur);
+    }
+    ctx.shadowBlur = 0;
+    const head = g[0], ang = Math.atan2(dir.y, dir.x);
+    this._forEachWrap(head.x, head.y, (x, y) => this._drawVersusHead(px(x), py(y), ang, colHex, label));
+  };
+
+  G._drawVersusHead = function (x, y, ang, colHex, label) {
+    const ctx = this.ctx, cell = this.cell, w = cell * 1.4, h = cell * 1.0;
+    ctx.save();
+    ctx.translate(x, y); ctx.rotate(ang);
+    ctx.shadowColor = colHex; ctx.shadowBlur = 14;
+    const body = ctx.createLinearGradient(-w / 2, 0, w / 2, 0);
+    body.addColorStop(0, '#0c181c'); body.addColorStop(1, mix(colHex, '#0c181c', 0.45));
+    ctx.fillStyle = body; U.rr(ctx, -w / 2, -h / 2, w, h, h * 0.32); ctx.fill();
+    ctx.shadowBlur = 0; ctx.strokeStyle = colHex; ctx.lineWidth = 2;
+    U.rr(ctx, -w / 2, -h / 2, w, h, h * 0.32); ctx.stroke();
+    ctx.fillStyle = '#cfe9ea'; U.rr(ctx, w / 2 - cell * 0.06, -h * 0.18, cell * 0.22, h * 0.36, cell * 0.08); ctx.fill();
+    ctx.rotate(-ang);   // libellé redressé
+    ctx.fillStyle = colHex; ctx.shadowColor = colHex; ctx.shadowBlur = 8;
+    ctx.font = '900 ' + Math.round(h * 0.6) + 'px -apple-system, system-ui, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(label, 0, h * 0.02);
+    ctx.restore();
+  };
+
+  // Scoreboard du duel (haut du plateau, hors shake).
+  G.drawVersusHud = function () {
+    if (!this.versus) return;
+    const ctx = this.ctx, W = this.W, cell = this.cell, V = CT.CONFIG.versus;
+    ctx.save();
+    ctx.font = '800 ' + Math.round(cell * 0.5) + 'px -apple-system, system-ui, sans-serif';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = T.cyan; ctx.shadowColor = T.cyan; ctx.shadowBlur = 8; ctx.textAlign = 'left';
+    ctx.fillText('🔵 J1  ' + this.batteries + '/' + V.target, cell * 0.4, cell * 0.6);
+    ctx.fillStyle = T.pink; ctx.shadowColor = T.pink; ctx.textAlign = 'right';
+    ctx.fillText(this.score2 + '/' + V.target + '  J2 🔴', W - cell * 0.4, cell * 0.6);
+    ctx.restore();
+  };
+
+  // Onboarding : bandeau d'aide + halo sur la 1ʳᵉ batterie (première partie uniquement).
+  G.drawTutorial = function () {
+    if (!this.tutorial || this.demo || this.state !== 'playing') return;
+    if (this.time < this.introUntil) return;           // attend la fin de l'annonce de niveau
+    let msg;
+    if (this.batteries === 0) msg = t('tuto.move');
+    else if (this.batteries < 3) msg = t('tuto.border');
+    else { this.tutorial = false; return; }            // tutoriel terminé (3 batteries)
+    const ctx = this.ctx, W = this.W, H = this.H, cell = this.cell;
+    // halo pulsé sur la batterie (étape 1)
+    if (this.batteries === 0 && this.food) {
+      const fx = (this.food.x + 0.5) * cell, fy = (this.food.y + 0.5) * cell;
+      const p = 0.5 + 0.5 * Math.sin(this.time * 6);
+      ctx.save(); ctx.strokeStyle = T.glow; ctx.globalAlpha = 0.4 + 0.4 * p; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(fx, fy, cell * (0.75 + 0.18 * p), 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+    }
+    // bandeau bas
+    const bh = cell * 1.15, by = H - bh - cell * 0.4, bw = W - cell * 1.2, bx = cell * 0.6;
+    ctx.save();
+    ctx.fillStyle = 'rgba(2,22,26,0.85)'; U.rr(ctx, bx, by, bw, bh, cell * 0.3); ctx.fill();
+    ctx.strokeStyle = T.glow; ctx.lineWidth = 2; U.rr(ctx, bx, by, bw, bh, cell * 0.3); ctx.stroke();
+    ctx.fillStyle = T.text; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '700 ' + Math.round(cell * 0.46) + 'px -apple-system, system-ui, sans-serif';
+    ctx.fillText(msg, W / 2, by + bh / 2);
     ctx.restore();
   };
 

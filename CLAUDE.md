@@ -304,6 +304,90 @@ prog(g), done }` ; compteurs de run dédiés `wallsRun`/`snakRun` (smashWall/bit
   (✅/🎯 par ligne, `showPause`) et dans le **récap de fin** (`.over-missions` : ✅/▫️ par
   icône + total ⚡, avant la ligne `lab-gain` qui inclut désormais les ⚡ missions).
 
+### Décors thématiques / biomes (`CONFIG.biomes` + `CT.getBiome`)
+Le réseau Cryptotem vit dans les **bars, cinémas, bowlings, discothèques et laser games** :
+chaque tranche de **3 niveaux** prend le décor d'un de ces lieux (`CT.getBiome(n)` = index
+`⌊(n-1)/3⌋` modulo la liste). `this.biome` est fixé dans `setupLevel`. Un biome = `{ id, name,
+icon, tint (clé de theme, rebrandable), motif }`. Le fond de `renderWorld` est **teinté** par
+`mix(bg1, theme[tint], 0.3)`, et `drawBiome(tint)` dessine un **motif décoratif** subtil
+(basse opacité, derrière la grille, fixe) : `skyline` (immeubles + fenêtres, bar), `film`
+(bandes de pellicule sur les côtés, ciné), `lanes` (pistes en perspective, bowling), `disco`
+(rayons balayants + violet), `laser` (faisceaux diagonaux croisés). L'intro « normale » affiche
+un **badge du lieu** (icône + nom) au-dessus de « NIVEAU X » (sauf en Défi du jour / défi d'ami,
+qui ont leur propre badge). Purement cosmétique — aucun impact gameplay.
+
+### Options d'accessibilité (`js/access.js` → `CT.Access`)
+Panneau « ⚙️ Options » (bouton accueil → `#optionsScreen`) avec 2 bascules **persistées**
+(`localStorage ct_access`), utiles sur les bornes en bar :
+- **Mode daltonien** : le rouge « danger » devient **orange** (`#ff8a1e`, bien plus distinct du
+  vert « charge » pour les deutéranopes/protanopes), l'ambre vire au jaune vif.
+- **Contraste élevé** : fond quasi noir + **grille nettement plus marquée**.
+`access.js` est chargé **juste après config.js** → applique les préférences **avant** que game.js
+ne capture le thème. Tout passe par **MUTATION** des propriétés de `CONFIG.theme` (jamais un
+remplacement d'objet → game.js lit `T.*` en direct) + synchronisation des variables CSS `:root`
+(`--danger`, `--amber`, `--bg0`, `--bg1`, `--text-dim`). Neutre par défaut ; toggle live via
+`CT.Access.toggle('colorblind'|'contrast')`.
+
+### Multi-langue / i18n (`js/i18n.js` → `CT.i18n`, FR / EN / ES)
+Localisation complète de l'UI et du texte de jeu en **français, anglais, espagnol**. Chargé
+**juste après access.js** → `CT.i18n.t(key, params)` disponible partout. Langue persistée
+(`localStorage ct_lang`), **auto-détectée** au 1ᵉʳ lancement (`navigator.language`, repli FR).
+Sélecteur **FR/EN/ES** dans l'écran Options.
+- **`STR`** : chaînes de la coque + du runtime par langue, avec `{placeholders}` substitués par `t()`.
+- **`apply(root)`** : traduit le HTML statique marqué **`data-i18n`** (textContent), **`data-i18n-html`**
+  (innerHTML, ex. `cta.sub`) et **`data-i18n-ph`** (placeholder du champ pseudo). Appelé au
+  démarrage (main.js) et à chaque changement de langue.
+- **Catalogues** (`CT.i18n.quest/medal/skin/mission/labName/labDesc/biome`) : les modules de
+  données (`lab.js`, `achievements.js`, `skins.js`, `MISSION_POOL`) restent le **repli FR** ; la
+  traduction se fait **au rendu** (main.js/game.js) via ces helpers → aucun module de données modifié.
+  Le sélecteur re-render l'écran ouvert (`CT.i18n.setOnChange` dans main.js : syncAudioButtons +
+  updateHud + écran courant + bannière de défi).
+- **Couverture** : accueil, HUD, toutes les intros (normal/enemy/boss/hydre/course/chrono/versus +
+  badges lieu/défi/jour), tutoriel, bannières (surcharge/record/événements), écran de fin (titres +
+  récap + missions + défi + labo), pause, Options, Labo, Quêtes, Stats, Skins & Boutique (noms +
+  descriptions + états), classement, missions. **Restent en FR** (repli, non traduits en v1) : les
+  **toasts fugaces en jeu** (« BATTERIE VOLÉE », « TÊTE COUPÉE », « GLOUTON DÉTRUIT », « ENRAGÉ »…),
+  cosmétiques et éphémères. Ajouter une langue = ajouter une entrée dans `STR` + les catalogues.
+
+### Onboarding — première partie guidée (`game.tutorial`)
+À la **toute première partie normale** sur l'appareil (drapeau `localStorage ct_seen`, posé
+au démarrage du tuto → une seule fois), `this.tutorial = true` (jamais en chrono/versus/daily/
+défi). `drawTutorial` (appelé dans `renderWorld`, hors intro) affiche un **bandeau d'aide** en
+bas + un **halo pulsé sur la 1ʳᵉ batterie**, avec un message qui évolue : 0 batterie → « Dirige
+la batterie : flèches, WASD ou swipe » ; 1-2 → « Fonce dans un bord : tu ressors en face ! » ;
+à 3 batteries le tuto s'éteint (`this.tutorial = false`). Non bloquant (le jeu se joue normalement).
+
+### Mode 2 joueurs — DUEL (`CONFIG.versus`, bouton « 👥 2 JOUEURS »)
+Duel local sur la même tablette : **J1 (cyan, flèches/swipe/D-pad) vs J2 (rose, WASD/ZQSD)**.
+`startRun(seed, 'versus')` → `game.versus` ; `setupLevel` court-circuite vers `setupVersus`
+(arène `pillars`, deux serpents opposés — J1 à gauche, J2 à droite —, chacun **sa batterie** sur
+sa moitié via `freeVersusCell(side)`, couloirs de spawn dégagés par `_clearObstacle`). **Aucun
+système solo** (power-ups / ennemis / malus / portails / missions / événements désactivés →
+duel épuré et équitable, vitesse fixe `versus.step`). Détails :
+- **Entrées** : `input.js` étiquette chaque touche `'p1'` (flèches) ou `'p2'` (WASD) ; en solo
+  les deux pilotent l'unique serpent, en versus `setDir(name, 'p2')` route vers `dirQueue2`.
+- **Pas de jeu** : `tick` appelle `stepVersus()` (au lieu de `step()`) — avance les deux serpents,
+  chacun mange sa batterie (grandit + score, respawn), puis **collisions testées après
+  déplacement** (obstacle · propre corps · corps adverse). **Tête-à-tête = égalité.** Premier à
+  `versus.target` (15) batteries — ou **dernier survivant** — gagne (`versusEnd(1|2|3)`).
+- **Rendu dédié** : `drawVersusFood` (batterie colorée), `drawVersusSnake` (câble interpolé +
+  traversée des bords + tête numérotée « 1 »/« 2 »), `drawVersusHud` (scoreboard « 🔵 J1 n/target »
+  / « n/target J2 🔴 »). HUD DOM = « 👥 DUEL ». Intro `introKind: 'versus'`.
+- **Fin** : `versusEnd` → écran de fin avec titre « 🏆 JOUEUR X GAGNE ! » / « 🤝 ÉGALITÉ ! »,
+  **classement masqué** (mode non scoré, `main.js showOver` cache `.lb` + le bouton défi).
+
+### Défi d'un ami par QR (`game.pendingChallenge` / `game.challenge`)
+À l'écran de fin, bouton **« 📲 Défier un ami »** (`#defiBtn`) → génère un **QR** (`CT.QR`, même
+encodeur que la CTA) encodant un lien vers le jeu : `…/?defi=1&s=<seed>&p=<score>&n=<pseudo>`
+(la **seed jouée** + le **score à battre** + le pseudo). L'ami scanne → `main.js` (IIFE
+`readChallengeLink`) lit `location.search`, pose `game.pendingChallenge` et affiche une
+**bannière dorée** sur l'accueil (« 🎯 Défi de X — bats N ! ») ; le bouton JOUER devient
+« 🎯 RELEVER LE DÉFI » et lance `startRun(undefined, 'challenge')`. En mode défi : `game.challenge`
+= `{ seed, score, name }`, **même map** (seed de l'ami), badge d'intro « 🎯 Défi de X — à battre : N ».
+À la mort, `challengeWon = points > challenge.score` → écran de fin titré « 🎉 DÉFI RELEVÉ ! » /
+« 😤 DÉFI MANQUÉ » + ligne récap. C'est un **run normal scoré** (soumis au classement Semaine/Global) ;
+seul le fantôme n'est pas transmis (trop volumineux pour un QR → « bats mon score », pas « vs fantôme »).
+
 ---
 
 ## 🎨 Identité visuelle (d'après logo.png + Station.jpeg)
@@ -632,10 +716,12 @@ complet : Reed-Solomon GF(256), sélection de masque par pénalité, BCH format/
 
 - Commentaires et UI en **français** (projet client FR).
 - Pas de dépendances externes ni d'étape de build : ça doit s'ouvrir et tourner.
-- Couleurs **uniquement** via `CONFIG.theme`.
+- Couleurs **uniquement** via `CONFIG.theme` (les options d'accessibilité MUTENT ces valeurs).
+- Texte visible via **`CT.i18n.t()`** / attributs `data-i18n` (FR/EN/ES) — pas de chaîne UI en dur.
 - Code attaché à `window.CT`, ordre de chargement des `<script>` important
-  (config → audio → input → scoring-rules → leaderboard → lab → achievements →
-  skins → ghost → qrcode → cinematics → game → main).
+  (config → **access** → **i18n** → audio → input → scoring-rules → leaderboard → lab →
+  achievements → skins → ghost → qrcode → cinematics → game → main). `access.js` juste après
+  `config.js` (thème d'accessibilité avant capture par `game.js`) ; `i18n.js` juste après.
 
 ## 🗺️ Pistes / TODO
 
@@ -735,3 +821,16 @@ complet : Reed-Solomon GF(256), sélection de masque par pénalité, BCH format/
 - [x] **Missions de partie** (`CONFIG.missions` + `MISSION_POOL`) : 3 objectifs secondaires
       par run (déterministes par seed), récompense ⚡ versée au Labo (jamais au score) ;
       affichées à l'intro niv. 1, en pause et au récap de fin.
+- [x] **Décors thématiques / biomes** (`CONFIG.biomes` + `CT.getBiome`) : bar/ciné/bowling/
+      disco/laser par tranche de 3 niveaux (fond teinté + motif `drawBiome` + badge d'intro).
+- [x] **Options d'accessibilité** (`js/access.js`) : mode daltonien (danger→orange) + contraste
+      élevé, persistés, appliqués via mutation de `CONFIG.theme` + variables CSS.
+- [x] **Onboarding** (`game.tutorial`) : première partie guidée (bandeau + halo sur la 1ʳᵉ
+      batterie, `ct_seen`), une seule fois par appareil.
+- [x] **Mode 2 joueurs — DUEL** (`CONFIG.versus`) : deux serpents (flèches vs WASD), deux
+      batteries, premier à 15 / dernier survivant gagne ; `stepVersus`, rendu + scoreboard dédiés.
+- [x] **Défi d'un ami par QR** (`game.challenge`) : QR (`CT.QR`) encodant seed+score+pseudo →
+      l'ami rejoue la même map avec le score à battre ; « DÉFI RELEVÉ / MANQUÉ » à la fin.
+- [x] **Multi-langue FR/EN/ES** (`js/i18n.js` → `CT.i18n`) : coque UI + runtime + catalogues
+      (Labo/Quêtes/Skins/Missions) traduits, sélecteur dans Options, langue persistée +
+      auto-détectée. Attributs `data-i18n` pour le HTML, `t()` pour le dynamique.

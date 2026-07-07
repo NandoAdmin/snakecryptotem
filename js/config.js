@@ -167,6 +167,27 @@ CT.CONFIG = {
     count: 3,            // missions tirées par partie
   },
 
+  /* MODE 2 JOUEURS (versus, même tablette) : deux serpents (J1 flèches/swipe, J2 WASD),
+     chacun sa batterie. Premier à `target` batteries — ou dernier survivant — gagne.
+     Arène symétrique sans power-ups/ennemis/malus (duel épuré et équitable). */
+  versus: {
+    target: 15,          // batteries à ramasser pour la victoire
+    step: 140,           // intervalle fixe (ms) — même vitesse pour les deux (équité)
+    obstacles: 10,       // arène : quelques piliers
+    pattern: 'pillars',
+  },
+
+  /* BIOMES / DÉCORS THÉMATIQUES : le réseau Cryptotem vit dans les bars, cinémas, bowlings,
+     discothèques et laser games. Chaque tranche de niveaux prend le décor d'un de ces lieux
+     (fond + motif). `tint` = clé de `theme` (rebrandable), `motif` = décor dessiné (drawBiome). */
+  biomes: [
+    { id: 'bar',     name: 'BAR',          icon: '🍸', tint: 'teal',   motif: 'skyline' },
+    { id: 'cine',    name: 'CINÉMA',       icon: '🎬', tint: 'violet', motif: 'film'    },
+    { id: 'bowling', name: 'BOWLING',      icon: '🎳', tint: 'amber',  motif: 'lanes'   },
+    { id: 'disco',   name: 'DISCOTHÈQUE',  icon: '🪩', tint: 'pink',   motif: 'disco'   },
+    { id: 'laser',   name: 'LASER GAME',   icon: '🔫', tint: 'lime',   motif: 'laser'   },
+  ],
+
   /* ÉVÉNEMENTS aléatoires en partie (jeu réel, hors combats de boss, dès `fromLevel`).
      Annonce bannière + sting, tirés via le PRNG déterministe (this.rng) → même séquence
      d'événements pour tous sur le Défi du jour. Un seul événement à la fois + temps mort. */
@@ -235,6 +256,14 @@ CT.getLevel = function (n) {
     obstacles: Math.min(40, last.obstacles + extra * 4),
     pattern: procPatterns[(extra - 1) % procPatterns.length],
   };
+};
+
+/* Biome (décor de lieu) du niveau n : change toutes les 3 niveaux, puis cycle. */
+CT.getBiome = function (n) {
+  const B = CT.CONFIG.biomes;
+  if (!B || !B.length) return null;
+  const i = Math.floor(((n | 0) - 1) / 3);
+  return B[((i % B.length) + B.length) % B.length];
 };
 
 /* Petits utilitaires partagés (math + dessin). */

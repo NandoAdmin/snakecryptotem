@@ -38,71 +38,108 @@
       <div class="brand">
         <img src="assets/logo.png" alt="Cryptotem" class="brand-logo" />
         <h1 class="title">SNAKE <span>CRYPTOTEM</span></h1>
-        <p class="tagline">Rechargez la ville. Attrapez les batteries. ⚡</p>
+        <p class="tagline" data-i18n="home.tagline">Rechargez la ville. Attrapez les batteries. ⚡</p>
       </div>
-      <button id="playBtn" class="btn-primary">JOUER</button>
-      <button id="dailyBtn" class="btn-ghost daily-btn">📅 DÉFI DU JOUR <span id="dailyGhostHint"></span></button>
-      <button id="chronoBtn" class="btn-ghost chrono-btn">⏱️ CHRONO — 2 MIN</button>
-      <p class="record">🏆 Record : <b id="startBest">0</b></p>
+      <div id="challengeBanner" class="challenge-banner hidden"></div>
+      <button id="playBtn" class="btn-primary" data-i18n="btn.play">JOUER</button>
+      <button id="dailyBtn" class="btn-ghost daily-btn"><span data-i18n="btn.daily">📅 DÉFI DU JOUR</span> <span id="dailyGhostHint"></span></button>
+      <button id="chronoBtn" class="btn-ghost chrono-btn" data-i18n="btn.chrono">⏱️ CHRONO — 2 MIN</button>
+      <button id="versusBtn" class="btn-ghost versus-btn" data-i18n="btn.versus">👥 2 JOUEURS — DUEL</button>
+      <p class="record"><span data-i18n="home.record">🏆 Record :</span> <b id="startBest">0</b></p>
       <div id="startBoard" class="start-board"></div>
       <ul class="howto">
-        <li>🔋 Attrapez les batteries pour allonger votre câble USB-C</li>
-        <li>🌀 Traversez les bords : vous ressortez de l'autre côté !</li>
-        <li>🎯 Atteignez l'objectif pour terminer le niveau</li>
-        <li>⚠️ Évitez les obstacles… et votre propre câble</li>
+        <li data-i18n="howto.1">🔋 Attrapez les batteries pour allonger votre câble USB-C</li>
+        <li data-i18n="howto.2">🌀 Traversez les bords : vous ressortez de l'autre côté !</li>
+        <li data-i18n="howto.3">🎯 Atteignez l'objectif pour terminer le niveau</li>
+        <li data-i18n="howto.4">⚠️ Évitez les obstacles… et votre propre câble</li>
       </ul>
       <div class="menu-btns">
-        <button id="labBtn" class="btn-ghost">🔬 Laboratoire</button>
-        <button id="achBtn" class="btn-ghost">🏆 Quêtes</button>
-        <button id="skinBtn" class="btn-ghost">🎨 Skins</button>
-        <button id="statsBtn" class="btn-ghost">📊 Stats</button>
+        <button id="labBtn" class="btn-ghost" data-i18n="btn.lab">🔬 Laboratoire</button>
+        <button id="achBtn" class="btn-ghost" data-i18n="btn.quests">🏆 Quêtes</button>
+        <button id="skinBtn" class="btn-ghost" data-i18n="btn.skins">🎨 Skins</button>
+        <button id="statsBtn" class="btn-ghost" data-i18n="btn.stats">📊 Stats</button>
+        <button id="optionsBtn" class="btn-ghost" data-i18n="btn.options">⚙️ Options</button>
       </div>
-      <p class="controls-hint">Flèches&nbsp;·&nbsp;WASD&nbsp;·&nbsp;Swipe&nbsp;·&nbsp;D-pad</p>
+      <p class="controls-hint" data-i18n="home.controls">Flèches&nbsp;·&nbsp;WASD&nbsp;·&nbsp;Swipe&nbsp;·&nbsp;D-pad</p>
       <button id="musicBtn" class="btn-ghost music-btn">🎵 Musique : Off</button>
     </div>
 
     <!-- Laboratoire (R&D) -->
     <div id="labScreen" class="overlay hidden">
-      <h2 class="overlay-title lab-title">🔬 LABORATOIRE</h2>
-      <p class="lab-intro">Dépense tes batteries &amp; points pour rechercher des améliorations permanentes.</p>
+      <h2 class="overlay-title lab-title" data-i18n="lab.title">🔬 LABORATOIRE</h2>
+      <p class="lab-intro" data-i18n="lab.intro">Dépense tes batteries &amp; points pour rechercher des améliorations permanentes.</p>
       <div class="lab-wallet">🔋 <b id="walletBat">0</b><span>·</span>⚡ <b id="walletPts">0</b></div>
       <div id="labResearch" class="lab-research hidden"></div>
       <div id="labList" class="lab-list"></div>
-      <button id="labResetBtn" class="btn-ghost lab-reset">Réinitialiser le Labo</button>
-      <button id="labCloseBtn" class="btn-primary">RETOUR</button>
+      <button id="labResetBtn" class="btn-ghost lab-reset" data-i18n="lab.reset">Réinitialiser le Labo</button>
+      <button id="labCloseBtn" class="btn-primary" data-i18n="btn.back">RETOUR</button>
     </div>
 
     <!-- Quêtes à paliers (Bronze → Diamant) -->
     <div id="achScreen" class="overlay hidden">
-      <h2 class="overlay-title lab-title">🏆 QUÊTES</h2>
-      <p class="lab-intro">Gravis les 5 paliers de chaque quête : Bronze → Diamant. <b id="achCount">0/0</b></p>
+      <h2 class="overlay-title lab-title" data-i18n="quests.title">🏆 QUÊTES</h2>
+      <p class="lab-intro"><span data-i18n="quests.intro">Gravis les 5 paliers de chaque quête : Bronze → Diamant.</span> <b id="achCount">0/0</b></p>
       <div id="achList" class="ach-list"></div>
-      <button id="achCloseBtn" class="btn-primary">RETOUR</button>
+      <button id="achCloseBtn" class="btn-primary" data-i18n="btn.back">RETOUR</button>
     </div>
 
     <!-- Statistiques (stats cumulées) -->
     <div id="statsScreen" class="overlay hidden">
-      <h2 class="overlay-title lab-title">📊 STATISTIQUES</h2>
-      <p class="lab-intro">Tes records et totaux cumulés sur cette borne.</p>
+      <h2 class="overlay-title lab-title" data-i18n="stats.title">📊 STATISTIQUES</h2>
+      <p class="lab-intro" data-i18n="stats.intro">Tes records et totaux cumulés sur cette borne.</p>
       <div id="statsGrid" class="stats-grid"></div>
-      <button id="statsCloseBtn" class="btn-primary">RETOUR</button>
+      <button id="statsCloseBtn" class="btn-primary" data-i18n="btn.back">RETOUR</button>
     </div>
 
     <!-- Skins du serpent (déblocables aux étoiles de quêtes) -->
     <div id="skinScreen" class="overlay hidden">
-      <h2 class="overlay-title lab-title">🎨 SKINS &amp; BOUTIQUE</h2>
-      <p class="lab-intro">Débloque des skins aux étoiles de quêtes, ou achète-les avec tes pièces. <b id="skinStars">★ 0</b> &nbsp;·&nbsp; ⚡ <b id="skinWallet">0</b></p>
-      <h3 class="skin-section">🐍 Serpent — Couleurs</h3>
+      <h2 class="overlay-title lab-title" data-i18n="skins.title">🎨 SKINS &amp; BOUTIQUE</h2>
+      <p class="lab-intro"><span data-i18n="skins.intro">Débloque des skins aux étoiles de quêtes, ou achète-les avec tes pièces.</span> <b id="skinStars">★ 0</b> &nbsp;·&nbsp; ⚡ <b id="skinWallet">0</b></p>
+      <h3 class="skin-section" data-i18n="skins.sec.snakeColors">🐍 Serpent — Couleurs</h3>
       <div id="skinList" class="skins-grid"></div>
-      <h3 class="skin-section">🐍 Serpent — Têtes</h3>
+      <h3 class="skin-section" data-i18n="skins.sec.snakeHeads">🐍 Serpent — Têtes</h3>
       <div id="headSkinList" class="skins-grid"></div>
-      <h3 class="skin-section">✨ Serpent — Traînées</h3>
+      <h3 class="skin-section" data-i18n="skins.sec.trails">✨ Serpent — Traînées</h3>
       <div id="trailList" class="skins-grid"></div>
-      <h3 class="skin-section">👹 Ennemis &amp; Boss — Couleurs</h3>
+      <h3 class="skin-section" data-i18n="skins.sec.enemyColors">👹 Ennemis &amp; Boss — Couleurs</h3>
       <div id="bossSkinList" class="skins-grid"></div>
-      <h3 class="skin-section">👹 Ennemis &amp; Boss — Têtes</h3>
+      <h3 class="skin-section" data-i18n="skins.sec.enemyHeads">👹 Ennemis &amp; Boss — Têtes</h3>
       <div id="enemyHeadList" class="skins-grid"></div>
-      <button id="skinCloseBtn" class="btn-primary">RETOUR</button>
+      <button id="skinCloseBtn" class="btn-primary" data-i18n="btn.back">RETOUR</button>
+    </div>
+
+    <!-- Options (accessibilité / confort visuel) -->
+    <div id="optionsScreen" class="overlay hidden">
+      <h2 class="overlay-title lab-title" data-i18n="options.title">⚙️ OPTIONS</h2>
+      <p class="lab-intro" data-i18n="options.intro">Confort visuel — utile sur les bornes en bar (soleil, vision des couleurs).</p>
+      <div class="opt-list">
+        <div class="opt-row">
+          <div class="opt-tx">
+            <div class="opt-nm" data-i18n="options.lang">🌍 Langue</div>
+            <div class="opt-ds" data-i18n="options.lang.desc">Choisis la langue du jeu.</div>
+          </div>
+          <div class="opt-langs">
+            <button class="opt-lang" data-lang="fr">FR</button>
+            <button class="opt-lang" data-lang="en">EN</button>
+            <button class="opt-lang" data-lang="es">ES</button>
+          </div>
+        </div>
+        <div class="opt-row">
+          <div class="opt-tx">
+            <div class="opt-nm" data-i18n="options.cb">👁️ Mode daltonien</div>
+            <div class="opt-ds" data-i18n="options.cb.desc">Le rouge de danger devient orange (plus distinct du vert).</div>
+          </div>
+          <button id="optColorblind" class="opt-toggle" role="switch">Off</button>
+        </div>
+        <div class="opt-row">
+          <div class="opt-tx">
+            <div class="opt-nm" data-i18n="options.contrast">🔆 Contraste élevé</div>
+            <div class="opt-ds" data-i18n="options.contrast.desc">Fond plus sombre et grille plus visible.</div>
+          </div>
+          <button id="optContrast" class="opt-toggle" role="switch">Off</button>
+        </div>
+      </div>
+      <button id="optionsCloseBtn" class="btn-primary" data-i18n="btn.back">RETOUR</button>
     </div>
 
     <!-- Notification de succès débloqué -->
@@ -110,15 +147,15 @@
 
     <!-- Pause -->
     <div id="pauseScreen" class="overlay hidden">
-      <h2 class="overlay-title">PAUSE</h2>
+      <h2 class="overlay-title" data-i18n="pause.title">PAUSE</h2>
       <p id="pauseStats" class="over-stats"></p>
       <div class="pause-toggles">
         <button id="pauseSoundBtn" class="btn-ghost">🔊 Son</button>
         <button id="pauseMusicBtn" class="btn-ghost">🎵 Musique</button>
       </div>
-      <button id="resumeBtn" class="btn-primary">REPRENDRE</button>
-      <button id="restartBtn" class="btn-ghost">RECOMMENCER</button>
-      <button id="quitBtn" class="btn-ghost">MENU</button>
+      <button id="resumeBtn" class="btn-primary" data-i18n="btn.resume">REPRENDRE</button>
+      <button id="restartBtn" class="btn-ghost" data-i18n="btn.restart">RECOMMENCER</button>
+      <button id="quitBtn" class="btn-ghost" data-i18n="btn.menu">MENU</button>
     </div>
 
     <!-- Game over -->
@@ -128,37 +165,42 @@
 
       <div class="lb">
         <div class="lb-name">
-          <span>Pseudo</span>
-          <input id="nameInput" type="text" maxlength="14" placeholder="Ton pseudo" autocomplete="off" />
+          <span data-i18n="over.name">Pseudo</span>
+          <input id="nameInput" type="text" maxlength="14" placeholder="Ton pseudo" autocomplete="off" data-i18n-ph="over.name.ph" />
         </div>
         <div class="lb-tabs">
-          <button class="lb-tab" data-scope="daily">☀️ Jour</button>
-          <button class="lb-tab active" data-scope="weekly">📅 Semaine</button>
-          <button class="lb-tab" data-scope="global">🌍 Global</button>
-          <button class="lb-tab" data-scope="chrono">⏱ Chrono</button>
+          <button class="lb-tab" data-scope="daily" data-i18n="tab.daily">☀️ Jour</button>
+          <button class="lb-tab active" data-scope="weekly" data-i18n="tab.weekly">📅 Semaine</button>
+          <button class="lb-tab" data-scope="global" data-i18n="tab.global">🌍 Global</button>
+          <button class="lb-tab" data-scope="chrono" data-i18n="tab.chrono">⏱ Chrono</button>
         </div>
         <ol id="lbList" class="lb-list"></ol>
         <p id="lbRank" class="lb-rank"></p>
-        <p class="lb-perso">🏅 Ton record : <b id="persoBest">0</b></p>
+        <p class="lb-perso"><span data-i18n="over.perso">🏅 Ton record :</span> <b id="persoBest">0</b></p>
       </div>
 
       <div class="cta">
         <img src="assets/logo.png" alt="Cryptotem" class="cta-logo" />
-        <p class="cta-title">⚡ Plus de batterie ? Pas de panique.</p>
-        <p class="cta-sub">Une borne <b>Cryptotem</b> vous attend dans votre bar, ciné, bowling ou club préféré. Rechargez en quelques secondes.</p>
+        <p class="cta-title" data-i18n="cta.title">⚡ Plus de batterie ? Pas de panique.</p>
+        <p class="cta-sub" data-i18n-html="cta.sub">Une borne <b>Cryptotem</b> vous attend dans votre bar, ciné, bowling ou club préféré. Rechargez en quelques secondes.</p>
         <div class="cta-qr">
           <canvas id="ctaQr" class="cta-qr-canvas" aria-label="QR code Cryptotem"></canvas>
-          <span class="cta-qr-cap">📲 Scanne pour trouver une borne</span>
+          <span class="cta-qr-cap" data-i18n="cta.qr">📲 Scanne pour trouver une borne</span>
         </div>
       </div>
-      <button id="retryBtn" class="btn-primary">REJOUER</button>
-      <button id="overLabBtn" class="btn-ghost">🔬 Laboratoire</button>
-      <button id="menuBtn" class="btn-ghost">MENU</button>
+      <button id="retryBtn" class="btn-primary" data-i18n="btn.retry">REJOUER</button>
+      <button id="defiBtn" class="btn-ghost defi-btn" data-i18n="btn.defi">📲 Défier un ami</button>
+      <div id="defiBox" class="defi-box hidden">
+        <p class="defi-cap" data-i18n="defi.cap">📲 Fais scanner ce QR à un ami : même terrain, ton score à battre !</p>
+        <canvas id="defiQr" class="defi-qr-canvas" aria-label="QR code défi"></canvas>
+      </div>
+      <button id="overLabBtn" class="btn-ghost" data-i18n="btn.lab">🔬 Laboratoire</button>
+      <button id="menuBtn" class="btn-ghost" data-i18n="btn.menu">MENU</button>
     </div>
 
     <!-- UI cinématique (le visuel est dessiné sur le canvas) -->
     <div id="cineUi" class="overlay overlay-clear hidden">
-      <button id="continueBtn" class="btn-primary hidden">NIVEAU SUIVANT ▸</button>
+      <button id="continueBtn" class="btn-primary hidden" data-i18n="btn.next">NIVEAU SUIVANT ▸</button>
     </div>
 
     <!-- D-pad tactile -->
@@ -172,6 +214,8 @@
 
   <!-- Ordre de chargement important (namespace window.CT) -->
   <script src="js/config.js"></script>
+  <script src="js/access.js"></script>
+  <script src="js/i18n.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/input.js"></script>
   <script src="js/scoring-rules.js"></script>

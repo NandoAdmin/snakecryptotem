@@ -7,6 +7,10 @@
   const ctx = canvas.getContext('2d');
   const game = new CT.Game(ctx);
 
+  // i18n : traduit le HTML statique dès le démarrage (langue persistée / auto-détectée)
+  const t = (k, p) => (CT.i18n ? CT.i18n.t(k, p) : k);
+  if (CT.i18n) CT.i18n.apply(document);
+
   // Classement EN LIGNE : si un serveur est configuré, les records s'enregistrent
   // dessus (partagés entre toutes les bornes) ; sinon stockage local. Voir CONFIG.leaderboard.
   const lbCfg = CT.CONFIG.leaderboard;
@@ -49,10 +53,10 @@
     }
     CT.Leaderboard.fetchBoards().then((b) => {
       const top = (b.weekly || []).slice(0, 3);
-      startBoard.innerHTML = '<h3>📅 TOP DE LA SEMAINE</h3>';
+      startBoard.innerHTML = '<h3>' + t('board.week') + '</h3>';
       if (!top.length) {
         const e = document.createElement('div');
-        e.className = 'sb-empty'; e.textContent = 'Sois le premier du classement !';
+        e.className = 'sb-empty'; e.textContent = t('lb.empty');
         startBoard.appendChild(e);
         return;
       }
@@ -94,7 +98,7 @@
       lbList.innerHTML = '';
       if (!list.length) {
         const li = document.createElement('li');
-        li.className = 'empty'; li.textContent = 'Sois le premier du classement !';
+        li.className = 'empty'; li.textContent = t('lb.empty');
         lbList.appendChild(li);
       } else {
         list.forEach((e, i) => {
@@ -108,19 +112,38 @@
           lbList.appendChild(li);
         });
       }
-      const rankTxt = (rank > 5 && game.lastEntry && game.lastEntry.score > 0) ? 'Ton rang : #' + rank : '';
+      const rankTxt = (rank > 5 && game.lastEntry && game.lastEntry.score > 0) ? t('lb.rank', { n: rank }) : '';
       // hors-ligne : le score est enregistré localement et sera synchronisé au retour du réseau
       lbRank.textContent = (sub && sub.offline)
-        ? (rankTxt ? rankTxt + ' · ' : '') + '📡 hors-ligne — synchro à la reconnexion'
+        ? (rankTxt ? rankTxt + ' · ' : '') + t('lb.offline')
         : rankTxt;
     });
   }
 
   const overTitle = document.querySelector('#overScreen .overlay-title');
+  const lbBlock = document.querySelector('#overScreen .lb');
+  const overStatsEl = document.getElementById('overStats');
+  const defiBtn = document.getElementById('defiBtn');
+  const defiBox = document.getElementById('defiBox');
   function showOver() {
     overlays.over.classList.remove('hidden');
-    // fin au temps (mode chrono) ≠ mort par collision
-    if (overTitle) overTitle.textContent = game.chronoExpired ? '⏱️ TEMPS ÉCOULÉ !' : 'BATTERIE DÉCHARGÉE';
+    if (defiBox) defiBox.classList.add('hidden');   // QR replié à chaque ouverture
+    if (game.versus) {
+      // DUEL : pas de classement (mode non scoré) — écran de victoire
+      const w = game.versusWinner;
+      if (overTitle) overTitle.textContent = w === 3 ? t('over.title.draw') : (w === 1 ? t('over.title.win1') : t('over.title.win2'));
+      if (overStatsEl) overStatsEl.innerHTML = t('over.versus', { a: game.batteries, b: game.score2 });
+      if (lbBlock) lbBlock.classList.add('hidden');
+      if (defiBtn) defiBtn.classList.add('hidden');
+      return;
+    }
+    if (lbBlock) lbBlock.classList.remove('hidden');
+    if (defiBtn) defiBtn.classList.remove('hidden');
+    // titre : défi relevé/manqué · temps écoulé (chrono) · défaite classique
+    if (overTitle) {
+      overTitle.textContent = game.challenge ? (game.challengeWon ? t('over.title.cwon') : t('over.title.clost'))
+        : game.chronoExpired ? t('over.title.timeup') : t('over.title.dead');
+    }
     nameInput.value = CT.Leaderboard.getName();
     // après un Défi du jour → onglet Jour ; après un Chrono → onglet Chrono
     setScope(game.chrono ? 'chrono' : game.daily ? 'daily' : 'weekly');
@@ -162,12 +185,13 @@
 
   /* ---------------- entrées ---------------- */
   CT.Input.init({
-    onDir: (d) => game.setDir(d),
+    onDir: (d, p) => game.setDir(d, p),
     onAction: (a) => {
       if (labScreenEl && !labScreenEl.classList.contains('hidden')) return; // Labo ouvert : on ignore les touches de jeu
       if (achScreenEl && !achScreenEl.classList.contains('hidden')) return; // Succès ouvert : idem
       if (statsScreenEl && !statsScreenEl.classList.contains('hidden')) return; // Stats ouvert : idem
       if (skinScreenEl && !skinScreenEl.classList.contains('hidden')) return; // Skins ouvert : idem
+      if (optionsScreenEl && !optionsScreenEl.classList.contains('hidden')) return; // Options ouvert : idem
       if (a === 'pause') {
         if (game.state === 'playing' || game.state === 'paused') game.togglePause();
       } else if (a === 'mute') {
@@ -198,17 +222,20 @@
   const pauseMusicBtn = document.getElementById('pauseMusicBtn');
   function syncAudioButtons() {
     const muted = CT.Audio.isMuted(), music = CT.Audio.isMusicOn();
+    const onOff = music ? t('word.on') : t('word.off');
     muteBtn.textContent = muted ? '🔇' : '🔊';
-    pauseSoundBtn.textContent = (muted ? '🔇' : '🔊') + ' Son';
-    pauseMusicBtn.textContent = '🎵 Musique : ' + (music ? 'On' : 'Off');
+    pauseSoundBtn.textContent = (muted ? '🔇' : '🔊') + ' ' + t('audio.sound');
+    pauseMusicBtn.textContent = t('audio.music') + ' ' + onOff;
     const mb = document.getElementById('musicBtn');
-    if (mb) mb.textContent = '🎵 Musique : ' + (music ? 'On' : 'Off');
+    if (mb) mb.textContent = t('audio.music') + ' ' + onOff;
   }
   function toggleMute() { CT.Audio.toggleMute(); syncAudioButtons(); }
 
-  document.getElementById('playBtn').addEventListener('click', () => { runMode = 'normal'; begin(); });
+  // JOUER relève le défi d'un ami si un lien ?defi a été ouvert, sinon partie normale
+  document.getElementById('playBtn').addEventListener('click', () => { runMode = game.pendingChallenge ? 'challenge' : 'normal'; begin(); });
   document.getElementById('dailyBtn').addEventListener('click', () => { runMode = 'daily'; begin(); });
   document.getElementById('chronoBtn').addEventListener('click', () => { runMode = 'chrono'; begin(); });
+  document.getElementById('versusBtn').addEventListener('click', () => { runMode = 'versus'; begin(); });
   document.getElementById('retryBtn').addEventListener('click', begin);   // garde le mode courant
   document.getElementById('continueBtn').addEventListener('click', nextLevel);
   document.getElementById('resumeBtn').addEventListener('click', () => game.togglePause());
@@ -227,23 +254,28 @@
   // Écran de pause enrichi : stats de la partie + raccourcis audio
   function showPause() {
     const el = document.getElementById('pauseStats');
+    if (el && game.versus) {
+      el.innerHTML = t('hud.duel') + ' · 🔵 J1 <b>' + game.batteries + '</b> · 🔴 J2 <b>' + game.score2 + '</b>';
+      syncAudioButtons();
+      return;
+    }
     if (el && game.level) {
       let obj;
       if (game.bossLevel && game.bosses && game.bosses.length) {
         const hp = game.bossesHp();
-        obj = '<b>' + hp.hp + '</b>/' + hp.max + ' ❤️ (boss)';
+        obj = '<b>' + hp.hp + '</b>/' + hp.max + ' ❤️';
       } else if (game.chrono) {
         const rem = game.chronoEnd > 0 ? Math.max(0, Math.ceil(game.chronoEnd - game.time)) : 0;
         obj = '<b>' + rem + '</b> s ⏱';
       } else {
         obj = '<b>' + game.batteries + '</b>/' + game.level.needed + ' 🔋';
       }
-      el.innerHTML = (game.chrono ? '⏱ Chrono' : 'Niveau <b>' + game.levelNum + '</b>') +
-        ' · Score <b>' + game.points + '</b> · ' + obj;
+      el.innerHTML = (game.chrono ? t('hud.chrono') : t('hud.level') + ' <b>' + game.levelNum + '</b>') +
+        ' · ⚡ <b>' + game.points + '</b> · ' + obj;
       // missions de la partie (✅ faites / 🎯 en cours)
       if (game.missions && game.missions.length) {
         el.innerHTML += '<span class="over-missions">' +
-          game.missions.map((m) => (m.done ? '✅' : '🎯') + ' ' + m.label).join('<br>') + '</span>';
+          game.missions.map((m) => (m.done ? '✅' : '🎯') + ' ' + ((CT.i18n && CT.i18n.mission(m.id)) || m.label)).join('<br>') + '</span>';
       }
     }
     syncAudioButtons();
@@ -279,15 +311,16 @@
     labResearch.classList.remove('hidden');
     labResearch.innerHTML = '';
     const head = document.createElement('div'); head.className = 'lr-head';
-    const nm = document.createElement('span'); nm.textContent = u.icon + ' ' + u.name + ' — recherche…';
+    const uName = (CT.i18n && CT.i18n.labName(r.key)) || u.name;
+    const nm = document.createElement('span'); nm.textContent = u.icon + ' ' + uName + ' — ' + t('lab.researching');
     const tm = document.createElement('span'); tm.className = 'lr-time';
     head.append(nm, tm);
     const bar = document.createElement('div'); bar.className = 'lr-bar';
     const fill = document.createElement('i'); bar.appendChild(fill);
     labResearch.append(head, bar);
     if (CT.Lab.isReady()) {
-      tm.textContent = '✓ Prêt'; fill.style.width = '100%';
-      const claim = document.createElement('button'); claim.className = 'lr-claim'; claim.textContent = 'RÉCUPÉRER';
+      tm.textContent = t('lab.ready'); fill.style.width = '100%';
+      const claim = document.createElement('button'); claim.className = 'lr-claim'; claim.textContent = t('lab.claim');
       claim.addEventListener('click', () => { CT.Audio.ui(); CT.Lab.claim(); renderLab(); });
       labResearch.appendChild(claim);
     } else {
@@ -302,22 +335,24 @@
     const w = CT.Lab.wallet();
     Object.keys(CT.Lab.UPGRADES).forEach((key) => {
       const u = CT.Lab.UPGRADES[key], l = CT.Lab.level(key);
+      const uName = (CT.i18n && CT.i18n.labName(key)) || u.name;
+      const dsc = (lv2) => (CT.i18n && CT.i18n.labDesc(key, lv2)) || u.desc(lv2);
       const card = document.createElement('div'); card.className = 'lab-up';
       const top = document.createElement('div'); top.className = 'lu-top';
       const ic = document.createElement('span'); ic.className = 'lu-icon'; ic.textContent = u.icon;
-      const nm = document.createElement('span'); nm.className = 'lu-name'; nm.textContent = u.name;
+      const nm = document.createElement('span'); nm.className = 'lu-name'; nm.textContent = uName;
       const lv = document.createElement('span'); lv.className = 'lu-lvl'; lv.textContent = 'Niv ' + l + '/' + u.max;
       top.append(ic, nm, lv);
       const desc = document.createElement('div'); desc.className = 'lu-desc';
       card.append(top, desc);
-      if (l >= u.max) { card.classList.add('maxed'); desc.textContent = u.desc(l) + ' (max)'; labList.appendChild(card); return; }
-      desc.textContent = 'Prochain : ' + u.desc(l + 1);
+      if (l >= u.max) { card.classList.add('maxed'); desc.textContent = dsc(l) + t('lab.max'); labList.appendChild(card); return; }
+      desc.textContent = t('lab.next') + dsc(l + 1);
       const c = u.cost(l); const afford = w.bat >= c.bat && w.pts >= c.pts;
       const cost = document.createElement('div'); cost.className = 'lu-cost ' + (afford ? 'afford' : 'poor');
       cost.textContent = (c.bat ? '🔋 ' + c.bat + '   ' : '') + '⚡ ' + c.pts;   // 🔋 masqué si coût en pièces seules
       const tm = document.createElement('div'); tm.className = 'lu-time'; tm.textContent = '⏱ ' + fmtTime(u.time(l));
       const btn = document.createElement('button');
-      btn.textContent = researching ? 'Labo occupé' : 'Rechercher';
+      btn.textContent = researching ? t('lab.busy') : t('lab.research');
       btn.disabled = researching || !afford;
       btn.addEventListener('click', () => { if (CT.Lab.startResearch(key).ok) { CT.Audio.ui(); renderLab(); } });
       card.append(cost, tm, btn);
@@ -331,12 +366,12 @@
   let resetArmed = false, resetTimer = null;
   function disarmReset() {
     resetArmed = false; if (resetTimer) { clearTimeout(resetTimer); resetTimer = null; }
-    labResetBtn.textContent = 'Réinitialiser le Labo'; labResetBtn.classList.remove('danger-armed');
+    labResetBtn.textContent = t('lab.reset'); labResetBtn.classList.remove('danger-armed');
   }
   labResetBtn.addEventListener('click', () => {
     if (!resetArmed) {
       resetArmed = true;
-      labResetBtn.textContent = '⚠️ Confirmer la remise à zéro';
+      labResetBtn.textContent = t('lab.reset.confirm');
       labResetBtn.classList.add('danger-armed');
       resetTimer = setTimeout(disarmReset, 3500);
     } else {
@@ -376,15 +411,17 @@
       const ic = document.createElement('span'); ic.className = 'ach-ic'; ic.textContent = q.icon;
       const tx = document.createElement('div'); tx.className = 'ach-tx';
       const nm = document.createElement('div'); nm.className = 'ach-nm';
-      nm.textContent = q.name;
+      nm.textContent = (CT.i18n && CT.i18n.quest(q.id)) || q.name;
+      const curMedal = q.tier > 0 && CT.i18n ? CT.i18n.medal(q.tier - 1) : q.medal;
+      const nextMedal = !q.done && CT.i18n ? CT.i18n.medal(q.tier) : q.nextMedal;
       if (q.medal) {
-        const b = document.createElement('span'); b.className = 'ach-medal m-' + q.tier; b.textContent = q.medal;
+        const b = document.createElement('span'); b.className = 'ach-medal m-' + q.tier; b.textContent = curMedal;
         nm.appendChild(b);
       }
       const ds = document.createElement('div'); ds.className = 'ach-ds';
       ds.textContent = q.done
-        ? 'Complété ✦ ' + q.valueFmt
-        : 'Vers ' + q.nextMedal + ' : ' + q.valueFmt + ' / ' + q.nextDesc;
+        ? t('quests.done') + q.valueFmt
+        : t('quests.toward', { medal: nextMedal, value: q.valueFmt, next: q.nextDesc });
       tx.append(nm, ds);
       const st = document.createElement('span'); st.className = 'ach-st ach-stars';
       st.textContent = '★'.repeat(q.tier) + '☆'.repeat(q.max - q.tier);
@@ -417,17 +454,17 @@
     const st = CT.Achievements.stats();
     const c = CT.Achievements.count();
     const cards = [
-      { ic: '🎮', label: 'Parties jouées',    val: st.games || 0 },
-      { ic: '🔋', label: 'Batteries (total)',  val: st.totalBat || 0 },
-      { ic: '⚡', label: 'Power-ups (total)',  val: st.totalBonus || 0 },
-      { ic: '🏆', label: 'Meilleur score',     val: (st.bestScore || 0).toLocaleString('fr-FR') },
-      { ic: '🗺️', label: 'Niveau max',         val: st.maxLevel || 1 },
-      { ic: '🔥', label: 'Combo max',          val: '×' + (st.maxCombo || 0) },
-      { ic: '⏱️', label: 'Meilleure survie',   val: fmtDuration(st.maxDurationMs) },
-      { ic: '🔬', label: 'Versé au Labo',      val: (st.bankedPts || 0).toLocaleString('fr-FR') + ' ⚡' },
-      { ic: '🧱', label: 'Murs brisés',        val: (st.wallsSmashed || 0).toLocaleString('fr-FR') },
-      { ic: '🐍', label: 'Snakator détruit',   val: (st.snakatorBlocks || 0).toLocaleString('fr-FR') },
-      { ic: '🏅', label: 'Quêtes (★)',         val: c.unlocked + '/' + c.total },
+      { ic: '🎮', label: t('stats.games'),   val: st.games || 0 },
+      { ic: '🔋', label: t('stats.bat'),     val: st.totalBat || 0 },
+      { ic: '⚡', label: t('stats.bonus'),   val: st.totalBonus || 0 },
+      { ic: '🏆', label: t('stats.best'),    val: (st.bestScore || 0).toLocaleString('fr-FR') },
+      { ic: '🗺️', label: t('stats.level'),   val: st.maxLevel || 1 },
+      { ic: '🔥', label: t('stats.combo'),   val: '×' + (st.maxCombo || 0) },
+      { ic: '⏱️', label: t('stats.survive'), val: fmtDuration(st.maxDurationMs) },
+      { ic: '🔬', label: t('stats.lab'),     val: (st.bankedPts || 0).toLocaleString('fr-FR') + ' ⚡' },
+      { ic: '🧱', label: t('stats.walls'),   val: (st.wallsSmashed || 0).toLocaleString('fr-FR') },
+      { ic: '🐍', label: t('stats.snak'),    val: (st.snakatorBlocks || 0).toLocaleString('fr-FR') },
+      { ic: '🏅', label: t('stats.quests'),  val: c.unlocked + '/' + c.total },
     ];
     statsGridEl.innerHTML = '';
     cards.forEach((c2) => {
@@ -464,7 +501,7 @@
 
   // Rendu générique d'une grille de skins (serpent ou boss) — `mod` expose l'API commune
   // (SKINS, isUnlocked, selectedId, select, buy, preview) ; `apply` reflète le choix en jeu.
-  function renderSkinGrid(container, mod, apply) {
+  function renderSkinGrid(container, mod, apply, group) {
     const selId = mod.selectedId();
     const coins = CT.Lab.wallet().pts;
     container.innerHTML = '';
@@ -476,7 +513,8 @@
       card.className = 'skin-card' + (equipped ? ' selected' : '') + (!unlocked ? (priced ? ' buyable' : ' locked') : '');
       const top = document.createElement('div'); top.className = 'sk-top';
       const ic = document.createElement('span'); ic.className = 'sk-ic'; ic.textContent = s.icon;
-      const nm = document.createElement('span'); nm.className = 'sk-name'; nm.textContent = s.name;
+      const nm = document.createElement('span'); nm.className = 'sk-name';
+      nm.textContent = (group && CT.i18n && CT.i18n.skin(group, s.id)) || s.name;
       top.append(ic, nm);
       const colors = mod.preview(s.id);
       let sw;
@@ -489,9 +527,9 @@
       const st = document.createElement('div'); st.className = 'sk-state';
       card.append(top, sw, st);
       if (equipped) {
-        st.textContent = '✓ Équipé';
+        st.textContent = t('skins.equipped');
       } else if (unlocked) {
-        st.textContent = 'Choisir'; st.classList.add('sk-choose');
+        st.textContent = t('skins.choose'); st.classList.add('sk-choose');
         card.addEventListener('click', () => { if (mod.select(s.id)) { CT.Audio.ui(); apply(); renderSkins(); } });
       } else if (priced) {
         const afford = coins >= s.price;
@@ -500,7 +538,7 @@
           if (mod.buy(s.id)) { if (CT.Audio.bonus) CT.Audio.bonus(); mod.select(s.id); apply(); renderSkins(); }
         });
       } else {
-        st.textContent = '🔒 ' + s.stars + ' ★ requises';
+        st.textContent = t('skins.locked', { n: s.stars });
       }
       container.appendChild(card);
     });
@@ -509,13 +547,13 @@
   function renderSkins() {
     skinStarsEl.textContent = '★ ' + CT.Skins.stars();
     skinWalletEl.textContent = CT.Lab.wallet().pts;
-    renderSkinGrid(skinListEl, CT.Skins, () => { if (CT.game) CT.game.palette = CT.Skins.activePalette(); });
-    renderSkinGrid(headSkinListEl, CT.HeadSkins, () => { if (CT.game) CT.game.headStyle = CT.HeadSkins.selectedId(); });
-    renderSkinGrid(trailListEl, CT.Trails, () => { if (CT.game) CT.game.trailStyle = CT.Trails.selectedId(); });
+    renderSkinGrid(skinListEl, CT.Skins, () => { if (CT.game) CT.game.palette = CT.Skins.activePalette(); }, 'snake');
+    renderSkinGrid(headSkinListEl, CT.HeadSkins, () => { if (CT.game) CT.game.headStyle = CT.HeadSkins.selectedId(); }, 'head');
+    renderSkinGrid(trailListEl, CT.Trails, () => { if (CT.game) CT.game.trailStyle = CT.Trails.selectedId(); }, 'trail');
     renderSkinGrid(bossSkinListEl, CT.BossSkins, () => {
       if (CT.game) CT.game.enemySkin = { main: CT.BossSkins.activeMain(), aura: CT.BossSkins.activeAura() };
-    });
-    renderSkinGrid(enemyHeadListEl, CT.EnemyHeads, () => { if (CT.game) CT.game.enemyHeadStyle = CT.EnemyHeads.selectedId(); });
+    }, 'boss');
+    renderSkinGrid(enemyHeadListEl, CT.EnemyHeads, () => { if (CT.game) CT.game.enemyHeadStyle = CT.EnemyHeads.selectedId(); }, 'enemyhead');
   }
   function openSkins() {
     overlays.start.classList.add('hidden');
@@ -530,6 +568,90 @@
   document.getElementById('skinBtn').addEventListener('click', () => { CT.Audio.unlock(); CT.Audio.ui(); openSkins(); });
   document.getElementById('skinCloseBtn').addEventListener('click', () => { CT.Audio.ui(); closeSkins(); });
 
+  /* ---------------- Options (accessibilité) ---------------- */
+  const optionsScreenEl = document.getElementById('optionsScreen');
+  const optColorblind = document.getElementById('optColorblind');
+  const optContrast = document.getElementById('optContrast');
+  const langBtns = optionsScreenEl.querySelectorAll('.opt-lang');
+  function renderOptions() {
+    const setBtn = (btn, on) => { btn.textContent = on ? t('word.on') : t('word.off'); btn.classList.toggle('on', on); btn.setAttribute('aria-checked', on ? 'true' : 'false'); };
+    if (CT.Access) { setBtn(optColorblind, CT.Access.isColorblind()); setBtn(optContrast, CT.Access.isContrast()); }
+    const cur = CT.i18n ? CT.i18n.get() : 'fr';
+    langBtns.forEach((b) => b.classList.toggle('on', b.dataset.lang === cur));
+  }
+  function openOptions() {
+    overlays.start.classList.add('hidden');
+    optionsScreenEl.classList.remove('hidden');
+    renderOptions();
+  }
+  function closeOptions() {
+    optionsScreenEl.classList.add('hidden');
+    overlays.start.classList.remove('hidden');
+    renderStartBoard();
+  }
+  optColorblind.addEventListener('click', () => { if (CT.Access) CT.Access.toggle('colorblind'); CT.Audio.ui(); renderOptions(); });
+  optContrast.addEventListener('click', () => { if (CT.Access) CT.Access.toggle('contrast'); CT.Audio.ui(); renderOptions(); });
+  langBtns.forEach((b) => b.addEventListener('click', () => { if (CT.i18n) CT.i18n.setLang(b.dataset.lang); CT.Audio.ui(); renderOptions(); }));
+  document.getElementById('optionsBtn').addEventListener('click', () => { CT.Audio.unlock(); CT.Audio.ui(); openOptions(); });
+  document.getElementById('optionsCloseBtn').addEventListener('click', () => { CT.Audio.ui(); closeOptions(); });
+
+  /* ---------------- Défi d'un ami (QR) ---------------- */
+  // Génère le QR à l'écran de fin : lien vers le jeu avec la seed jouée + le score à battre.
+  const defiBtnEl = document.getElementById('defiBtn');
+  const defiBoxEl = document.getElementById('defiBox');
+  const defiQrEl = document.getElementById('defiQr');
+  if (defiBtnEl) defiBtnEl.addEventListener('click', () => {
+    CT.Audio.ui();
+    if (!defiBoxEl.classList.contains('hidden')) { defiBoxEl.classList.add('hidden'); return; }  // 2ᵉ clic → replie
+    try {
+      const base = location.origin + location.pathname;
+      const name = (CT.Leaderboard.getName() || 'Joueur').slice(0, 14);
+      const params = 'defi=1&s=' + (game.seed >>> 0) + '&p=' + (game.points | 0) + '&n=' + encodeURIComponent(name);
+      const url = base + '?' + params;
+      if (CT.QR && defiQrEl) CT.QR.render(defiQrEl, url, { px: 220, quiet: 3, dark: '#04161a' });
+      defiBoxEl.classList.remove('hidden');
+    } catch (e) { console.warn('QR défi indisponible', e); }
+  });
+
+  // Lien de défi ouvert (?defi=1&s=&p=&n=) → prépare la partie « relever le défi »
+  const challengeBannerEl = document.getElementById('challengeBanner');
+  function applyChallengeUI() {   // (ré)affiche la bannière + le libellé JOUER (traduits)
+    if (!game.pendingChallenge) return;
+    const c = game.pendingChallenge;
+    if (challengeBannerEl) {
+      challengeBannerEl.classList.remove('hidden');
+      challengeBannerEl.innerHTML = t('challenge.banner', { name: String(c.name).replace(/[<>]/g, ''), score: c.score });
+    }
+    const pb = document.getElementById('playBtn');
+    if (pb) pb.textContent = t('challenge.play');
+  }
+  (function readChallengeLink() {
+    try {
+      const q = new URLSearchParams(location.search);
+      if (q.get('defi') !== '1') return;
+      const seed = parseInt(q.get('s'), 10), score = parseInt(q.get('p'), 10);
+      if (!isFinite(seed)) return;
+      const name = (q.get('n') || 'un ami').slice(0, 14);
+      game.pendingChallenge = { seed: seed >>> 0, score: isFinite(score) ? score : 0, name };
+      applyChallengeUI();
+    } catch (e) {}
+  })();
+
+  // Changement de langue → retraduit le HTML (fait par i18n) puis rafraîchit l'UI dynamique
+  if (CT.i18n) CT.i18n.setOnChange(function () {
+    syncAudioButtons();
+    game.updateHud();
+    applyChallengeUI();
+    if (!optionsScreenEl.classList.contains('hidden')) renderOptions();
+    if (!labScreenEl.classList.contains('hidden')) renderLab();
+    if (!achScreenEl.classList.contains('hidden')) renderAch();
+    if (!statsScreenEl.classList.contains('hidden')) renderStats();
+    if (!skinScreenEl.classList.contains('hidden')) renderSkins();
+    if (!overlays.over.classList.contains('hidden')) showOver();
+    if (!overlays.start.classList.contains('hidden')) renderStartBoard();
+    if (!overlays.pause.classList.contains('hidden')) showPause();
+  });
+
   // Notification de succès débloqué (file d'attente : plusieurs peuvent tomber d'un coup)
   const achToast = document.getElementById('achToast');
   let achQueue = [], achShowing = false;
@@ -540,8 +662,9 @@
     achToast.innerHTML = '';
     const ic = document.createElement('span'); ic.className = 'at-ic'; ic.textContent = d.icon;
     const tx = document.createElement('div');
-    const h = document.createElement('div'); h.className = 'at-h'; h.textContent = 'PALIER ATTEINT';
-    const n = document.createElement('div'); n.className = 'at-n'; n.textContent = d.name;
+    const h = document.createElement('div'); h.className = 'at-h'; h.textContent = t('ach.tier');
+    const qn = (CT.i18n && CT.i18n.quest(d.id)) ? (CT.i18n.quest(d.id) + ' — ' + CT.i18n.medal(d.tier - 1)) : d.name;
+    const n = document.createElement('div'); n.className = 'at-n'; n.textContent = qn;
     tx.append(h, n);
     achToast.append(ic, tx);
     void achToast.offsetWidth;          // reflow → rejoue la transition
