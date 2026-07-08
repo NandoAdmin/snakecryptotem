@@ -2846,14 +2846,32 @@ window.CT = window.CT || {};
       ctx.restore();
     }
 
+    // halo de charge pulsé (attire l'œil) — sauf sous aimant, qui a ses propres anneaux
+    if (this.time >= this.magnetUntil) {
+      ctx.save();
+      ctx.globalAlpha = (this.reduce ? 0.28 : 0.22 + 0.22 * pulse);
+      ctx.strokeStyle = T.charge; ctx.shadowColor = T.charge; ctx.shadowBlur = 10; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(cx, cy, cell * (0.66 + 0.12 * pulse), 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    }
+
     ctx.save();
     ctx.translate(cx, cy);
-    // halo
+    // corps batterie : dégradé teinté charge (haut plus clair) + halo
     ctx.shadowColor = T.charge; ctx.shadowBlur = 16 + pulse * 12;
-    // corps batterie
-    ctx.fillStyle = '#08252a';
+    const bg = ctx.createLinearGradient(0, -bh / 2, 0, bh / 2);
+    bg.addColorStop(0, mix('#0a2a30', T.charge, 0.16));
+    bg.addColorStop(1, '#062024');
+    ctx.fillStyle = bg;
     U.rr(ctx, -bw / 2, -bh / 2, bw, bh, bh * 0.28); ctx.fill();
     ctx.shadowBlur = 0;
+    // reflet glossy (moitié haute)
+    ctx.save();
+    U.rr(ctx, -bw / 2, -bh / 2, bw, bh, bh * 0.28); ctx.clip();
+    const gl = ctx.createLinearGradient(0, -bh / 2, 0, 0);
+    gl.addColorStop(0, 'rgba(255,255,255,0.22)'); gl.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = gl; ctx.fillRect(-bw / 2, -bh / 2, bw, bh * 0.5);
+    ctx.restore();
     ctx.strokeStyle = T.charge; ctx.lineWidth = 2;
     U.rr(ctx, -bw / 2, -bh / 2, bw, bh, bh * 0.28); ctx.stroke();
     // borne +
