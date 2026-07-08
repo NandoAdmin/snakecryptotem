@@ -519,6 +519,14 @@ html, body {
 }
 .btn-ghost:active { transform: translateY(0) scale(0.97); }
 
+/* Accessibilité : focus clavier NET (anneau cyan), sans gêner la souris/le tactile
+   (n'apparaît qu'au clavier via :focus-visible). Important sur une borne publique. */
+button:focus-visible, input:focus-visible, a:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 3px;
+}
+.icon-btn:focus-visible { outline-offset: 2px; }
+
 /* D-pad tactile ----------------------------------------------- */
 #dpad {
   position: fixed; bottom: max(18px, env(safe-area-inset-bottom));
