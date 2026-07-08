@@ -149,6 +149,29 @@ html, body {
 /* entrée d'overlay : léger fondu + montée + zoom (désactivé sous prefers-reduced-motion) */
 @keyframes overlayIn { from { opacity: 0; transform: translateY(10px) scale(0.985); } to { opacity: 1; transform: none; } }
 
+/* Barres de défilement thématiques (overlays longs : Labo, Skins, fin de partie) —
+   remplacent la scrollbar système qui jure avec le néon teal. */
+.overlay, .lab-list, .ach-list, .stats-grid { scrollbar-width: thin; scrollbar-color: var(--teal) transparent; }
+.overlay::-webkit-scrollbar,
+.lab-list::-webkit-scrollbar,
+.ach-list::-webkit-scrollbar,
+.stats-grid::-webkit-scrollbar { width: 10px; height: 10px; }
+.overlay::-webkit-scrollbar-track,
+.lab-list::-webkit-scrollbar-track,
+.ach-list::-webkit-scrollbar-track,
+.stats-grid::-webkit-scrollbar-track { background: transparent; }
+.overlay::-webkit-scrollbar-thumb,
+.lab-list::-webkit-scrollbar-thumb,
+.ach-list::-webkit-scrollbar-thumb,
+.stats-grid::-webkit-scrollbar-thumb {
+  background: linear-gradient(var(--teal), var(--cyan));
+  border-radius: 99px; border: 2px solid transparent; background-clip: padding-box;
+}
+.overlay::-webkit-scrollbar-thumb:hover,
+.lab-list::-webkit-scrollbar-thumb:hover,
+.ach-list::-webkit-scrollbar-thumb:hover,
+.stats-grid::-webkit-scrollbar-thumb:hover { background: var(--cyan); background-clip: padding-box; }
+
 .brand { display: flex; flex-direction: column; align-items: center; gap: 10px; }
 .brand-logo {
   width: clamp(80px, 22vw, 140px); height: auto;
