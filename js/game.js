@@ -3197,6 +3197,13 @@ window.CT = window.CT || {};
       ctx.fillStyle = body;
       U.rr(ctx, -w / 2, -h / 2, w, h, h * 0.32); ctx.fill();
       ctx.shadowBlur = 0;
+      // reflet glossy (haut du boîtier) → relief, sans noyer le logo
+      ctx.save();
+      U.rr(ctx, -w / 2, -h / 2, w, h, h * 0.32); ctx.clip();
+      const gloss = ctx.createLinearGradient(0, -h / 2, 0, 0);
+      gloss.addColorStop(0, 'rgba(255,255,255,0.20)'); gloss.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = gloss; ctx.fillRect(-w / 2, -h / 2, w, h * 0.5);
+      ctx.restore();
       ctx.strokeStyle = headHex; ctx.lineWidth = 2;
       U.rr(ctx, -w / 2, -h / 2, w, h, h * 0.32); ctx.stroke();
       // embout USB-C à l'avant
