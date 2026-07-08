@@ -211,7 +211,13 @@ html, body {
 .pause-toggles { display: flex; gap: 10px; }
 .pause-toggles .btn-ghost { padding: 10px 22px; font-size: 13px; }
 .music-btn { padding: 8px 20px; font-size: 12px; }
-.record { color: var(--amber); font-size: 14px; font-weight: 700; letter-spacing: 1px; }
+.record {
+  display: inline-flex; align-items: center; gap: 6px;
+  color: var(--amber); font-size: 14px; font-weight: 700; letter-spacing: 1px;
+  padding: 6px 18px; border-radius: 99px;
+  background: var(--glass); border: 1px solid rgba(255, 194, 75, 0.35);
+  backdrop-filter: blur(8px); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
 .record b { color: var(--text); }
 
 /* Boutons de mode : chacun sa teinte (fond dégradé + glow au survol) → identité visuelle
