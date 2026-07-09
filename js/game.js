@@ -3135,6 +3135,10 @@ window.CT = window.CT || {};
     ctx.strokeStyle = color; ctx.lineWidth = w;
     ctx.shadowColor = color; ctx.shadowBlur = blur;   // halo de la couleur du serpent
     ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+    // reflet central brillant → aspect « câble chargé » (cohérent avec tête/batterie glossy)
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = mix(color, '#ffffff', 0.5); ctx.lineWidth = Math.max(1, w * 0.28);
+    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
   };
 
   // appelle fn pour la position grille donnée + son image de l'autre côté si
