@@ -3311,12 +3311,18 @@ window.CT = window.CT || {};
     if (!this.toast || this.toast.life <= 0) return;
     const ctx = this.ctx, cell = this.cell, p = this.toast;
     const a = U.clamp(p.life / p.max, 0, 1);
+    const x = (p.x + 0.5) * cell, y = (p.y + 0.5) * cell - (p.max - p.life) * 46;
     ctx.save();
     ctx.globalAlpha = a;
-    ctx.fillStyle = T.charge; ctx.shadowColor = T.charge; ctx.shadowBlur = 12;
     ctx.font = '800 ' + (cell * 0.7).toFixed(0) + 'px -apple-system, system-ui, sans-serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(p.text, (p.x + 0.5) * cell, (p.y + 0.5) * cell - (p.max - p.life) * 46);
+    // fond « pilule » sombre derrière le texte → lisible par-dessus le plateau néon
+    const tw = ctx.measureText(p.text).width, padX = cell * 0.3, h = cell * 0.66;
+    ctx.fillStyle = 'rgba(2,16,20,0.6)';
+    U.rr(ctx, x - tw / 2 - padX, y - h / 2, tw + padX * 2, h, h * 0.5); ctx.fill();
+    // texte
+    ctx.fillStyle = T.charge; ctx.shadowColor = T.charge; ctx.shadowBlur = 12;
+    ctx.fillText(p.text, x, y);
     ctx.restore();
   };
 
