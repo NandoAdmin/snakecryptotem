@@ -1819,9 +1819,9 @@ window.CT = window.CT || {};
       const pu = this.bonusCount > 1 ? t('word.powerups') : t('word.powerup');
       let html =
         t('over.level') + '<b>' + this.levelNum + '</b><br>' +
-        t('over.batteries') + '<b>' + this.score + '</b><br>' +
-        t('over.score') + '<b>' + this.points + '</b>' +
-        (isRecord ? t('over.record') : '') +
+        t('over.batteries') + '<b>' + this.score + '</b>' +
+        '<span class="over-score-line">' + t('over.score') + '<b class="over-score-hero">' + this.points + '</b>' +
+        (isRecord ? t('over.record') : '') + '</span>' +
         '<span class="over-recap">' + t('over.recap', { dur, n: this.bonusCount, pu, combo: this.maxComboRun }) +
         (this.newGhost ? t('over.newghost') : '') + '</span>';
       // Défi d'un ami (QR) : relevé ou non

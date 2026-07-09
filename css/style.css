@@ -195,6 +195,13 @@ html, body {
 .overlay-title.danger { color: var(--danger); text-shadow: 0 0 24px rgba(255, 91, 110, 0.5); }
 .over-stats { color: var(--text-dim); font-size: 16px; line-height: 1.6; }
 .over-stats b { color: var(--cyan); }
+/* Score final = héros visuel de l'écran de fin */
+.over-score-line { display: block; margin-top: 8px; line-height: 1.1; }
+.over-score-hero {
+  display: inline-block; margin-left: 4px;
+  font-size: 2em; font-weight: 900; color: var(--cyan);
+  text-shadow: 0 0 18px rgba(38, 224, 224, 0.45);
+}
 .over-recap { display: block; margin-top: 6px; font-size: 13px; color: var(--text-dim); letter-spacing: 0.3px; }
 .over-missions { display: block; margin-top: 4px; font-size: 13px; color: var(--text-dim); letter-spacing: 0.3px; }
 .over-missions b { color: var(--charge); }
