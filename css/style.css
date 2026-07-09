@@ -125,10 +125,10 @@ html, body {
   background: var(--glass);
   color: var(--text); font-size: 16px; cursor: pointer;
   backdrop-filter: blur(8px);
-  transition: transform 0.1s ease, background 0.2s ease;
+  transition: transform 0.12s ease, background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
-.icon-btn:hover { background: rgba(19, 181, 184, 0.2); }
-.icon-btn:active { transform: scale(0.92); }
+.icon-btn:hover { background: rgba(19, 181, 184, 0.2); border-color: var(--cyan); box-shadow: 0 6px 18px rgba(38, 224, 224, 0.22); transform: translateY(-1px); }
+.icon-btn:active { transform: translateY(0) scale(0.92); }
 
 /* Overlays ---------------------------------------------------- */
 .overlay {
