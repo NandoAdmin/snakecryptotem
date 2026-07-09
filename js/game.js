@@ -2183,6 +2183,13 @@ window.CT = window.CT || {};
     else { grad.addColorStop(0, '#ffe79b'); grad.addColorStop(1, T.amber); }
     ctx.fillStyle = grad; ctx.shadowBlur = 14;
     U.rr(ctx, -bw / 2, -bh / 2, bw, bh, bh * 0.3); ctx.fill();
+    // reflet glossy (haut) — complète le langage « charge » (batterie/tête/câble)
+    ctx.save();
+    U.rr(ctx, -bw / 2, -bh / 2, bw, bh, bh * 0.3); ctx.clip();
+    const glossB = ctx.createLinearGradient(0, -bh / 2, 0, 0);
+    glossB.addColorStop(0, 'rgba(255,255,255,0.35)'); glossB.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = glossB; ctx.shadowBlur = 0; ctx.fillRect(-bw / 2, -bh / 2, bw, bh * 0.5);
+    ctx.restore();
     // borne +
     ctx.fillStyle = ring; ctx.shadowBlur = 0;
     ctx.fillRect(bw / 2, -bh * 0.18, bw * 0.1, bh * 0.36);
