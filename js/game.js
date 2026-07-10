@@ -2963,13 +2963,26 @@ window.CT = window.CT || {};
       ctx.moveTo(0.52 * h,  0.30 * h); ctx.lineTo(1.06 * h,  0.10 * h); ctx.lineTo(0.55 * h, -0.02 * h); ctx.closePath();
       ctx.fill();
       // VISAGE selon le skin de tête (eStyle). +x = avant ; les deux yeux straddle l'axe.
-      if (eStyle === 'drole') {                        // 🤪 gros yeux ronds rigolos
-        ctx.shadowBlur = 0; ctx.fillStyle = '#ffffff';
-        ctx.beginPath(); ctx.arc(0.16 * h, -0.34 * h, 0.2 * h, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc(0.16 * h, 0.34 * h, 0.2 * h, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#1a0006';
-        ctx.beginPath(); ctx.arc(0.24 * h, -0.30 * h, 0.09 * h, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc(0.24 * h, 0.38 * h, 0.09 * h, 0, Math.PI * 2); ctx.fill();
+      if (eStyle === 'drole') {                        // 🤡 CLOWN MÉCHANT (public adulte)
+        ctx.shadowBlur = 0;
+        // fard de clown en pointes rouges au-dessus/dessous des yeux (regard fou, inquiétant)
+        ctx.fillStyle = 'rgba(225,29,29,0.9)';
+        ctx.beginPath(); ctx.moveTo(-0.02 * h, -0.56 * h); ctx.lineTo(0.42 * h, -0.5 * h); ctx.lineTo(0.16 * h, -0.14 * h); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(-0.02 * h, 0.56 * h); ctx.lineTo(0.42 * h, 0.5 * h); ctx.lineTo(0.16 * h, 0.14 * h); ctx.closePath(); ctx.fill();
+        // yeux blancs fous
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath(); ctx.arc(0.2 * h, -0.32 * h, 0.13 * h, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(0.2 * h, 0.32 * h, 0.13 * h, 0, Math.PI * 2); ctx.fill();
+        // pupilles rouges ardentes, resserrées (folie)
+        ctx.fillStyle = '#b3001b'; ctx.shadowColor = '#ff2b3d'; ctx.shadowBlur = 6;
+        ctx.beginPath(); ctx.arc(0.26 * h, -0.30 * h, 0.055 * h, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(0.26 * h, 0.30 * h, 0.055 * h, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 0;
+        // nez rouge de clown au bout du museau (+x)
+        ctx.fillStyle = '#e11d1d'; ctx.shadowColor = '#ff3b3b'; ctx.shadowBlur = 8;
+        ctx.beginPath(); ctx.arc(1.0 * h, 0, 0.17 * h, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 0; ctx.fillStyle = 'rgba(255,255,255,0.55)';
+        ctx.beginPath(); ctx.arc(0.95 * h, -0.05 * h, 0.05 * h, 0, Math.PI * 2); ctx.fill();
       } else if (eStyle === 'ete') {                   // 🕶️ lunettes de soleil
         ctx.shadowBlur = 0; ctx.fillStyle = '#04101a';
         ctx.fillRect(0.10 * h, -0.2 * h, 0.12 * h, 0.4 * h);    // pont entre les verres

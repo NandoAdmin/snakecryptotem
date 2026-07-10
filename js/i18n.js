@@ -300,14 +300,14 @@ CT.i18n = (function () {
       boss: { classic: 'Blood Red', toxic: 'Toxic', givre: 'Frost', dore: 'Golden', ombre: 'Shadow' },
       head: { classic: 'T Logo', drole: 'Goofy', agressif: 'Aggressive', ete: 'Summer', sperm: 'Spermatozoon', ver: 'Earthworm' },
       trail: { none: 'None', etincelles: 'Sparks', bulles: 'Bubbles', flamme: 'Flames', etoiles: 'Stars' },
-      enemyhead: { classic: 'Fierce', drole: 'Goofy', agressif: 'Enraged', ete: 'Holiday', sperm: 'Spermatozoon', ver: 'Earthworm' },
+      enemyhead: { classic: 'Fierce', drole: 'Evil Clown', agressif: 'Enraged', ete: 'Holiday', sperm: 'Spermatozoon', ver: 'Earthworm' },
     },
     es: {
       snake: { classic: 'Cian clásico', glace: 'Glaciar', foret: 'Bosque neón', magma: 'Magma', prisme: 'Prisma', or: 'Oro puro', braise: 'Brasa', abysse: 'Abismo', vapeur: 'Vaporwave' },
       boss: { classic: 'Rojo sangre', toxic: 'Tóxico', givre: 'Escarcha', dore: 'Dorado', ombre: 'Sombra' },
       head: { classic: 'Logo T', drole: 'Gracioso', agressif: 'Agresivo', ete: 'Verano', sperm: 'Espermatozoide', ver: 'Lombriz' },
       trail: { none: 'Ninguna', etincelles: 'Chispas', bulles: 'Burbujas', flamme: 'Llamas', etoiles: 'Estrellas' },
-      enemyhead: { classic: 'Feroz', drole: 'Gracioso', agressif: 'Enfurecido', ete: 'Vacaciones', sperm: 'Espermatozoide', ver: 'Lombriz' },
+      enemyhead: { classic: 'Feroz', drole: 'Payaso macabro', agressif: 'Enfurecido', ete: 'Vacaciones', sperm: 'Espermatozoide', ver: 'Lombriz' },
     },
   };
 
