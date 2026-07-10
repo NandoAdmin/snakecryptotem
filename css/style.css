@@ -222,6 +222,12 @@ html, body {
 .pause-toggles { display: flex; gap: 10px; }
 .pause-toggles .btn-ghost { padding: 10px 22px; font-size: 13px; }
 .music-btn { padding: 8px 20px; font-size: 12px; }
+/* Écran de pause : stats + missions dans un panneau glass (structure & hiérarchie) */
+#pauseStats {
+  background: var(--glass); border: 1px solid var(--glass-brd); border-radius: 14px;
+  padding: 12px 22px; backdrop-filter: blur(8px); max-width: 360px;
+}
+#pauseStats .over-missions { margin-top: 8px; }
 .record {
   display: inline-flex; align-items: center; gap: 6px;
   color: var(--amber); font-size: 14px; font-weight: 700; letter-spacing: 1px;
