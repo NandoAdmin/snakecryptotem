@@ -150,7 +150,7 @@ function ctMakeShop(selKey, ownKey, SKINS) {
 // de prestige → prix élevés (dizaines à centaines de milliers de ⚡ pour les plus exclusifs).
 CT.HeadSkins = ctMakeShop('ct_head', 'ct_head_own', [
   { id: 'classic',  name: 'Logo T',       icon: '🔋', price: 0 },
-  { id: 'drole',    name: 'Rigolo',       icon: '😜', price: 25000 },
+  { id: 'drole',    name: 'Malicieux',    icon: '😏', price: 25000 },
   { id: 'agressif', name: 'Agressif',     icon: '😈', price: 50000 },
   { id: 'ete',      name: 'Été',          icon: '😎', price: 80000 },
   // formes exclusives (changent la FORME de la tête)

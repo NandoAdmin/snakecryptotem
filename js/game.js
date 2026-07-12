@@ -3257,13 +3257,20 @@ window.CT = window.CT || {};
       return;
     }
     ctx.shadowBlur = 0;
-    if (style === 'drole') {                          // 😜 gros yeux + grand sourire
-      ctx.fillStyle = '#ffffff';
-      [-0.2, 0.2].forEach((sx) => { ctx.beginPath(); ctx.arc(sx * h, -0.08 * h, 0.15 * h, 0, Math.PI * 2); ctx.fill(); });
-      ctx.fillStyle = '#06181c';
-      [-0.2, 0.2].forEach((sx) => { ctx.beginPath(); ctx.arc(sx * h + 0.03 * h, -0.05 * h, 0.07 * h, 0, Math.PI * 2); ctx.fill(); });
-      ctx.strokeStyle = col; ctx.lineWidth = h * 0.07; ctx.lineCap = 'round';
-      ctx.beginPath(); ctx.arc(0, 0.05 * h, 0.2 * h, 0.18 * Math.PI, 0.82 * Math.PI); ctx.stroke();
+    if (style === 'drole') {                          // 😏 NARQUOIS (adulte, sûr de lui — plus enfantin)
+      // yeux mi-clos (regard en coin)
+      ctx.fillStyle = '#eafbfb';
+      [-0.2, 0.2].forEach((sx) => { ctx.beginPath(); ctx.ellipse(sx * h, -0.07 * h, 0.13 * h, 0.07 * h, 0, 0, Math.PI * 2); ctx.fill(); });
+      ctx.fillStyle = '#06181c';   // pupilles décalées vers la droite → coup d'œil narquois
+      ctx.beginPath(); ctx.ellipse(-0.15 * h, -0.07 * h, 0.05 * h, 0.06 * h, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(0.25 * h, -0.07 * h, 0.05 * h, 0.06 * h, 0, 0, Math.PI * 2); ctx.fill();
+      // paupières / sourcils : barre gauche droite, droite arquée (malice)
+      ctx.strokeStyle = col; ctx.lineWidth = h * 0.055; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(-0.34 * h, -0.15 * h); ctx.lineTo(-0.06 * h, -0.15 * h); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0.06 * h, -0.17 * h); ctx.lineTo(0.34 * h, -0.1 * h); ctx.stroke();
+      // rictus narquois asymétrique (remonte à droite)
+      ctx.lineWidth = h * 0.06;
+      ctx.beginPath(); ctx.moveTo(-0.17 * h, 0.14 * h); ctx.quadraticCurveTo(0.08 * h, 0.24 * h, 0.28 * h, 0.05 * h); ctx.stroke();
     } else if (style === 'agressif') {                // 😈 yeux furieux + dents serrées
       ctx.fillStyle = '#ff5b6e';
       ctx.beginPath(); ctx.moveTo(-0.33 * h, -0.18 * h); ctx.lineTo(-0.07 * h, -0.05 * h); ctx.lineTo(-0.07 * h, 0.04 * h); ctx.lineTo(-0.33 * h, -0.05 * h); ctx.closePath(); ctx.fill();
