@@ -173,7 +173,7 @@ CT.EnemyHeads = ctMakeShop('ct_enemy_head', 'ct_enemy_head_own', [
   { id: 'classic',  name: 'Féroce',        icon: '💀', price: 0 },
   { id: 'drole',    name: 'Clown macabre', icon: '🤡', price: 25000 },
   { id: 'agressif', name: 'Enragé',        icon: '👿', price: 50000 },
-  { id: 'ete',      name: 'Vacances',      icon: '🕶️', price: 80000 },
+  { id: 'ete',      name: 'Traqueur',      icon: '🕶️', price: 80000 },
   { id: 'sperm',    name: 'Spermatozoïde', icon: '🦠', price: 200000 },
   { id: 'ver',      name: 'Ver de terre',  icon: '🪱', price: 350000 },
 ]);

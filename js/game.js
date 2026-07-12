@@ -2983,14 +2983,19 @@ window.CT = window.CT || {};
         ctx.beginPath(); ctx.arc(1.0 * h, 0, 0.17 * h, 0, Math.PI * 2); ctx.fill();
         ctx.shadowBlur = 0; ctx.fillStyle = 'rgba(255,255,255,0.55)';
         ctx.beginPath(); ctx.arc(0.95 * h, -0.05 * h, 0.05 * h, 0, Math.PI * 2); ctx.fill();
-      } else if (eStyle === 'ete') {                   // 🕶️ lunettes de soleil
-        ctx.shadowBlur = 0; ctx.fillStyle = '#04101a';
-        ctx.fillRect(0.10 * h, -0.2 * h, 0.12 * h, 0.4 * h);    // pont entre les verres
-        U.rr(ctx, -0.02 * h, -0.62 * h, 0.34 * h, 0.34 * h, 0.1 * h); ctx.fill();
-        U.rr(ctx, -0.02 * h, 0.28 * h, 0.34 * h, 0.34 * h, 0.1 * h); ctx.fill();
-        ctx.fillStyle = 'rgba(255,255,255,0.4)';
-        ctx.fillRect(0.04 * h, -0.56 * h, 0.1 * h, 0.08 * h);
-        ctx.fillRect(0.04 * h, 0.34 * h, 0.1 * h, 0.08 * h);
+      } else if (eStyle === 'ete') {                   // 🕶️ VISEUR de TRAQUEUR (œil-scanner rouge, menaçant)
+        ctx.shadowBlur = 0;
+        // bandeau viseur sombre en travers du visage
+        ctx.fillStyle = '#04080d';
+        U.rr(ctx, -0.06 * h, -0.62 * h, 0.42 * h, 1.24 * h, 0.14 * h); ctx.fill();
+        // liseré métallique froid
+        ctx.strokeStyle = 'rgba(170,185,200,0.5)'; ctx.lineWidth = Math.max(1, h * 0.03);
+        U.rr(ctx, -0.06 * h, -0.62 * h, 0.42 * h, 1.24 * h, 0.14 * h); ctx.stroke();
+        // ligne de scan rouge ardente (œil de machine à tuer)
+        ctx.fillStyle = '#ff2233'; ctx.shadowColor = '#ff2b3d'; ctx.shadowBlur = 10 + pulse * 6;
+        U.rr(ctx, 0.06 * h, -0.5 * h, 0.14 * h, 1.0 * h, 0.06 * h); ctx.fill();
+        ctx.shadowBlur = 0; ctx.fillStyle = 'rgba(255,220,220,0.85)';
+        U.rr(ctx, 0.1 * h, -0.5 * h, 0.05 * h, 1.0 * h, 0.02 * h); ctx.fill();   // cœur brillant du scan
       } else {                                          // classic / agressif : yeux fâchés (agressif ↑ + rouge)
         const big = eStyle === 'agressif' ? 1.22 : 1;
         ctx.shadowColor = T.amber; ctx.shadowBlur = 5 + pulse * 6;
