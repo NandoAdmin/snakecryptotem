@@ -387,7 +387,7 @@
   // Regroupement des améliorations en rubriques (ordre + catégories définis côté rendu →
   // module lab.js inchangé). Toute clé non listée est rendue en fin de liste (sécurité).
   const LAB_CATEGORIES = [
-    { id: 'eco',    keys: ['surtension', 'inflation', 'chance', 'rendement', 'mission', 'primeNiveau'] },
+    { id: 'eco',    keys: ['surtension', 'inflation', 'chance', 'rendement', 'mission', 'primeNiveau', 'primeSurvie'] },
     { id: 'power',  keys: ['bouclier', 'surcharge', 'aimant', 'double', 'combo', 'frequence', 'doublecoupe'] },
     { id: 'survie', keys: ['depart', 'antivirus', 'phenix'] },
     { id: 'meta',   keys: ['labspeed', 'solde'] },
