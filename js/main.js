@@ -400,8 +400,11 @@
       const nm = document.createElement('span'); nm.className = 'lu-name'; nm.textContent = uName;
       const lv = document.createElement('span'); lv.className = 'lu-lvl'; lv.textContent = 'Niv ' + l + '/' + u.max;
       top.append(ic, nm, lv);
+      // jauge segmentée de progression (1 segment/niveau) → état du palier lisible d'un coup d'œil
+      const pips = document.createElement('div'); pips.className = 'lu-pips';
+      for (let i = 0; i < u.max; i++) { const p = document.createElement('span'); if (i < l) p.className = 'on'; pips.appendChild(p); }
       const desc = document.createElement('div'); desc.className = 'lu-desc';
-      card.append(top, desc);
+      card.append(top, pips, desc);
       if (l >= u.max) { card.classList.add('maxed'); desc.textContent = dsc(l) + t('lab.max'); labList.appendChild(card); return; }
       desc.textContent = t('lab.next') + dsc(l + 1);
       const c = CT.Lab.costOf(key, l); const afford = w.bat >= c.bat && w.pts >= c.pts;   // coût après « Soldes R&D »

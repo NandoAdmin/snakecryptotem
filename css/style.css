@@ -363,6 +363,10 @@ html, body {
 .lab-up .lu-icon { font-size: 20px; }
 .lab-up .lu-name { font-size: 14px; font-weight: 800; flex: 1; }
 .lab-up .lu-lvl { font-size: 11px; color: var(--text-dim); font-weight: 700; }
+.lab-up .lu-pips { display: flex; gap: 3px; }
+.lab-up .lu-pips span { flex: 1; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.12); }
+.lab-up .lu-pips span.on { background: linear-gradient(90deg, var(--teal), var(--glow)); }
+.lab-up.maxed .lu-pips span.on { background: var(--amber); }   /* palier complété → doré */
 .lab-up .lu-desc { font-size: 12px; color: var(--text-dim); min-height: 30px; }
 .lab-up .lu-cost { font-size: 12px; font-weight: 700; }
 .lab-up .lu-cost.afford { color: var(--charge); }

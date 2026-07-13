@@ -566,7 +566,9 @@ Méta-progression persistante (localStorage `ct_lab`) qui donne de la durée de 
   en-têtes `.lab-cat` pleine largeur, i18n `lab.cat.*`) : 💰 Économie & score · 🎁 Power-ups ·
   🛡️ Survie · 🔬 Labo (l'ordre/le classement est **côté rendu**, `lab.js` inchangé ; toute
   clé non catégorisée retombe en fin de liste). Dans chaque rubrique, les améliorations **au
-  max sont reléguées en bas** (tri stable) pour garder les choix utiles en haut.
+  max sont reléguées en bas** (tri stable) pour garder les choix utiles en haut. Chaque carte
+  affiche une **jauge segmentée** (`.lu-pips`, 1 segment/niveau, remplis cyan→glow ; dorés quand
+  le palier est complété) sous le nom → progression du palier lisible d'un coup d'œil.
 - **Boucle de rétention** : l'écran de game over affiche les ressources versées
   (« 🔬 +X 🔋 +Y ⚡ au Labo ») + un bouton « 🔬 Laboratoire » qui y mène directement.
   De plus, quand une recherche est **terminée et récupérable** (`CT.Lab.isReady()`), le
