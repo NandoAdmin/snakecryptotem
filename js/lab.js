@@ -116,8 +116,12 @@ CT.Lab = (function () {
     s.wallet = s.wallet || { bat: 0, pts: 0 };
     s.up = s.up || {};
     s.research = s.research || null;
+    s.next = s.next || null;        // recherche mise en file (une seule) — démarre à la récupération de l'active
     return s;
   }
+
+  // « Labo accéléré » : facteur de réduction du temps de recherche (−5 %/niveau, plancher −25 %).
+  function labMult(s) { return Math.max(0.75, 1 - 0.05 * (s.up.labspeed || 0)); }
 
   function level(key) { return state().up[key] || 0; }
   function wallet() { return state().wallet; }
@@ -155,26 +159,89 @@ CT.Lab = (function () {
     if (!r.ok) return r;
     const s = state();
     s.wallet.bat -= r.cost.bat; s.wallet.pts -= r.cost.pts;
-    // « Labo accéléré » : réduit le temps de recherche (−5 %/niveau, plancher −25 %)
-    const mult = Math.max(0.75, 1 - 0.05 * (s.up.labspeed || 0));
-    const time = Math.round(r.time * mult);
+    const time = Math.round(r.time * labMult(s));   // « Labo accéléré » : temps réduit
     s.research = { key, endsAt: Date.now() + time, durationMs: time };
     save(s);
     return { ok: true };
   }
 
+  // File d'attente (UN seul créneau) : pendant qu'une recherche tourne, on peut réserver
+  // LA prochaine (coût payé d'avance) ; elle démarre automatiquement à la récupération de
+  // l'active (claim). On interdit de mettre en file la MÊME amélioration que l'active →
+  // le coût/temps reste celui du niveau courant (pas de calcul de niveau projeté).
+  function canEnqueue(key) {
+    const s = state();
+    if (!s.research) return { ok: false, reason: 'aucune recherche active' };
+    if (s.next) return { ok: false, reason: 'file pleine' };
+    if (s.research.key === key) return { ok: false, reason: 'déjà en cours' };
+    const u = UPGRADES[key]; const l = level(key);
+    if (l >= u.max) return { ok: false, reason: 'niveau max' };
+    const c = u.cost(l);
+    if (s.wallet.bat < c.bat || s.wallet.pts < c.pts) return { ok: false, reason: 'ressources insuffisantes' };
+    return { ok: true, cost: c, time: Math.round(u.time(l) * labMult(s)) };
+  }
+  function enqueueNext(key) {
+    const r = canEnqueue(key);
+    if (!r.ok) return r;
+    const s = state();
+    s.wallet.bat -= r.cost.bat; s.wallet.pts -= r.cost.pts;
+    s.next = { key, cost: r.cost, durationMs: r.time };   // coût mémorisé → remboursement exact si annulée
+    save(s);
+    return { ok: true };
+  }
+  function cancelNext() {
+    const s = state();
+    if (!s.next) return { ok: false };
+    s.wallet.bat += (s.next.cost && s.next.cost.bat) || 0;   // remboursement intégral
+    s.wallet.pts += (s.next.cost && s.next.cost.pts) || 0;
+    const key = s.next.key; s.next = null;
+    save(s);
+    return { ok: true, key };
+  }
+  function nextResearch() { return state().next; }
+
   function research() { return state().research; }
   function researchRemaining() { const r = state().research; return r ? Math.max(0, r.endsAt - Date.now()) : 0; }
   function isReady() { const r = state().research; return !!r && Date.now() >= r.endsAt; }
 
-  // Récupère une recherche terminée → applique le niveau.
+  // « Terminer maintenant » : dépenser des pièces (⚡) pour finir instantanément la
+  // recherche en cours. Coût PROPORTIONNEL au temps réel restant (plus on a attendu,
+  // moins ça coûte) → sink économique pour les ⚡ (partagé avec la Boutique). 0 si rien /
+  // déjà prête. `FINISH_COST_PER_S` est un levier d'équilibrage (⚡ par seconde restante).
+  const FINISH_COST_PER_S = 0.25;              // ≈ 15 ⚡/min · 900 ⚡/h · 21 600 ⚡/24 h
+  const FINISH_COST_MIN = 25;
+  function finishCost() {
+    const rem = researchRemaining();
+    if (rem <= 0) return 0;
+    return Math.max(FINISH_COST_MIN, Math.ceil((rem / 1000) * FINISH_COST_PER_S));
+  }
+  function finishNow() {
+    const s = state(); const r = s.research;
+    if (!r) return { ok: false, reason: 'aucune recherche' };
+    if (Date.now() >= r.endsAt) return { ok: false, reason: 'déjà prête' };
+    const cost = finishCost();
+    if ((s.wallet.pts || 0) < cost) return { ok: false, reason: 'ressources insuffisantes' };
+    s.wallet.pts -= cost;
+    r.endsAt = Date.now();                      // devient récupérable (isReady) → clic « RÉCUPÉRER »
+    save(s);
+    return { ok: true, cost };
+  }
+
+  // Récupère une recherche terminée → applique le niveau. Si une recherche est en file,
+  // elle démarre automatiquement (son coût a déjà été payé à la mise en file).
   function claim() {
     const s = state(); const r = s.research;
     if (!r || Date.now() < r.endsAt) return { ok: false };
     s.up[r.key] = (s.up[r.key] || 0) + 1;
     s.research = null;
+    const res = { ok: true, key: r.key, level: s.up[r.key] };
+    if (s.next) {
+      const n = s.next; s.next = null;
+      s.research = { key: n.key, endsAt: Date.now() + n.durationMs, durationMs: n.durationMs };
+      res.startedNext = n.key;
+    }
     save(s);
-    return { ok: true, key: r.key, level: s.up[r.key] };
+    return res;
   }
 
   // Modificateurs de gameplay dérivés des niveaux d'améliorations.
@@ -208,6 +275,8 @@ CT.Lab = (function () {
   return {
     UPGRADES, level, wallet, bank, canAfford, spend,
     canResearch, startResearch, research, researchRemaining, isReady, claim,
+    finishCost, finishNow,
+    canEnqueue, enqueueNext, cancelNext, nextResearch,
     effects, neutral, reset,
   };
 })();

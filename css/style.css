@@ -324,10 +324,36 @@ html, body {
 .lab-research .lr-bar { height: 8px; border-radius: 99px; background: rgba(255,255,255,0.08); overflow: hidden; }
 .lab-research .lr-bar i { display: block; height: 100%; width: 0%; border-radius: 99px; background: linear-gradient(90deg, var(--teal), var(--glow)); transition: width 0.4s linear; }
 .lab-research .lr-claim { border: none; cursor: pointer; padding: 10px; border-radius: 10px; font-weight: 800; letter-spacing: 1px; color: #022; background: linear-gradient(135deg, var(--charge), var(--teal)); }
+.lab-research .lr-finish { cursor: pointer; padding: 8px 10px; border-radius: 10px; font-weight: 700; color: var(--amber); background: rgba(255,194,75,0.1); border: 1px solid rgba(255,194,75,0.45); font-variant-numeric: tabular-nums; transition: background 0.15s, transform 0.1s; }
+.lab-research .lr-finish:hover:not(:disabled) { background: rgba(255,194,75,0.18); }
+.lab-research .lr-finish:active:not(:disabled) { transform: translateY(1px); }
+.lab-research .lr-finish.poor { color: var(--danger); border-color: rgba(255,91,110,0.4); background: rgba(255,91,110,0.08); cursor: not-allowed; opacity: 0.75; }
+.lab-research .lr-next { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px; padding-top: 8px; border-top: 1px dashed var(--glass-brd); font-size: 13px; font-weight: 700; color: var(--text-dim); }
+.lab-research .lr-next-x { flex: 0 0 auto; cursor: pointer; width: 22px; height: 22px; border-radius: 8px; line-height: 1; font-weight: 800; color: var(--danger); border: 1px solid rgba(255,91,110,0.4); background: rgba(255,91,110,0.1); transition: background 0.15s; }
+.lab-research .lr-next-x:hover { background: rgba(255,91,110,0.2); }
+/* Célébration à la récupération d'une recherche (toast doré/charge, fixe en haut) */
+.lab-toast {
+  position: fixed; top: 13%; left: 50%; z-index: 60;
+  transform: translateX(-50%) translateY(-10px) scale(0.96);
+  padding: 12px 22px; border-radius: 99px;
+  background: linear-gradient(135deg, var(--charge), var(--teal)); color: #022;
+  font-weight: 800; letter-spacing: 0.5px; white-space: nowrap;
+  box-shadow: 0 12px 34px rgba(43, 240, 216, 0.42);
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.3s ease, transform 0.35s cubic-bezier(0.2, 1.2, 0.3, 1);
+}
+.lab-toast.show { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
 .lab-list {
   width: 100%; max-width: 460px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
   max-height: 46vh; overflow-y: auto;
 }
+/* En-tête de rubrique du Labo (occupe toute la largeur de la grille) */
+.lab-list .lab-cat {
+  grid-column: 1 / -1; margin: 8px 2px 0; padding-top: 8px;
+  font-size: 12px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;
+  color: var(--cyan); border-top: 1px solid var(--glass-brd);
+}
+.lab-list .lab-cat:first-child { border-top: none; margin-top: 0; padding-top: 0; }
 .lab-up {
   text-align: left; background: var(--glass); border: 1px solid var(--glass-brd);
   border-radius: 14px; padding: 12px; display: flex; flex-direction: column; gap: 6px;
@@ -549,6 +575,21 @@ html, body {
 }
 .btn-ghost:active { transform: translateY(0) scale(0.97); }
 
+/* Pastille « recherche prête » sur le bouton Laboratoire de l'accueil */
+#labBtn.lab-ready { position: relative; border-color: rgba(43, 240, 216, 0.5); color: var(--charge); }
+#labBtn.lab-ready::after {
+  content: '✓'; position: absolute; top: -6px; right: -4px;
+  min-width: 18px; height: 18px; padding: 0 3px; box-sizing: border-box;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 900; color: #022; border-radius: 99px;
+  background: var(--charge); box-shadow: 0 0 10px var(--glow);
+  animation: labReadyPulse 1.4s ease-in-out infinite;
+}
+@keyframes labReadyPulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 8px var(--glow); }
+  50% { transform: scale(1.18); box-shadow: 0 0 16px var(--glow); }
+}
+
 /* Accessibilité : focus clavier NET (anneau cyan), sans gêner la souris/le tactile
    (n'apparaît qu'au clavier via :focus-visible). Important sur une borne publique. */
 button:focus-visible, input:focus-visible, a:focus-visible {
@@ -611,4 +652,5 @@ button:focus-visible, input:focus-visible, a:focus-visible {
   .brand-logo { animation: none; }   /* logo qui flotte */
   .btn-primary { animation: none; }  /* respiration lumineuse des boutons */
   .overlay { animation: none; }      /* fondu d'entrée → instantané */
+  #labBtn.lab-ready::after { animation: none; }   /* pastille recherche prête → statique */
 }

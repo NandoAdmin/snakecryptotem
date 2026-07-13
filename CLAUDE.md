@@ -506,8 +506,29 @@ Méta-progression persistante (localStorage `ct_lab`) qui donne de la durée de 
   de la partie (batteries collectées + points) dans le portefeuille. `CT.Lab.spend(pts)`
   débite des pièces ⚡ (achats cosmétiques de la Boutique — voir Skins) ; `canAfford(pts)`.
 - **Recherches** : on dépense **batteries + points** pour lancer **une** recherche
-  qui prend du **temps réel** (`endsAt`, persiste même hors-jeu). Une seule à la
-  fois. À la fin → bouton « Récupérer » (`claim`) qui applique le niveau.
+  qui prend du **temps réel** (`endsAt`, persiste même hors-jeu). Une seule **active**
+  à la fois. À la fin → bouton « Récupérer » (`claim`) qui applique le niveau. La
+  récupération **célèbre** la récompense : fanfare `CT.Audio.achievement()` + **toast doré**
+  (`#labToast`, `.lab-toast`, `showLabClaimToast` dans main.js) « icône Nom — Niv N débloqué ! »
+  (i18n `lab.unlocked`) en haut de l'écran, auto-masqué après ~2,4 s.
+- **File d'attente (1 créneau)** (`canEnqueue` / `enqueueNext` / `cancelNext` / `nextResearch`,
+  `s.next`) : pendant qu'une recherche tourne, chaque carte d'amélioration propose « ＋ File »
+  pour **réserver LA prochaine** recherche (coût **payé d'avance** au niveau courant) ; elle
+  **démarre automatiquement** à la récupération de l'active (`claim` enchaîne `s.next`). On
+  **interdit** de mettre en file la **même** amélioration que l'active (`s.research.key === key`)
+  → le coût/temps reste celui du niveau courant, **sans calcul de niveau projeté**. Un chip
+  « ⏭ En file : … » (`.lr-next`) sous la barre affiche la recherche réservée + un **✕ qui
+  l'annule et rembourse** intégralement (`cancelNext`, coût mémorisé dans `s.next.cost`). i18n
+  `lab.queue` / `lab.queued` / `lab.cancelQueue` (FR/EN/ES).
+- **« Terminer maintenant »** (`finishCost` / `finishNow`) : bouton ambre sous la barre
+  de progression (`.lr-finish`, `renderResearch`) pour **finir instantanément** la recherche
+  en cours en **dépensant des pièces ⚡**. Coût **proportionnel au temps réel restant**
+  (`FINISH_COST_PER_S` = 0,25 ⚡/s ≈ 900 ⚡/h, plancher `FINISH_COST_MIN` = 25 → plus on a
+  attendu, moins ça coûte) : c'est un **sink économique** pour les ⚡ (partagé avec la Boutique
+  via le même portefeuille). `finishNow` débite le portefeuille et **avance `endsAt` à maintenant**
+  → la recherche devient récupérable (clic « RÉCUPÉRER » habituel). Bouton **rouge + désactivé**
+  si le portefeuille est trop court. Neutre pour l'anti-triche (méta/économie, n'affecte pas le
+  score par batterie). i18n `lab.finish` (FR « Terminer » / EN « Finish now » / ES « Terminar ya »).
 - **Temps de recherche** : barème partagé `RESEARCH_TIME_S` indexé sur le **niveau
   visé** (`researchTimeMs(l+1)`, utilisé par tous les upgrades) : 30 s · 1 min · 3 min
   · 5 min · 10 min · 30 min · 1 h · 2 h · 4 h · 8 h · 12 h · 16 h · 24 h · 30 h · 36 h …
@@ -538,8 +559,19 @@ Méta-progression persistante (localStorage `ct_lab`) qui donne de la durée de 
 - **UI** : écran « 🔬 Laboratoire » (bouton sur l'accueil) — portefeuille, recherche
   active (barre + compte à rebours + Récupérer), cartes d'amélioration (coût
   🔋+⚡ + temps, niveau, désactivées si labo occupé / ressources insuffisantes).
+  Les cartes sont **regroupées en rubriques** (`LAB_CATEGORIES` dans main.js →
+  en-têtes `.lab-cat` pleine largeur, i18n `lab.cat.*`) : 💰 Économie & score · 🎁 Power-ups ·
+  🛡️ Survie · 🔬 Labo (l'ordre/le classement est **côté rendu**, `lab.js` inchangé ; toute
+  clé non catégorisée retombe en fin de liste). Dans chaque rubrique, les améliorations **au
+  max sont reléguées en bas** (tri stable) pour garder les choix utiles en haut.
 - **Boucle de rétention** : l'écran de game over affiche les ressources versées
   (« 🔬 +X 🔋 +Y ⚡ au Labo ») + un bouton « 🔬 Laboratoire » qui y mène directement.
+  De plus, quand une recherche est **terminée et récupérable** (`CT.Lab.isReady()`), le
+  bouton « 🔬 Laboratoire » de l'**accueil** porte une **pastille verte ✓** pulsée
+  (`#labBtn.lab-ready::after`, désactivée sous `prefers-reduced-motion`) → rappelle au
+  joueur d'aller la récupérer (les recherches longues finissent hors-jeu). `main.js`
+  `updateLabReadyBadge()` bascule la classe dans `renderStartBoard` **et** via un intervalle
+  de 2 s (pour capter une recherche qui se termine pendant qu'on est sur l'accueil).
 - **Réinitialisation** : bouton « Réinitialiser le Labo » (double-clic de
   confirmation) → `CT.Lab.reset()` efface toute la progression — utile sur une
   borne partagée en bar.

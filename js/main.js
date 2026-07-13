@@ -45,7 +45,13 @@
   /* ---------------- top de la semaine (écran d'accueil) ---------------- */
   const startBoard = document.getElementById('startBoard');
   const dailyGhostHint = document.getElementById('dailyGhostHint');
+  // Pastille « recherche prête » sur le bouton Laboratoire de l'accueil : rappelle au
+  // joueur qu'une recherche terminée l'attend (les recherches longues finissent hors-jeu).
+  const labBtnEl = document.getElementById('labBtn');
+  function updateLabReadyBadge() { if (labBtnEl) labBtnEl.classList.toggle('lab-ready', CT.Lab.isReady()); }
+  setInterval(updateLabReadyBadge, 2000);   // se met à jour même si une recherche finit pendant qu'on est sur l'accueil
   function renderStartBoard() {
+    updateLabReadyBadge();
     // indice du Défi du jour : fantôme à battre (meilleure course du jour sur cette borne)
     if (dailyGhostHint) {
       const g = CT.Ghost && CT.Ghost.load();
@@ -303,6 +309,20 @@
 
   function renderWallet() { const w = CT.Lab.wallet(); walletBat.textContent = w.bat; walletPts.textContent = w.pts; }
 
+  // Petite célébration à la récupération d'une recherche (la récompense d'une longue attente).
+  let labToastTimer = null;
+  function showLabClaimToast(res) {
+    const u = CT.Lab.UPGRADES[res.key]; if (!u) return;
+    const nm = (CT.i18n && CT.i18n.labName(res.key)) || u.name;
+    let el = document.getElementById('labToast');
+    if (!el) { el = document.createElement('div'); el.id = 'labToast'; el.className = 'lab-toast'; document.body.appendChild(el); }
+    el.textContent = u.icon + ' ' + nm + ' — Niv ' + res.level + ' ' + t('lab.unlocked');
+    // force reflow → rejoue la transition même sur récupérations rapprochées
+    el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
+    if (labToastTimer) clearTimeout(labToastTimer);
+    labToastTimer = setTimeout(() => { el.classList.remove('show'); }, 2400);
+  }
+
   function renderResearch() {
     const r = CT.Lab.research();
     if (!r) { labResearch.classList.add('hidden'); labResearch.innerHTML = ''; return; }
@@ -321,20 +341,56 @@
     if (CT.Lab.isReady()) {
       tm.textContent = t('lab.ready'); fill.style.width = '100%';
       const claim = document.createElement('button'); claim.className = 'lr-claim'; claim.textContent = t('lab.claim');
-      claim.addEventListener('click', () => { CT.Audio.ui(); CT.Lab.claim(); renderLab(); });
+      claim.addEventListener('click', () => {
+        const res = CT.Lab.claim();
+        if (res.ok) { try { CT.Audio.achievement(); } catch (e) {} showLabClaimToast(res); }
+        else { CT.Audio.ui(); }
+        renderLab();
+      });
       labResearch.appendChild(claim);
     } else {
       tm.textContent = fmtTime(remaining);
       fill.style.width = (Math.min(1, 1 - remaining / r.durationMs) * 100) + '%';
+      // « Terminer maintenant » : payer en ⚡ pour finir tout de suite (coût ∝ temps restant).
+      const cost = CT.Lab.finishCost();
+      const afford = CT.Lab.wallet().pts >= cost;
+      const fin = document.createElement('button');
+      fin.className = 'lr-finish' + (afford ? '' : ' poor');
+      fin.textContent = t('lab.finish') + ' — ⚡ ' + cost;
+      fin.disabled = !afford;
+      fin.addEventListener('click', () => { if (CT.Lab.finishNow().ok) { CT.Audio.ui(); renderLab(); } });
+      labResearch.appendChild(fin);
+    }
+    // Recherche en file (démarre à la récupération de l'active) + bouton d'annulation (remboursé).
+    const nx = CT.Lab.nextResearch();
+    if (nx) {
+      const nu = CT.Lab.UPGRADES[nx.key];
+      const nName = (CT.i18n && CT.i18n.labName(nx.key)) || nu.name;
+      const row = document.createElement('div'); row.className = 'lr-next';
+      const lbl = document.createElement('span'); lbl.textContent = '⏭ ' + t('lab.queued') + ' ' + nu.icon + ' ' + nName;
+      const x = document.createElement('button'); x.className = 'lr-next-x'; x.textContent = '✕'; x.title = t('lab.cancelQueue');
+      x.addEventListener('click', () => { CT.Audio.ui(); CT.Lab.cancelNext(); renderLab(); });
+      row.append(lbl, x);
+      labResearch.appendChild(row);
     }
   }
+
+  // Regroupement des améliorations en rubriques (ordre + catégories définis côté rendu →
+  // module lab.js inchangé). Toute clé non listée est rendue en fin de liste (sécurité).
+  const LAB_CATEGORIES = [
+    { id: 'eco',    keys: ['surtension', 'inflation', 'chance', 'rendement', 'mission'] },
+    { id: 'power',  keys: ['bouclier', 'surcharge', 'aimant', 'double', 'combo', 'frequence', 'doublecoupe'] },
+    { id: 'survie', keys: ['depart', 'antivirus', 'phenix'] },
+    { id: 'meta',   keys: ['labspeed'] },
+  ];
 
   function renderList() {
     labList.innerHTML = '';
     const researching = !!CT.Lab.research();
     const w = CT.Lab.wallet();
-    Object.keys(CT.Lab.UPGRADES).forEach((key) => {
-      const u = CT.Lab.UPGRADES[key], l = CT.Lab.level(key);
+    const U = CT.Lab.UPGRADES;
+    const renderCard = (key) => {
+      const u = U[key], l = CT.Lab.level(key);
       const uName = (CT.i18n && CT.i18n.labName(key)) || u.name;
       const dsc = (lv2) => (CT.i18n && CT.i18n.labDesc(key, lv2)) || u.desc(lv2);
       const card = document.createElement('div'); card.className = 'lab-up';
@@ -352,12 +408,31 @@
       cost.textContent = (c.bat ? '🔋 ' + c.bat + '   ' : '') + '⚡ ' + c.pts;   // 🔋 masqué si coût en pièces seules
       const tm = document.createElement('div'); tm.className = 'lu-time'; tm.textContent = '⏱ ' + fmtTime(u.time(l));
       const btn = document.createElement('button');
-      btn.textContent = researching ? t('lab.busy') : t('lab.research');
-      btn.disabled = researching || !afford;
-      btn.addEventListener('click', () => { if (CT.Lab.startResearch(key).ok) { CT.Audio.ui(); renderLab(); } });
+      if (researching) {
+        // Labo occupé → on peut réserver CETTE amélioration comme prochaine recherche (file, 1 créneau).
+        const q = CT.Lab.canEnqueue(key);
+        btn.textContent = q.ok ? t('lab.queue') : t('lab.busy');
+        btn.disabled = !q.ok;
+        btn.addEventListener('click', () => { if (CT.Lab.enqueueNext(key).ok) { CT.Audio.ui(); renderLab(); } });
+      } else {
+        btn.textContent = t('lab.research');
+        btn.disabled = !afford;
+        btn.addEventListener('click', () => { if (CT.Lab.startResearch(key).ok) { CT.Audio.ui(); renderLab(); } });
+      }
       card.append(cost, tm, btn);
       labList.appendChild(card);
+    };
+    const seen = {};
+    LAB_CATEGORIES.forEach((cat) => {
+      const keys = cat.keys.filter((k) => U[k]);
+      if (!keys.length) return;
+      // Améliorations au max → reléguées en bas de leur rubrique (tri stable).
+      keys.sort((a, b) => (CT.Lab.level(a) >= U[a].max ? 1 : 0) - (CT.Lab.level(b) >= U[b].max ? 1 : 0));
+      const h = document.createElement('div'); h.className = 'lab-cat'; h.textContent = t('lab.cat.' + cat.id);
+      labList.appendChild(h);
+      keys.forEach((k) => { seen[k] = 1; renderCard(k); });
     });
+    Object.keys(U).forEach((k) => { if (!seen[k]) renderCard(k); });   // sécurité : clés non catégorisées
   }
 
   function renderLab() { renderWallet(); renderResearch(); renderList(); }
