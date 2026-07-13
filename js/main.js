@@ -418,6 +418,15 @@
       const c = CT.Lab.costOf(key, l); const afford = w.bat >= c.bat && w.pts >= c.pts;   // coût après « Soldes R&D »
       const cost = document.createElement('div'); cost.className = 'lu-cost ' + (afford ? 'afford' : 'poor');
       cost.textContent = (c.bat ? '🔋 ' + c.bat + '   ' : '') + '⚡ ' + c.pts;   // 🔋 masqué si coût en pièces seules
+      // pas assez de ressources → indique le manque exact (ce qu'il reste à récolter)
+      if (!afford) {
+        const need = [];
+        if (w.bat < c.bat) need.push((c.bat - w.bat) + ' 🔋');
+        if (w.pts < c.pts) need.push((c.pts - w.pts) + ' ⚡');
+        const nd = document.createElement('div'); nd.className = 'lu-need';
+        nd.textContent = t('lab.need') + ' ' + need.join(' · ');
+        cost.appendChild(nd);
+      }
       const tm = document.createElement('div'); tm.className = 'lu-time'; tm.textContent = '⏱ ' + fmtTime(u.time(l));
       const btn = document.createElement('button');
       if (researching) {

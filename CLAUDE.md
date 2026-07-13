@@ -563,7 +563,9 @@ Méta-progression persistante (localStorage `ct_lab`) qui donne de la durée de 
   unités lisibles (s · min · h · j) ; le coût masque 🔋 quand il est nul (pièces seules).
 - **UI** : écran « 🔬 Laboratoire » (bouton sur l'accueil) — portefeuille, recherche
   active (barre + compte à rebours + Récupérer), cartes d'amélioration (coût
-  🔋+⚡ + temps, niveau, désactivées si labo occupé / ressources insuffisantes).
+  🔋+⚡ + temps, niveau, désactivées si labo occupé / ressources insuffisantes ; quand le
+  coût n'est pas payable, une ligne « manque X 🔋 · Y ⚡ » `.lu-need` indique le déficit exact,
+  i18n `lab.need`).
   Les cartes sont **regroupées en rubriques** (`LAB_CATEGORIES` dans main.js →
   en-têtes `.lab-cat` pleine largeur, i18n `lab.cat.*`) : 💰 Économie & score · 🎁 Power-ups ·
   🛡️ Survie · 🔬 Labo (l'ordre/le classement est **côté rendu**, `lab.js` inchangé ; toute

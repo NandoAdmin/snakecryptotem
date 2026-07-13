@@ -374,6 +374,7 @@ html, body {
 .lab-up .lu-cost { font-size: 12px; font-weight: 700; }
 .lab-up .lu-cost.afford { color: var(--charge); }
 .lab-up .lu-cost.poor { color: var(--danger); }
+.lab-up .lu-need { font-size: 10px; font-weight: 700; color: var(--text-dim); opacity: 0.85; margin-top: 1px; }
 .lab-up .lu-time { font-size: 11px; color: var(--text-dim); }
 .lab-up button {
   margin-top: 2px; border: none; cursor: pointer; padding: 9px; border-radius: 10px;
