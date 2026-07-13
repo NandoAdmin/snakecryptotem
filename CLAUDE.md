@@ -430,14 +430,16 @@ seul le fantôme n'est pas transmis (trop volumineux pour un QR → « bats mon 
   Garantit qu'aucune batterie n'est jamais enfermée (map toujours jouable).
 
 ### Cinématiques (`js/cinematics.js`)
-10 **variantes** (recharge express, confettis, pulse néon, surcharge turbo, totem
+11 **variantes** (recharge express, confettis, pulse néon, surcharge turbo, totem
 pixel, **la ville se recharge** — skyline dont les fenêtres s'allument au rythme de
 la charge —, **le réseau s'allume** — maillage de stations Cryptotem dont les
 nœuds et liens s'allument avec la charge —, **aurore énergétique** — rideaux d'aurore
 boréale néon qui ondulent et s'intensifient avec la charge —, **vortex néon** — spirale
-d'énergie qui tourne et s'étend avec la charge — et **pluie de comètes** — traînées
+d'énergie qui tourne et s'étend avec la charge —, **pluie de comètes** — traînées
 lumineuses qui filent en diagonale sur un fond étoilé, de plus en plus nombreuses avec la
-charge). `CT.pickCinematic(lastVariant)` choisit une variante **différente de la
+charge — et **constellation d'énergie** — un éclair d'étoiles reliées qui s'illumine
+étoile par étoile (traçage progressif) au rythme de la charge, sur fond d'étoiles scintillantes).
+`CT.pickCinematic(lastVariant)` choisit une variante **différente de la
 précédente** (liste : `CT.CINEMATICS`). Timeline en phases : `enter` → `connect` →
 `charge` → `celebrate` (boucle jusqu'au clic « Niveau suivant »). Chaque variante a
 sa spec (`accent`, `title`, entrée `from`), son fond (`_drawBackground`) et ses
@@ -805,10 +807,11 @@ complet : Reed-Solomon GF(256), sélection de masque par pénalité, BCH format/
 ## 🗺️ Pistes / TODO
 
 - [x] Vérifier le rendu dans un navigateur (preview).
-- [x] 10 variantes de cinématiques distinctes (express, confetti, pulse, turbo, totem,
+- [x] 11 variantes de cinématiques distinctes (express, confetti, pulse, turbo, totem,
       ville — la ville se recharge, fenêtres qui s'allument ; reseau — le réseau de
       stations Cryptotem qui s'allume, nœuds + liens ; aurora — aurore boréale néon ;
-      galaxie — vortex d'énergie en spirale ; comete — pluie de comètes sur fond étoilé).
+      galaxie — vortex d'énergie en spirale ; comete — pluie de comètes sur fond étoilé ;
+      constellation — éclair d'étoiles reliées qui se trace étoile par étoile avec la charge).
 - [x] Score + combo + meilleur score persistant (localStorage).
 - [x] Mode « attract / démo » qui tourne tout seul (écrans en bar).
 - [x] Call-to-action Cryptotem sur l'écran de fin.

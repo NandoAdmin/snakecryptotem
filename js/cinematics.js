@@ -36,6 +36,7 @@ CT.Cinematic = function (ctx) {
       case 'aurora':   return { accent: T.charge, title: 'AURORE ÉNERGÉTIQUE',   from: 'zoom'   };
       case 'galaxie':  return { accent: T.cyan,   title: 'VORTEX NÉON',          from: 'zoom'   };
       case 'comete':   return { accent: T.glow,   title: 'PLUIE DE COMÈTES',     from: 'right'  };
+      case 'constellation': return { accent: T.glow, title: 'CONSTELLATION D’ÉNERGIE', from: 'top' };
       case 'express':
       default:         return { accent: T.blue,   title: 'RECHARGE EXPRESS',  from: 'left'   };
     }
@@ -332,6 +333,51 @@ CT.Cinematic = function (ctx) {
       }
       ctx.globalCompositeOperation = 'source-over';
       ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+    } else if (this.variant === 'constellation') {  // constellation : un éclair d'étoiles s'illumine étoile par étoile avec la charge
+      const litFrac = U.clamp((t - P.connectEnd) / (P.chargeEnd - P.connectEnd), 0, 1);
+      // étoiles de fond scintillantes (positions déterministes)
+      ctx.fillStyle = '#bfeef0';
+      for (let i = 0; i < 34; i++) {
+        const sx = ((i * 83 + 13) % 100) / 100 * W;
+        const sy = ((i * 47 + 9) % 100) / 100 * H;
+        ctx.globalAlpha = 0.10 + 0.22 * Math.abs(Math.sin(t * 1.7 + i));
+        ctx.fillRect(sx, sy, 2, 2);
+      }
+      // éclair-constellation (large zigzag descendant, motif énergie Cryptotem ; débordant du
+      // premier plan pour rester visible autour du téléphone/power bank)
+      const shape = [[0.66, 0.10], [0.34, 0.34], [0.62, 0.42], [0.28, 0.62], [0.60, 0.70], [0.26, 0.90]];
+      const pts = shape.map((p) => [p[0] * W, p[1] * H]);
+      const litN = litFrac * (pts.length - 1);   // nb de segments allumés (tracé progressif)
+      ctx.lineCap = 'round';
+      for (let i = 0; i < pts.length - 1; i++) {
+        const lit = i < litN;
+        ctx.globalAlpha = lit ? 0.6 : 0.14;
+        ctx.strokeStyle = lit ? acc : 'rgba(255,255,255,0.5)';
+        ctx.lineWidth = lit ? 2.4 : 1;
+        ctx.shadowColor = acc; ctx.shadowBlur = lit ? 12 : 0;
+        ctx.beginPath(); ctx.moveTo(pts[i][0], pts[i][1]); ctx.lineTo(pts[i + 1][0], pts[i + 1][1]); ctx.stroke();
+      }
+      ctx.shadowBlur = 0;
+      // étoiles (nœuds) : dot + rayons en croix pour les allumées
+      for (let i = 0; i < pts.length; i++) {
+        const x = pts[i][0], y = pts[i][1];
+        const lit = (i / (pts.length - 1)) <= litFrac + 0.001;
+        const tw = 0.85 + 0.3 * Math.abs(Math.sin(t * 3 + i * 1.3));   // scintillement
+        ctx.globalAlpha = lit ? 1 : 0.4;
+        ctx.fillStyle = lit ? acc : 'rgba(255,255,255,0.3)';
+        ctx.shadowColor = acc; ctx.shadowBlur = lit ? 16 : 0;
+        const s = (lit ? 4.5 : 2.5) * tw;
+        ctx.beginPath(); ctx.arc(x, y, s, 0, Math.PI * 2); ctx.fill();
+        if (lit) {
+          ctx.strokeStyle = acc; ctx.lineWidth = 1.2;
+          const ray = s * 2.4;
+          ctx.beginPath();
+          ctx.moveTo(x - ray, y); ctx.lineTo(x + ray, y);
+          ctx.moveTo(x, y - ray); ctx.lineTo(x, y + ray);
+          ctx.stroke();
+        }
+      }
+      ctx.shadowBlur = 0; ctx.globalAlpha = 1;
     }
     ctx.restore();
   };

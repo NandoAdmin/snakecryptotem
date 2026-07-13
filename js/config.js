@@ -342,7 +342,7 @@ CT.util = {
 };
 
 /* Variantes de cinématiques disponibles (détail dans cinematics.js). */
-CT.CINEMATICS = ['express', 'confetti', 'pulse', 'turbo', 'totem', 'ville', 'reseau', 'aurora', 'galaxie', 'comete'];
+CT.CINEMATICS = ['express', 'confetti', 'pulse', 'turbo', 'totem', 'ville', 'reseau', 'aurora', 'galaxie', 'comete', 'constellation'];
 
 /* Choisit une variante différente de la précédente. */
 CT.pickCinematic = function (lastVariant) {
