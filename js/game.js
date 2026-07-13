@@ -104,6 +104,9 @@ window.CT = window.CT || {};
     this.recordToBeat = 0;   // record perso à battre, figé (≠ this.best qui suit les points en jeu)
     this.recordBeaten = false; // bannière « record battu » déjà déclenchée cette partie ?
     this.recordBannerUntil = 0;
+    this.pendingResearchEnd = 0;      // horodatage (ms) de fin d'une recherche Labo en cours (0 = aucune)
+    this.researchDoneNotified = false;
+    this.researchBannerUntil = 0;     // bannière « recherche terminée » (in-game)
     this.runStart = 0;       // horodatage (s) du début de partie (pour la durée)
     this.seed = (Math.random() * 4294967295) >>> 0;  // graine de partie
     this.rng = CT.util.makeRng(this.seed);           // aléa gameplay déterministe
@@ -270,6 +273,11 @@ window.CT = window.CT || {};
     if (this.tutorial) this._markSeen();
     // Labo « Seconde chance » : réanimations disponibles pour cette partie
     this.revivesLeft = (this.mods && this.mods.revives) || 0;
+    // Notification en jeu : recherche du Labo EN COURS (pas déjà prête) qui se terminera
+    // pendant la partie → on capte son horodatage de fin (comparaison horloge, pas this.time).
+    const _r = (CT.Lab && CT.Lab.research) ? CT.Lab.research() : null;
+    this.pendingResearchEnd = (_r && !CT.Lab.isReady()) ? _r.endsAt : 0;
+    this.researchDoneNotified = false;
     this.startLevel(1);
   };
 
@@ -2002,6 +2010,10 @@ window.CT = window.CT || {};
       if (this.malus) { this.malus.life -= dt; if (this.malus.life <= 0) this.malus = null; }
       if (this.orbs.length && this.state === 'playing') this.updateOrbs(dt);   // orbes de boss
       if (this.tempWalls.length) this.expireTempWalls();
+      // recherche du Labo terminée pendant la partie → notification en jeu (une seule fois)
+      if (this.state === 'playing' && !this.demo && this.pendingResearchEnd && !this.researchDoneNotified && Date.now() >= this.pendingResearchEnd) {
+        this.researchDoneNotified = true; this.notifyResearchDone();
+      }
       this.updateFx(dt);
       if (this.toast && this.toast.life > 0) this.toast.life -= dt;
       this.renderWorld();
@@ -2096,6 +2108,7 @@ window.CT = window.CT || {};
     this.drawSurcharge();
     this.drawRecordBanner();
     this.drawEventBanner();
+    this.drawResearchBanner();
     this.drawIntro();
     this.drawResumeCountdown();
     ctx.restore();   // fin du screen-shake
@@ -2446,6 +2459,26 @@ window.CT = window.CT || {};
     ctx.fillStyle = b.color; ctx.shadowColor = b.color; ctx.shadowBlur = 22;
     ctx.font = '900 ' + Math.round(S * 0.062) + 'px -apple-system, system-ui, sans-serif';
     ctx.fillText(b.text, 0, 0);
+    ctx.restore();
+  };
+
+  // Notification en jeu : une recherche du Labo vient de se terminer pendant la partie.
+  G.notifyResearchDone = function () {
+    this.researchBannerUntil = this.time + 2.6;
+    if (CT.Audio.achievement) { try { CT.Audio.achievement(); } catch (e) {} }
+  };
+  G.drawResearchBanner = function () {
+    if (this.time >= (this.researchBannerUntil || 0)) return;
+    const ctx = this.ctx, W = this.W, H = this.H, S = Math.min(W, H);
+    const total = 2.6, remaining = this.researchBannerUntil - this.time, elapsed = total - remaining;
+    const a = Math.min(U.clamp(elapsed / 0.3, 0, 1), U.clamp(remaining / 0.5, 0, 1));
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.translate(W / 2, H * 0.15);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = T.charge; ctx.shadowColor = T.charge; ctx.shadowBlur = 18;
+    ctx.font = '900 ' + Math.round(S * 0.044) + 'px -apple-system, system-ui, sans-serif';
+    ctx.fillText(t('research.done'), 0, 0);
     ctx.restore();
   };
 

@@ -576,7 +576,11 @@ Méta-progression persistante (localStorage `ct_lab`) qui donne de la durée de 
   (`#labBtn.lab-ready::after`, désactivée sous `prefers-reduced-motion`) → rappelle au
   joueur d'aller la récupérer (les recherches longues finissent hors-jeu). `main.js`
   `updateLabReadyBadge()` bascule la classe dans `renderStartBoard` **et** via un intervalle
-  de 2 s (pour capter une recherche qui se termine pendant qu'on est sur l'accueil).
+  de 2 s (pour capter une recherche qui se termine pendant qu'on est sur l'accueil). Et **en
+  cours de partie**, si une recherche **en cours** se termine, une **bannière in-game**
+  « 🔬 Recherche terminée ! » (`drawResearchBanner`, i18n `research.done`) + fanfare s'affiche
+  une seule fois : `startRun` capte l'horodatage de fin (`pendingResearchEnd`, si pas déjà prête),
+  `tick` compare à `Date.now()` (jamais en démo, drapeau `researchDoneNotified`).
 - **Réinitialisation** : bouton « Réinitialiser le Labo » (double-clic de
   confirmation) → `CT.Lab.reset()` efface toute la progression — utile sur une
   borne partagée en bar.
