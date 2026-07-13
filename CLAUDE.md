@@ -536,7 +536,7 @@ Méta-progression persistante (localStorage `ct_lab`) qui donne de la durée de 
   visé** (`researchTimeMs(l+1)`, utilisé par tous les upgrades) : 30 s · 1 min · 3 min
   · 5 min · 10 min · 30 min · 1 h · 2 h · 4 h · 8 h · 12 h · 16 h · 24 h · 30 h · 36 h …
   puis **+6 h par niveau** au-delà (idle / retour différé).
-- **17 améliorations** (`CT.Lab.UPGRADES`, plusieurs niveaux) : Surtension (+10 %
+- **18 améliorations** (`CT.Lab.UPGRADES`, plusieurs niveaux) : Surtension (+10 %
   points/batterie), Bouclier renforcé (+1 s), Surcharge prolongée (+1 s), Aimant
   longue portée (+1 s), Double prolongé (+1 s de double points), Combo facile
   (+0,5 s de fenêtre), R&D power-ups (fréquence), **Rendement R&D** (+5 %/niv de
@@ -551,7 +551,9 @@ Méta-progression persistante (localStorage `ct_lab`) qui donne de la durée de 
   à la mort par **collision** — pas au temps écoulé du chrono — consomme 1 réanimation →
   `reviveGrace` = bouclier de grâce 3 s ; `game.revivesLeft` figé au `startRun`, garde dans
   `die()`), **Prime de mission** 🎯 (+20 %/niv de ⚡ sur les missions via `mods.missionMult`,
-  appliqué dans `checkMissions` → banque, pas au score), **Labo accéléré** ⏩ (−5 %/niv de
+  appliqué dans `checkMissions` → banque, pas au score), **Prime de niveau** 🎖️ (+25 ⚡/niv
+  **par niveau terminé** via `mods.levelBonus`, cumulées dans `game.levelBonusCoins` à chaque
+  `startCinematic` puis versées au Labo à la mort → banque, pas au score), **Labo accéléré** ⏩ (−5 %/niv de
   **temps de recherche**, plancher −25 %, appliqué dans `startResearch` — lab-interne) et
   **Soldes R&D** 🏷️ (−3 %/niv de **coût des recherches**, plancher −15 %, via `costMult`/`costOf`
   utilisé partout — canResearch/canEnqueue + affichage `renderList` — lab-interne).

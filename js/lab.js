@@ -102,6 +102,11 @@ CT.Lab = (function () {
       desc: (l) => '+' + (l * 20) + '% de ⚡ sur les missions accomplies',
       cost: (l) => ({ bat: 22 * (l + 1), pts: 900 * (l + 1) }), time: (l) => researchTimeMs(l + 1),
     },
+    primeNiveau: {
+      name: 'Prime de niveau', icon: '🎖️', max: 5,
+      desc: (l) => '+' + (l * 25) + ' ⚡ versées au Labo à chaque niveau terminé',
+      cost: (l) => ({ bat: 18 * (l + 1), pts: 800 * (l + 1) }), time: (l) => researchTimeMs(l + 1),
+    },
     labspeed: {
       name: 'Labo accéléré', icon: '⏩', max: 5,
       desc: (l) => '−' + (l * 5) + '% de temps de recherche',
@@ -277,6 +282,7 @@ CT.Lab = (function () {
       malusResist: level('antivirus'),           // ×5 % proba de neutraliser un malus
       revives: level('phenix'),                  // réanimations par partie (bouclier de grâce)
       missionMult: 1 + 0.20 * level('mission'),  // ×⚡ sur les récompenses de mission (banque)
+      levelBonus: 25 * level('primeNiveau'),     // ⚡ versées au Labo par niveau terminé (banque)
     };
   }
 
@@ -285,7 +291,7 @@ CT.Lab = (function () {
 
   // Modificateurs neutres (avant chargement / fallback).
   function neutral() {
-    return { pointMult: 1, shieldBonus: 0, slowBonus: 0, magnetBonus: 0, doubleBonus: 0, comboWindowBonus: 0, bonusEveryDelta: 0, bankMult: 1, startShield: 0, luckChance: 0, cutDoubleChance: 0, malusResist: 0, revives: 0, missionMult: 1 };
+    return { pointMult: 1, shieldBonus: 0, slowBonus: 0, magnetBonus: 0, doubleBonus: 0, comboWindowBonus: 0, bonusEveryDelta: 0, bankMult: 1, startShield: 0, luckChance: 0, cutDoubleChance: 0, malusResist: 0, revives: 0, missionMult: 1, levelBonus: 0 };
   }
 
   return {

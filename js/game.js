@@ -126,6 +126,7 @@ window.CT = window.CT || {};
     this.rivalRespawnAt = 0; // retour du Glouton après destruction (time), 0 = pas en attente
     this.missions = [];      // MISSIONS de partie — [{ id, icon, label, target, reward, prog, done }]
     this.missionCoins = 0;   // ⚡ gagnées par missions (versées au Labo à la fin, pas au score)
+    this.levelBonusCoins = 0; // ⚡ « Prime de niveau » cumulées (versées au Labo, pas au score)
     this.wallsRun = 0;       // murs brisés cette partie (mission)
     this.snakRun = 0;        // blocs ennemis détruits cette partie (mission)
     this.biome = null;       // décor de lieu du niveau (bar/ciné/bowling/disco/laser)
@@ -205,7 +206,7 @@ window.CT = window.CT || {};
     this.demo = false;
     // modificateurs issus du Laboratoire (R&D), figés au début de la partie
     this.mods = (window.CT && CT.Lab && CT.Lab.effects) ? CT.Lab.effects()
-      : { pointMult: 1, shieldBonus: 0, slowBonus: 0, magnetBonus: 0, doubleBonus: 0, comboWindowBonus: 0, bonusEveryDelta: 0, bankMult: 1, startShield: 0, luckChance: 0, cutDoubleChance: 0, malusResist: 0, revives: 0, missionMult: 1 };
+      : { pointMult: 1, shieldBonus: 0, slowBonus: 0, magnetBonus: 0, doubleBonus: 0, comboWindowBonus: 0, bonusEveryDelta: 0, bankMult: 1, startShield: 0, luckChance: 0, cutDoubleChance: 0, malusResist: 0, revives: 0, missionMult: 1, levelBonus: 0 };
     this.revivesLeft = 0;    // réanimations restantes (Labo « Seconde chance »), fixées au startRun
     this.updateHud();
     this.loadPersonalBest();
@@ -1817,7 +1818,7 @@ window.CT = window.CT || {};
     this.lastSubmit = this.points > 0 ? CT.Leaderboard.submit(this.lastEntry) : Promise.resolve({ ok: true });
     // verse les ressources de la partie dans la banque du Laboratoire
     // (+ les ⚡ des missions accomplies — récompense hors score, donc hors classement)
-    if (CT.Lab) CT.Lab.bank({ batteries: this.score, points: this.points + (this.missionCoins || 0) });
+    if (CT.Lab) CT.Lab.bank({ batteries: this.score, points: this.points + (this.missionCoins || 0) + (this.levelBonusCoins || 0) });
     // succès liés à la fin de partie (+ comptage des parties jouées)
     this._ach({ score: this.points, durationMs: this.lastEntry.durationMs, bankPts: this.points, game: 1 });
 
@@ -1844,9 +1845,9 @@ window.CT = window.CT || {};
           this.missions.map((m) => (m.done ? '✅' : '▫️') + ' ' + m.icon).join(' &nbsp;') +
           (this.missionCoins ? ' &nbsp;·&nbsp; <b>+' + this.missionCoins + ' ⚡</b>' : '') + '</span>';
       }
-      if (CT.Lab && (this.score > 0 || this.points > 0 || this.missionCoins > 0)) {
+      if (CT.Lab && (this.score > 0 || this.points > 0 || this.missionCoins > 0 || this.levelBonusCoins > 0)) {
         const w = CT.Lab.wallet();
-        html += '<br><span class="lab-gain">' + t('over.labgain', { bat: this.score, pts: this.points + (this.missionCoins || 0), b: w.bat, p: w.pts }) + '</span>';
+        html += '<br><span class="lab-gain">' + t('over.labgain', { bat: this.score, pts: this.points + (this.missionCoins || 0) + (this.levelBonusCoins || 0), b: w.bat, p: w.pts }) + '</span>';
       }
       this.dom.overStats.innerHTML = html;
     }
@@ -1854,6 +1855,8 @@ window.CT = window.CT || {};
   };
 
   G.startCinematic = function () {
+    // Labo « Prime de niveau » : ⚡ versées au Labo pour chaque niveau terminé (banque, pas score)
+    if (!this.demo && this.mods && this.mods.levelBonus) this.levelBonusCoins += this.mods.levelBonus;
     const variant = CT.pickCinematic(this.lastVariant);
     this.lastVariant = variant;
     this.cine.start(variant, this.levelNum, this.W, this.H);
