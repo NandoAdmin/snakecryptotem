@@ -762,6 +762,11 @@ rouges (`drawEffects`) pour les malus temporisés (court-circuit / brouillage / 
 - **Screen-shake** (`game.shake`, décroît, cosmétique → n'affecte pas le
   déterminisme) : léger aux power-ups, fort à la mort. Le fond reste fixe (pas de
   bords vides), seul le plateau tremble.
+- **Onde de choc à la prise** (`game.eatRings`, `drawEatRings`) : chaque batterie
+  ramassée émet un **anneau qui s'étend et s'estompe** (~0,42 s, temporisé sur `this.time`,
+  purgé quand expiré) depuis la case mangée, sous le serpent. **Plus large et doré** (`T.amber`)
+  quand le **combo ≥ 5** (sinon `T.glow`) → renforce visuellement le combo. Poussé dans `onEat`,
+  **désactivé sous `prefers-reduced-motion`**. Cosmétique (n'affecte pas le déterministe).
 - **Accessibilité** (`game.reduce`) : respecte `prefers-reduced-motion` de l'OS
   (écouté en direct) → **pas de screen-shake**, flash atténué, particules réduites
   (~35 %). Important pour un jeu public (confort / sensibilité au mouvement). Côté

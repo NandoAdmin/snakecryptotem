@@ -400,6 +400,7 @@ window.CT = window.CT || {};
     this.rushUntil = 0; this.fogUntil = 0; this.repelUntil = 0; this.goldUntil = 0; this.rainUntil = 0;
     this.tempWalls = []; this.portals = []; this.eventBanner = null;
     this.fx = []; this.toast = null; this.flash = 0; this.shake = 0;
+    this.eatRings = [];      // ondes de choc à la prise d'une batterie (cosmétique, temporisées)
     this.introUntil = 0; this.versusWinner = 0;
     // couleurs fixes (lisibilité du duel) : J1 cyan, J2 rose
     this.snakeColorRgb = hexRgb(T.cyan); this.snakeColorTarget = hexRgb(T.cyan);
@@ -1656,6 +1657,8 @@ window.CT = window.CT || {};
       this._ach({ bat: lucky ? 2 : 1, combo: this.combo });
     }
     CT.Audio.pickup(this.combo || 1);   // son de ramassage : hauteur ↑ avec le combo (1 en démo)
+    // onde de choc « punch » à la prise (plus grande/dorée avec le combo ; atténuée sous reduce-motion)
+    if (!this.reduce) this.eatRings.push({ x: this.food.x, y: this.food.y, t0: this.time, combo: this.combo || 1 });
     this.updateHud();
 
     if (this.batteries >= this.level.needed) {
@@ -1866,6 +1869,29 @@ window.CT = window.CT || {};
     this.cine.start(variant, this.levelNum, this.W, this.H);
     if (this.dom.continueBtn) this.dom.continueBtn.classList.add('hidden');
     this.setState('cinematic');
+  };
+
+  // Ondes de choc à la prise d'une batterie : un anneau qui s'étend et s'estompe (~0,42 s),
+  // plus large et doré quand le combo monte → renforce visuellement le système de combo.
+  G.drawEatRings = function () {
+    if (!this.eatRings || !this.eatRings.length) return;
+    const ctx = this.ctx, cell = this.cell, dur = 0.42;
+    for (let i = this.eatRings.length - 1; i >= 0; i--) {
+      const r = this.eatRings[i];
+      const age = this.time - r.t0;
+      if (age >= dur || age < 0) { this.eatRings.splice(i, 1); continue; }
+      const k = age / dur;                                   // 0 → 1
+      const combo = Math.min(r.combo || 1, 9);
+      const cx = (r.x + 0.5) * cell, cy = (r.y + 0.5) * cell;
+      const rad = cell * (0.4 + k * (1.8 + combo * 0.22));    // s'étend (~2 à 4 cases), plus grand avec le combo
+      ctx.save();
+      ctx.globalAlpha = (1 - k) * 0.9;
+      ctx.strokeStyle = combo >= 5 ? T.amber : T.glow;        // combo élevé → doré
+      ctx.lineWidth = cell * 0.22 * (1 - k) + 1.2;
+      ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 10;
+      ctx.beginPath(); ctx.arc(cx, cy, rad, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    }
   };
 
   /* ---------------- effets (particules pixel) ---------------- */
@@ -2104,6 +2130,7 @@ window.CT = window.CT || {};
       if (this.bonus) this.drawBonus();
       if (this.malus) this.drawMalus();
       this.drawGhost();                                // fantôme du Défi du jour (sous tout le vivant)
+      this.drawEatRings();                             // ondes de choc « punch » à la prise (sous le serpent)
       for (const e of this.hostiles()) this.drawHostile(e);
       this.drawOrbs();                                 // orbes de boss (au-dessus des boss)
       if (this.snake) this.drawSnake();
