@@ -450,6 +450,11 @@ particules de célébration (`_emitCelebrate`) ; téléphone + power bank + câb
 - `combo` : ×N si on ramasse une batterie < 2,6 s après la précédente (max ×9).
   Un **chip « 🔥×N » + fenêtre restante** s'affiche parmi les pastilles d'effets (`drawEffects`,
   combo ≥ 2, jamais en démo) → le joueur voit le temps qu'il lui reste pour enchaîner.
+  **Paliers de combo récompensés** (`onEat`, au franchissement uniquement — via `prevCombo`) :
+  atteindre **×5** joue `CT.Audio.combo(false)` (sparkle court) + flash ambré, atteindre **×9**
+  (max) joue `CT.Audio.combo(true)` (arpège brillant + traîne) + flash ambré plus fort — enchaîner
+  « paie ». Ne se redéclenche pas tant qu'on reste au max ; une chaîne cassée remet à ×1 et permet
+  de re-déclencher les paliers.
 - `best` : record perso, chargé depuis `CT.Leaderboard` (async) et affiché sur
   l'accueil, le HUD et l'écran de fin (« Nouveau record ! »). ⚠️ `best` est **bumpé en
   cours de partie** pour suivre `points` (affichage HUD) ; le vrai record à battre est figé

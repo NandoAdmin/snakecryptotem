@@ -187,6 +187,16 @@ CT.Audio = (function () {
       seq.forEach((f, i) => tone(f, 0.16, 'triangle', 0.13, i * 0.06));
       tone(1319, 0.30, 'sine', 0.07, 0.26);  // traîne scintillante
     },
+    combo(isMax) {        // palier de combo atteint (×5 « chaud » / ×9 « MAX » : plus brillant + traîne)
+      if (isMax) {
+        const seq = [880, 1175, 1568, 2093];   // arpège brillant montant (A5-D6-G6-C7)
+        seq.forEach((f, i) => tone(f, 0.13, 'square', 0.11, i * 0.045));
+        tone(2093, 0.28, 'sine', 0.06, 0.20);  // traîne scintillante
+      } else {
+        const seq = [784, 1046, 1319];         // sparkle court montant (G5-C6-E6)
+        seq.forEach((f, i) => tone(f, 0.10, 'square', 0.10, i * 0.04));
+      }
+    },
     malus() {             // malus (burger) : « buzz » descendant désagréable
       sweep(320, 110, 0.28, 'sawtooth', 0.16);
       tone(150, 0.12, 'square', 0.12, 0.05);

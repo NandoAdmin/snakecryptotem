@@ -184,6 +184,7 @@ window.CT = window.CT || {};
     this.introDur = CT.CONFIG.introDuration;   // durée de l'annonce courante (plus longue si spéciale)
     this.resumeUntil = 0;    // compte à rebours « 3·2·1 » à la reprise après pause (serpent figé)
     this.fx = [];
+    this.eatRings = [];      // ondes de choc à la prise d'une batterie (cosmétique, temporisées)
     this.toast = null;
     this.flash = 0;
     this.flashColor = '#ffffff';
@@ -357,6 +358,7 @@ window.CT = window.CT || {};
     this.orbs = [];
     this.introUntil = 0;
     this.fx = [];
+    this.eatRings = [];      // ondes de choc à la prise d'une batterie (cosmétique, temporisées)
     this.toast = null;
     this.flash = 0;
     this.shake = 0;
@@ -1641,8 +1643,12 @@ window.CT = window.CT || {};
     if (!this.demo) {
       this.score++;
       const comboWindow = 2.6 + this.mods.comboWindowBonus;          // Labo : combo facile
+      const prevCombo = this.combo || 0;
       this.combo = (this.time - this.lastEat < comboWindow) ? Math.min(this.combo + 1, 9) : 1;
       this.maxComboRun = Math.max(this.maxComboRun, this.combo);
+      // Récompense de palier de combo (une fois au franchissement) : son + flash — enchaîner « paie »
+      if (this.combo === 9 && prevCombo < 9) { CT.Audio.combo(true); this.flash = Math.max(this.flash, 0.7); this.flashColor = T.amber; }
+      else if (this.combo === 5 && prevCombo < 5) { CT.Audio.combo(false); this.flash = Math.max(this.flash, 0.5); this.flashColor = T.amber; }
       this.lastEat = this.time;
       const dbl = this.time < this.doubleUntil ? 2 : 1;             // power-up double points
       let gain = Math.round((50 + this.levelNum * 10) * this.combo * this.mods.pointMult * dbl); // Labo : surtension + inflation
