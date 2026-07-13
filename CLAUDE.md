@@ -517,10 +517,12 @@ Méta-progression persistante (localStorage `ct_lab`) qui donne de la durée de 
   d'avance** au niveau courant) ; elles **démarrent l'une après l'autre** à chaque récupération
   (`claim` défile `s.queue.shift()`). On **interdit** qu'une amélioration apparaisse **deux fois**
   (active OU déjà en file) → le coût/temps reste celui du niveau courant, **sans calcul de niveau
-  projeté**. Chips numérotés « ⏭ En file : 1. … / 2. … » (`.lr-next`) sous la barre, chacun avec un
-  **✕ qui l'annule et rembourse** intégralement (`cancelQueued`, coût mémorisé dans l'entrée). L'ancien
-  créneau unique `s.next` est **migré** vers `s.queue` au chargement (`state()`). i18n `lab.queue` /
-  `lab.queued` / `lab.cancelQueue` (FR/EN/ES).
+  projeté**. Chips numérotés « ⏭ En file : 1. … / 2. … » (`.lr-next`) sous la barre, chacun affichant
+  sa **durée** (`.lr-next-t`) + un **✕ qui l'annule et rembourse** intégralement (`cancelQueued`, coût
+  mémorisé dans l'entrée), suivis d'une ligne **ETA** (`.lr-eta`, i18n `lab.queueEta`) = temps total
+  avant que toute la file soit terminée (`researchRemaining()` de l'active + somme des durées en file).
+  L'ancien créneau unique `s.next` est **migré** vers `s.queue` au chargement (`state()`). i18n `lab.queue` /
+  `lab.queued` / `lab.cancelQueue` / `lab.queueEta` (FR/EN/ES).
 - **« Terminer maintenant »** (`finishCost` / `finishNow`) : bouton ambre sous la barre
   de progression (`.lr-finish`, `renderResearch`) pour **finir instantanément** la recherche
   en cours en **dépensant des pièces ⚡**. Coût **proportionnel au temps réel restant**

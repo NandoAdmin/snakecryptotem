@@ -369,11 +369,19 @@
       const row = document.createElement('div'); row.className = 'lr-next';
       const prefix = i === 0 ? '⏭ ' + t('lab.queued') + ' ' : '';   // libellé « En file : » sur la 1ʳᵉ seulement
       const lbl = document.createElement('span'); lbl.textContent = prefix + (i + 1) + '. ' + nu.icon + ' ' + nName;
+      const dur = document.createElement('span'); dur.className = 'lr-next-t'; dur.textContent = fmtTime(item.durationMs);
       const x = document.createElement('button'); x.className = 'lr-next-x'; x.textContent = '✕'; x.title = t('lab.cancelQueue');
       x.addEventListener('click', () => { CT.Audio.ui(); CT.Lab.cancelQueued(i); renderLab(); });
-      row.append(lbl, x);
+      row.append(lbl, dur, x);
       labResearch.appendChild(row);
     });
+    // ETA : temps total avant que la file entière soit terminée (active restante + durées en file).
+    if (q.length) {
+      const total = CT.Lab.researchRemaining() + q.reduce((a, it) => a + (it.durationMs || 0), 0);
+      const eta = document.createElement('div'); eta.className = 'lr-eta';
+      eta.textContent = '⏳ ' + t('lab.queueEta') + ' ' + fmtTime(total);
+      labResearch.appendChild(eta);
+    }
   }
 
   // Regroupement des améliorations en rubriques (ordre + catégories définis côté rendu →
