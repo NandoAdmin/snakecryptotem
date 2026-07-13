@@ -329,6 +329,7 @@ html, body {
 .lab-research .lr-finish:active:not(:disabled) { transform: translateY(1px); }
 .lab-research .lr-finish.poor { color: var(--danger); border-color: rgba(255,91,110,0.4); background: rgba(255,91,110,0.08); cursor: not-allowed; opacity: 0.75; }
 .lab-research .lr-next { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px; padding-top: 8px; border-top: 1px dashed var(--glass-brd); font-size: 13px; font-weight: 700; color: var(--text-dim); }
+.lab-research .lr-next + .lr-next { margin-top: 0; padding-top: 4px; border-top: none; }   /* items suivants : serrés, sans séparateur */
 .lab-research .lr-next-x { flex: 0 0 auto; cursor: pointer; width: 22px; height: 22px; border-radius: 8px; line-height: 1; font-weight: 800; color: var(--danger); border: 1px solid rgba(255,91,110,0.4); background: rgba(255,91,110,0.1); transition: background 0.15s; }
 .lab-research .lr-next-x:hover { background: rgba(255,91,110,0.2); }
 /* Célébration à la récupération d'une recherche (toast doré/charge, fixe en haut) */

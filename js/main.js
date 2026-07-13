@@ -361,18 +361,19 @@
       fin.addEventListener('click', () => { if (CT.Lab.finishNow().ok) { CT.Audio.ui(); renderLab(); } });
       labResearch.appendChild(fin);
     }
-    // Recherche en file (démarre à la récupération de l'active) + bouton d'annulation (remboursé).
-    const nx = CT.Lab.nextResearch();
-    if (nx) {
-      const nu = CT.Lab.UPGRADES[nx.key];
-      const nName = (CT.i18n && CT.i18n.labName(nx.key)) || nu.name;
+    // File d'attente (démarre l'une après l'autre à la récupération) + annulation par item (remboursée).
+    const q = CT.Lab.queue();
+    q.forEach((item, i) => {
+      const nu = CT.Lab.UPGRADES[item.key];
+      const nName = (CT.i18n && CT.i18n.labName(item.key)) || nu.name;
       const row = document.createElement('div'); row.className = 'lr-next';
-      const lbl = document.createElement('span'); lbl.textContent = '⏭ ' + t('lab.queued') + ' ' + nu.icon + ' ' + nName;
+      const prefix = i === 0 ? '⏭ ' + t('lab.queued') + ' ' : '';   // libellé « En file : » sur la 1ʳᵉ seulement
+      const lbl = document.createElement('span'); lbl.textContent = prefix + (i + 1) + '. ' + nu.icon + ' ' + nName;
       const x = document.createElement('button'); x.className = 'lr-next-x'; x.textContent = '✕'; x.title = t('lab.cancelQueue');
-      x.addEventListener('click', () => { CT.Audio.ui(); CT.Lab.cancelNext(); renderLab(); });
+      x.addEventListener('click', () => { CT.Audio.ui(); CT.Lab.cancelQueued(i); renderLab(); });
       row.append(lbl, x);
       labResearch.appendChild(row);
-    }
+    });
   }
 
   // Regroupement des améliorations en rubriques (ordre + catégories définis côté rendu →
@@ -381,7 +382,7 @@
     { id: 'eco',    keys: ['surtension', 'inflation', 'chance', 'rendement', 'mission'] },
     { id: 'power',  keys: ['bouclier', 'surcharge', 'aimant', 'double', 'combo', 'frequence', 'doublecoupe'] },
     { id: 'survie', keys: ['depart', 'antivirus', 'phenix'] },
-    { id: 'meta',   keys: ['labspeed'] },
+    { id: 'meta',   keys: ['labspeed', 'solde'] },
   ];
 
   function renderList() {
@@ -403,7 +404,7 @@
       card.append(top, desc);
       if (l >= u.max) { card.classList.add('maxed'); desc.textContent = dsc(l) + t('lab.max'); labList.appendChild(card); return; }
       desc.textContent = t('lab.next') + dsc(l + 1);
-      const c = u.cost(l); const afford = w.bat >= c.bat && w.pts >= c.pts;
+      const c = CT.Lab.costOf(key, l); const afford = w.bat >= c.bat && w.pts >= c.pts;   // coût après « Soldes R&D »
       const cost = document.createElement('div'); cost.className = 'lu-cost ' + (afford ? 'afford' : 'poor');
       cost.textContent = (c.bat ? '🔋 ' + c.bat + '   ' : '') + '⚡ ' + c.pts;   // 🔋 masqué si coût en pièces seules
       const tm = document.createElement('div'); tm.className = 'lu-time'; tm.textContent = '⏱ ' + fmtTime(u.time(l));

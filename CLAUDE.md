@@ -511,15 +511,16 @@ Méta-progression persistante (localStorage `ct_lab`) qui donne de la durée de 
   récupération **célèbre** la récompense : fanfare `CT.Audio.achievement()` + **toast doré**
   (`#labToast`, `.lab-toast`, `showLabClaimToast` dans main.js) « icône Nom — Niv N débloqué ! »
   (i18n `lab.unlocked`) en haut de l'écran, auto-masqué après ~2,4 s.
-- **File d'attente (1 créneau)** (`canEnqueue` / `enqueueNext` / `cancelNext` / `nextResearch`,
-  `s.next`) : pendant qu'une recherche tourne, chaque carte d'amélioration propose « ＋ File »
-  pour **réserver LA prochaine** recherche (coût **payé d'avance** au niveau courant) ; elle
-  **démarre automatiquement** à la récupération de l'active (`claim` enchaîne `s.next`). On
-  **interdit** de mettre en file la **même** amélioration que l'active (`s.research.key === key`)
-  → le coût/temps reste celui du niveau courant, **sans calcul de niveau projeté**. Un chip
-  « ⏭ En file : … » (`.lr-next`) sous la barre affiche la recherche réservée + un **✕ qui
-  l'annule et rembourse** intégralement (`cancelNext`, coût mémorisé dans `s.next.cost`). i18n
-  `lab.queue` / `lab.queued` / `lab.cancelQueue` (FR/EN/ES).
+- **File d'attente (jusqu'à `QUEUE_MAX` = 3)** (`canEnqueue` / `enqueueNext` / `cancelQueued(index)`
+  / `queue()` / `nextResearch`, tableau `s.queue`) : pendant qu'une recherche tourne, chaque carte
+  d'amélioration propose « ＋ File » pour **réserver les prochaines** recherches (coût **payé
+  d'avance** au niveau courant) ; elles **démarrent l'une après l'autre** à chaque récupération
+  (`claim` défile `s.queue.shift()`). On **interdit** qu'une amélioration apparaisse **deux fois**
+  (active OU déjà en file) → le coût/temps reste celui du niveau courant, **sans calcul de niveau
+  projeté**. Chips numérotés « ⏭ En file : 1. … / 2. … » (`.lr-next`) sous la barre, chacun avec un
+  **✕ qui l'annule et rembourse** intégralement (`cancelQueued`, coût mémorisé dans l'entrée). L'ancien
+  créneau unique `s.next` est **migré** vers `s.queue` au chargement (`state()`). i18n `lab.queue` /
+  `lab.queued` / `lab.cancelQueue` (FR/EN/ES).
 - **« Terminer maintenant »** (`finishCost` / `finishNow`) : bouton ambre sous la barre
   de progression (`.lr-finish`, `renderResearch`) pour **finir instantanément** la recherche
   en cours en **dépensant des pièces ⚡**. Coût **proportionnel au temps réel restant**
@@ -533,7 +534,7 @@ Méta-progression persistante (localStorage `ct_lab`) qui donne de la durée de 
   visé** (`researchTimeMs(l+1)`, utilisé par tous les upgrades) : 30 s · 1 min · 3 min
   · 5 min · 10 min · 30 min · 1 h · 2 h · 4 h · 8 h · 12 h · 16 h · 24 h · 30 h · 36 h …
   puis **+6 h par niveau** au-delà (idle / retour différé).
-- **16 améliorations** (`CT.Lab.UPGRADES`, plusieurs niveaux) : Surtension (+10 %
+- **17 améliorations** (`CT.Lab.UPGRADES`, plusieurs niveaux) : Surtension (+10 %
   points/batterie), Bouclier renforcé (+1 s), Surcharge prolongée (+1 s), Aimant
   longue portée (+1 s), Double prolongé (+1 s de double points), Combo facile
   (+0,5 s de fenêtre), R&D power-ups (fréquence), **Rendement R&D** (+5 %/niv de
@@ -549,7 +550,9 @@ Méta-progression persistante (localStorage `ct_lab`) qui donne de la durée de 
   `reviveGrace` = bouclier de grâce 3 s ; `game.revivesLeft` figé au `startRun`, garde dans
   `die()`), **Prime de mission** 🎯 (+20 %/niv de ⚡ sur les missions via `mods.missionMult`,
   appliqué dans `checkMissions` → banque, pas au score), **Labo accéléré** ⏩ (−5 %/niv de
-  **temps de recherche**, plancher −25 %, appliqué dans `startResearch` — lab-interne).
+  **temps de recherche**, plancher −25 %, appliqué dans `startResearch` — lab-interne) et
+  **Soldes R&D** 🏷️ (−3 %/niv de **coût des recherches**, plancher −15 %, via `costMult`/`costOf`
+  utilisé partout — canResearch/canEnqueue + affichage `renderList` — lab-interne).
 - **Effets** : `CT.Lab.effects()` → `game.mods` (figé au `startRun`), appliqué dans
   `onEat` (points/combo/fréquence + `pointMult` = surtension + inflation + proc
   `luckChance` via `Math.random` pour ne pas décaler l'aléa des spawns), `onEatBonus`

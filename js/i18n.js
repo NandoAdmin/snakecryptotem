@@ -340,6 +340,7 @@ CT.i18n = (function () {
       phenix: (l) => l + ' revive' + (l > 1 ? 's' : '') + ' per game (grace shield on death)',
       mission: (l) => '+' + (l * 20) + '% ⚡ on completed missions',
       labspeed: (l) => '−' + (l * 5) + '% research time',
+      solde: (l) => '−' + (l * 3) + '% research cost',
     },
     es: {
       surtension: (l) => '+' + (l * 10) + '% de puntos por batería',
@@ -358,11 +359,12 @@ CT.i18n = (function () {
       phenix: (l) => l + ' reanimación' + (l > 1 ? 'es' : '') + ' por partida (escudo de gracia al morir)',
       mission: (l) => '+' + (l * 20) + '% de ⚡ en misiones completadas',
       labspeed: (l) => '−' + (l * 5) + '% de tiempo de investigación',
+      solde: (l) => '−' + (l * 3) + '% de coste de investigación',
     },
   };
   const LAB_NAME = {
-    en: { surtension: 'Surge', bouclier: 'Reinforced Shield', surcharge: 'Extended Overcharge', aimant: 'Long-range Magnet', double: 'Extended Double', combo: 'Easy Combo', frequence: 'Power-up R&D', rendement: 'R&D Yield', depart: 'Protected Start', inflation: 'Inflation', chance: 'Lucky Strike', doublecoupe: 'Double Cut', antivirus: 'Antivirus', phenix: 'Second Chance', mission: 'Mission Bonus', labspeed: 'Faster Lab' },
-    es: { surtension: 'Sobretensión', bouclier: 'Escudo reforzado', surcharge: 'Sobrecarga prolongada', aimant: 'Imán de largo alcance', double: 'Doble prolongado', combo: 'Combo fácil', frequence: 'I+D de power-ups', rendement: 'Rendimiento I+D', depart: 'Inicio protegido', inflation: 'Inflación', chance: 'Golpe de suerte', doublecoupe: 'Doble corte', antivirus: 'Antivirus', phenix: 'Segunda oportunidad', mission: 'Bonus de misión', labspeed: 'Laboratorio acelerado' },
+    en: { surtension: 'Surge', bouclier: 'Reinforced Shield', surcharge: 'Extended Overcharge', aimant: 'Long-range Magnet', double: 'Extended Double', combo: 'Easy Combo', frequence: 'Power-up R&D', rendement: 'R&D Yield', depart: 'Protected Start', inflation: 'Inflation', chance: 'Lucky Strike', doublecoupe: 'Double Cut', antivirus: 'Antivirus', phenix: 'Second Chance', mission: 'Mission Bonus', labspeed: 'Faster Lab', solde: 'R&D Sale' },
+    es: { surtension: 'Sobretensión', bouclier: 'Escudo reforzado', surcharge: 'Sobrecarga prolongada', aimant: 'Imán de largo alcance', double: 'Doble prolongado', combo: 'Combo fácil', frequence: 'I+D de power-ups', rendement: 'Rendimiento I+D', depart: 'Inicio protegido', inflation: 'Inflación', chance: 'Golpe de suerte', doublecoupe: 'Doble corte', antivirus: 'Antivirus', phenix: 'Segunda oportunidad', mission: 'Bonus de misión', labspeed: 'Laboratorio acelerado', solde: 'Rebajas I+D' },
   };
 
   function detect() {

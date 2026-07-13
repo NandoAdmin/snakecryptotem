@@ -107,21 +107,35 @@ CT.Lab = (function () {
       desc: (l) => '−' + (l * 5) + '% de temps de recherche',
       cost: (l) => ({ bat: 28 * (l + 1), pts: 1100 * (l + 1) }), time: (l) => researchTimeMs(l + 2),
     },
+    solde: {
+      name: 'Soldes R&D', icon: '🏷️', max: 5,
+      desc: (l) => '−' + (l * 3) + '% de coût sur les recherches',
+      cost: (l) => ({ bat: 26 * (l + 1), pts: 1050 * (l + 1) }), time: (l) => researchTimeMs(l + 2),
+    },
   };
 
   function load() { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { return {}; } }
   function save(s) { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (e) {} }
+  const QUEUE_MAX = 3;              // recherches réservables en file (démarrent l'une après l'autre)
   function state() {
     const s = load();
     s.wallet = s.wallet || { bat: 0, pts: 0 };
     s.up = s.up || {};
     s.research = s.research || null;
-    s.next = s.next || null;        // recherche mise en file (une seule) — démarre à la récupération de l'active
+    s.queue = s.queue || [];        // file d'attente — chaque entrée démarre à la récupération de l'active
+    if (s.next) { s.queue.push(s.next); delete s.next; }   // migration depuis l'ancien créneau unique `s.next`
     return s;
   }
 
   // « Labo accéléré » : facteur de réduction du temps de recherche (−5 %/niveau, plancher −25 %).
   function labMult(s) { return Math.max(0.75, 1 - 0.05 * (s.up.labspeed || 0)); }
+  // « Soldes R&D » : facteur de réduction du COÛT des recherches (−3 %/niveau, plancher −15 %).
+  function costMult(s) { return Math.max(0.85, 1 - 0.03 * (s.up.solde || 0)); }
+  // Coût effectif d'une amélioration (après « Soldes R&D »). Utilisé partout (logique + affichage).
+  function costOf(key, l) {
+    const c = UPGRADES[key].cost(l), m = costMult(state());
+    return { bat: Math.round(c.bat * m), pts: Math.round(c.pts * m) };
+  }
 
   function level(key) { return state().up[key] || 0; }
   function wallet() { return state().wallet; }
@@ -149,7 +163,7 @@ CT.Lab = (function () {
     if (s.research) return { ok: false, reason: 'recherche en cours' };
     const u = UPGRADES[key]; const l = level(key);
     if (l >= u.max) return { ok: false, reason: 'niveau max' };
-    const c = u.cost(l);
+    const c = costOf(key, l);
     if (s.wallet.bat < c.bat || s.wallet.pts < c.pts) return { ok: false, reason: 'ressources insuffisantes' };
     return { ok: true, cost: c, time: u.time(l) };
   }
@@ -165,18 +179,19 @@ CT.Lab = (function () {
     return { ok: true };
   }
 
-  // File d'attente (UN seul créneau) : pendant qu'une recherche tourne, on peut réserver
-  // LA prochaine (coût payé d'avance) ; elle démarre automatiquement à la récupération de
-  // l'active (claim). On interdit de mettre en file la MÊME amélioration que l'active →
+  // File d'attente (jusqu'à `QUEUE_MAX`) : pendant qu'une recherche tourne, on réserve les
+  // prochaines (coût payé d'avance) ; elles démarrent l'une après l'autre à chaque récupération
+  // (claim). On interdit qu'une amélioration apparaisse DEUX fois (active OU déjà en file) →
   // le coût/temps reste celui du niveau courant (pas de calcul de niveau projeté).
   function canEnqueue(key) {
     const s = state();
     if (!s.research) return { ok: false, reason: 'aucune recherche active' };
-    if (s.next) return { ok: false, reason: 'file pleine' };
+    if (s.queue.length >= QUEUE_MAX) return { ok: false, reason: 'file pleine' };
     if (s.research.key === key) return { ok: false, reason: 'déjà en cours' };
+    if (s.queue.some((q) => q.key === key)) return { ok: false, reason: 'déjà en file' };
     const u = UPGRADES[key]; const l = level(key);
     if (l >= u.max) return { ok: false, reason: 'niveau max' };
-    const c = u.cost(l);
+    const c = costOf(key, l);
     if (s.wallet.bat < c.bat || s.wallet.pts < c.pts) return { ok: false, reason: 'ressources insuffisantes' };
     return { ok: true, cost: c, time: Math.round(u.time(l) * labMult(s)) };
   }
@@ -185,20 +200,21 @@ CT.Lab = (function () {
     if (!r.ok) return r;
     const s = state();
     s.wallet.bat -= r.cost.bat; s.wallet.pts -= r.cost.pts;
-    s.next = { key, cost: r.cost, durationMs: r.time };   // coût mémorisé → remboursement exact si annulée
+    s.queue.push({ key, cost: r.cost, durationMs: r.time });   // coût mémorisé → remboursement exact si annulée
     save(s);
     return { ok: true };
   }
-  function cancelNext() {
+  function cancelQueued(index) {
     const s = state();
-    if (!s.next) return { ok: false };
-    s.wallet.bat += (s.next.cost && s.next.cost.bat) || 0;   // remboursement intégral
-    s.wallet.pts += (s.next.cost && s.next.cost.pts) || 0;
-    const key = s.next.key; s.next = null;
+    if (index < 0 || index >= s.queue.length) return { ok: false };
+    const item = s.queue.splice(index, 1)[0];
+    s.wallet.bat += (item.cost && item.cost.bat) || 0;   // remboursement intégral
+    s.wallet.pts += (item.cost && item.cost.pts) || 0;
     save(s);
-    return { ok: true, key };
+    return { ok: true, key: item.key };
   }
-  function nextResearch() { return state().next; }
+  function queue() { return state().queue; }
+  function nextResearch() { return state().queue[0] || null; }   // compat : première en file
 
   function research() { return state().research; }
   function researchRemaining() { const r = state().research; return r ? Math.max(0, r.endsAt - Date.now()) : 0; }
@@ -235,8 +251,8 @@ CT.Lab = (function () {
     s.up[r.key] = (s.up[r.key] || 0) + 1;
     s.research = null;
     const res = { ok: true, key: r.key, level: s.up[r.key] };
-    if (s.next) {
-      const n = s.next; s.next = null;
+    if (s.queue.length) {
+      const n = s.queue.shift();
       s.research = { key: n.key, endsAt: Date.now() + n.durationMs, durationMs: n.durationMs };
       res.startedNext = n.key;
     }
@@ -273,10 +289,10 @@ CT.Lab = (function () {
   }
 
   return {
-    UPGRADES, level, wallet, bank, canAfford, spend,
+    UPGRADES, level, wallet, bank, canAfford, spend, costOf,
     canResearch, startResearch, research, researchRemaining, isReady, claim,
     finishCost, finishNow,
-    canEnqueue, enqueueNext, cancelNext, nextResearch,
+    canEnqueue, enqueueNext, cancelQueued, queue, nextResearch,
     effects, neutral, reset,
   };
 })();
