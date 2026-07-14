@@ -485,11 +485,15 @@ particules de célébration (`_emitCelebrate`) ; téléphone + power bank + câb
 **classement global**. API à base de Promesses (compatible backend distant) :
 `submit(entry)`, `fetchBoards(me)`, `relabelLast(name)`, `getName/setName`,
 `useRemote(endpoint, token)`. À la mort, `game.die()` soumet une entrée
-`{ name, score, level, batteries, bonuses, durationMs, seed, daily, chrono, diff, steps, journal, ts }` ;
+`{ name, score, level, batteries, bonuses, durationMs, seed, daily, chrono, diff, steps, journal, venue, ts }` ;
 le client remote ajoute un **`nonce` + `cts`** (horodatage client) à chaque POST (anti-rejeu).
 L'écran de fin affiche le pseudo (modifiable), un classement à onglets Jour/Semaine/Global/Chrono
 (top 5, ligne du joueur surlignée), le rang et le record perso. L'**écran d'accueil** affiche le
-**top 3 de la semaine** (mode attract — visible sur les écrans en bar).
+**top 3 de la semaine** (mode attract) — OU, si la borne est configurée (Mode opérateur), le
+**« 🏆 Meilleurs à [lieu] »** : `boards()` renvoie un tableau `venue[]` = meilleurs scores tous
+temps (hors chrono) filtrés par `e.venue === CT.Operator.venue()` (`venueRank` aussi) ; l'entrée
+est taguée `venue` à la mort. ⚠️ Sur une borne unique tous les scores locaux partagent le lieu ;
+le vrai intérêt (chaîne multi-bornes) est **côté serveur** (à ajouter à `leaderboard-server.js`).
 **⚠️ Anti-triche :** le backend local (localStorage) **n'est pas** sécurisé — c'est un placeholder.
 La validation vit dans `js/scoring-rules.js` (`CT.ScoringRules.validate` / `maxPlausibleScore`),
 **partagée à l'identique** navigateur ↔ **serveur Node de référence** (`server/leaderboard-server.js`).

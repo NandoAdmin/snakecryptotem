@@ -1828,6 +1828,7 @@ window.CT = window.CT || {};
       diff: this.diffId,                               // difficulté appliquée (easy/normal/hard)
       steps: this.stepCount,                           // nb de pas (rejeu déterministe)
       journal: (CT.SimCore ? CT.SimCore.encodeJournal(this.journal) : ''),  // journal d'inputs compact
+      venue: (CT.Operator ? CT.Operator.venue() : ''),  // lieu de la borne (mode opérateur) → classement « ici »
       ts: Date.now(),
     };
     // Défi du jour : si la course bat le fantôme, elle DEVIENT le fantôme du jour

@@ -90,6 +90,9 @@ CT.Leaderboard = (function () {
       const day = sorted(norm.filter((e) => e.daily && e.ts >= ds));   // Défi du jour uniquement
       const glob = sorted(norm);
       const chrono = sorted(all.filter((e) => e.chrono));
+      // classement « ici » : meilleurs scores (tous temps, hors chrono) de la borne du lieu courant
+      const myVenue = (window.CT && CT.Operator) ? CT.Operator.venue() : '';
+      const venue = myVenue ? sorted(norm.filter((e) => e.venue === myVenue)) : [];
       const name = getName();
       const mine = all.filter((e) => !name || e.name === name);
       return Promise.resolve({
@@ -98,10 +101,12 @@ CT.Leaderboard = (function () {
         weekly: week.slice(0, 5),
         global: glob.slice(0, 5),
         chrono: chrono.slice(0, 5),
+        venue: venue.slice(0, 5),
         dailyRank: rankOf(day, me),
         weeklyRank: rankOf(week, me),
         globalRank: rankOf(glob, me),
         chronoRank: rankOf(chrono, me),
+        venueRank: myVenue ? rankOf(venue, me) : 0,
       });
     },
   };

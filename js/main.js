@@ -58,8 +58,11 @@
       dailyGhostHint.textContent = g ? '· 👻 ' + g.score : '';
     }
     CT.Leaderboard.fetchBoards().then((b) => {
-      const top = (b.weekly || []).slice(0, 3);
-      startBoard.innerHTML = '<h3>' + t('board.week') + '</h3>';
+      // borne configurée (mode opérateur) AVEC des scores → « meilleurs ici » ; sinon top de la semaine
+      const venue = CT.Operator ? CT.Operator.venue() : '';
+      const useVenue = venue && (b.venue || []).length > 0;
+      const top = ((useVenue ? b.venue : b.weekly) || []).slice(0, 3);
+      startBoard.innerHTML = '<h3>' + (useVenue ? t('board.venueHere', { venue }) : t('board.week')) + '</h3>';
       if (!top.length) {
         const e = document.createElement('div');
         e.className = 'sb-empty'; e.textContent = t('lb.empty');
