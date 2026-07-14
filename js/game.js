@@ -2210,13 +2210,16 @@ window.CT = window.CT || {};
     ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
     items.forEach((it, i) => {
       const x = pad, y = pad + i * (h + gap);
-      ctx.globalAlpha = 0.82; ctx.fillStyle = 'rgba(2,22,26,0.7)';
+      // dernier ~2 s de l'effet → la pastille clignote (« l'effet va s'arrêter »), comme le token
+      const blink = (it.s <= 2 && !this.reduce) ? (0.45 + 0.55 * Math.abs(Math.sin(this.time * 12))) : 1;
+      ctx.globalAlpha = 0.82 * blink; ctx.fillStyle = 'rgba(2,22,26,0.7)';
       U.rr(ctx, x, y, w, h, h * 0.32); ctx.fill();
-      ctx.globalAlpha = 1; ctx.strokeStyle = it.c; ctx.lineWidth = 1.5;
+      ctx.globalAlpha = blink; ctx.strokeStyle = it.c; ctx.lineWidth = it.s <= 2 ? 2.2 : 1.5;
       U.rr(ctx, x, y, w, h, h * 0.32); ctx.stroke();
       ctx.fillStyle = it.c;
       ctx.fillText(it.t + ' ' + Math.ceil(it.s) + 's', x + h * 0.32, y + h * 0.54);
     });
+    ctx.globalAlpha = 1;
     ctx.restore();
   };
 

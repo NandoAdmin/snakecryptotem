@@ -729,7 +729,9 @@ Aucun ne fait grandir le serpent ni avancer l'objectif. `effInterval` =
 intervalle effectif (avec surcharge) utilisé par la boucle et l'interpolation.
 Des **pastilles d'effet actif** (coin haut-gauche, `drawEffects`) affichent
 🛡️/🌀/🧲/×2 + le **compte à rebours** restant (pratique avec les durées rallongées
-par le Labo).
+par le Labo). Dans ses **~2 dernières secondes**, la pastille **clignote** (alpha pulsé +
+bordure épaissie, atténué sous `prefers-reduced-motion`) pour prévenir que l'effet va
+s'arrêter — même logique que le clignotement du token sur le plateau.
 
 ### Malus (`CONFIG.malus`)
 Entités **indépendantes** des power-ups (`this.malus`, séparée de `this.bonus`). Des **icônes
