@@ -131,6 +131,26 @@
   const overStatsEl = document.getElementById('overStats');
   const defiBtn = document.getElementById('defiBtn');
   const defiBox = document.getElementById('defiBox');
+  // Animation « compteur » du score sur l'écran de fin : le score défile de 0 → total (easeOut).
+  // setInterval (fiable même onglet en arrière-plan) ; jamais sous prefers-reduced-motion.
+  let overCountTimer = null;
+  function animateOverScore() {
+    if (overCountTimer) { clearInterval(overCountTimer); overCountTimer = null; }
+    const hero = overStatsEl && overStatsEl.querySelector('.over-score-hero');
+    if (!hero) return;
+    const target = game.points | 0;
+    if (game.reduce || target <= 0) { hero.textContent = target; return; }
+    hero.textContent = '0';
+    let elapsed = 0; const stepMs = 33, dur = 620;
+    overCountTimer = setInterval(() => {
+      elapsed += stepMs;
+      const k = Math.min(1, elapsed / dur);
+      const eased = 1 - Math.pow(1 - k, 3);            // easeOutCubic → ralentit vers la fin
+      hero.textContent = Math.round(target * eased);
+      if (k >= 1) { hero.textContent = target; clearInterval(overCountTimer); overCountTimer = null; }
+    }, stepMs);
+  }
+
   function showOver() {
     overlays.over.classList.remove('hidden');
     if (defiBox) defiBox.classList.add('hidden');   // QR replié à chaque ouverture
@@ -154,6 +174,7 @@
     // après un Défi du jour → onglet Jour ; après un Chrono → onglet Chrono
     setScope(game.chrono ? 'chrono' : game.daily ? 'daily' : 'weekly');
     renderLeaderboard();
+    animateOverScore();   // compteur du score qui défile
   }
 
   document.querySelectorAll('.lb-tab').forEach((btn) => {

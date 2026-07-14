@@ -473,6 +473,10 @@ particules de célébration (`_emitCelebrate`) ; téléphone + power bank + câb
 - **Récap de fin** (`die`) : l'écran de game over affiche, sous le score, une ligne récap
   `⏱ temps de survie · ⚡ power-ups · 🔥 meilleur combo` (`maxComboRun`, suivi dans `onEat`,
   remis à zéro dans `reset`). Style `.over-recap`.
+- **Compteur du score** (`main.js` `animateOverScore`, appelé par `showOver`) : à l'ouverture de
+  l'écran de fin, le score héro (`.over-score-hero`) **défile de 0 au total** (easeOutCubic, ~0,62 s,
+  via `setInterval` fiable en arrière-plan) → moment de résultat plus gratifiant. Sous
+  `prefers-reduced-motion` (`game.reduce`), affiche directement le total.
 
 ### Classement (`js/leaderboard.js`)
 `CT.Leaderboard` — 3 vues : **record perso**, **record de la semaine**,
