@@ -460,6 +460,11 @@ particules de célébration (`_emitCelebrate`) ; téléphone + power bank + câb
   l'accueil, le HUD et l'écran de fin (« Nouveau record ! »). ⚠️ `best` est **bumpé en
   cours de partie** pour suivre `points` (affichage HUD) ; le vrai record à battre est figé
   dans `recordToBeat` (rempli par `loadPersonalBest`).
+- **Bump du score (HUD)** : quand `points` augmente, `updateHud` rejoue une animation de
+  **pop** (`#scoreVal.bump` → `@keyframes scoreBump`, scale 1,4 + couleur glow, 0,32 s) en
+  comparant à `game._scoreShown` (dernière valeur affichée, remis à 0 au `reset`). Jamais en
+  démo ni sous `prefers-reduced-motion` (garde JS `!this.reduce` + override CSS) → rend le gain
+  de score « juteux » à chaque prise.
 - **Bannière « 🏆 RECORD BATTU ! »** : quand `points` dépasse `recordToBeat` en cours de
   partie (une seule fois, jamais en démo, jamais si pas de record à battre), `_scored()`
   déclenche une bannière transitoire (`drawRecordBanner`, ~1,8 s) + fanfare

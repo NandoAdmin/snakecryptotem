@@ -117,6 +117,14 @@ html, body {
 .hud-score { font-size: 11px; letter-spacing: 1px; font-weight: 700; color: var(--text-dim); }
 .hud-score b { color: var(--cyan); }
 .hud-score span { opacity: 0.5; }
+/* « bump » du score quand il augmente (pop bref, retriggé via la classe .bump) */
+#scoreVal { display: inline-block; transform-origin: center; will-change: transform; }
+#scoreVal.bump { animation: scoreBump 0.32s ease-out; }
+@keyframes scoreBump {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.4); color: var(--glow); }
+  100% { transform: scale(1); }
+}
 
 .hud-right { display: flex; gap: 8px; }
 .icon-btn {
@@ -662,4 +670,5 @@ button:focus-visible, input:focus-visible, a:focus-visible {
   .btn-primary { animation: none; }  /* respiration lumineuse des boutons */
   .overlay { animation: none; }      /* fondu d'entrée → instantané */
   #labBtn.lab-ready::after { animation: none; }   /* pastille recherche prête → statique */
+  #scoreVal.bump { animation: none; }   /* bump du score → statique (aussi bloqué côté JS via game.reduce) */
 }

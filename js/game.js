@@ -100,6 +100,7 @@ window.CT = window.CT || {};
     this.batteries = 0;
     this.score = 0;          // total batteries livrées sur la partie
     this.points = 0;         // score chiffré (avec combos)
+    this._scoreShown = 0;    // dernière valeur de score affichée (pour l'animation de bump du HUD)
     this.best = 0;           // record perso (chargé depuis le classement, async)
     this.recordToBeat = 0;   // record perso à battre, figé (≠ this.best qui suit les points en jeu)
     this.recordBeaten = false; // bannière « record battu » déjà déclenchée cette partie ?
@@ -2015,7 +2016,15 @@ window.CT = window.CT || {};
         this.dom.progress.classList.toggle('near-goal', !this.demo && remaining > 0 && remaining <= 2);
       }
     }
-    if (this.dom.score) this.dom.score.textContent = this.points;
+    if (this.dom.score) {
+      // « bump » du score : petit pop quand la valeur augmente (jamais en démo / sous reduce-motion)
+      if (!this.demo && !this.reduce && this.points > (this._scoreShown || 0)) {
+        const el = this.dom.score;
+        el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump');   // rejoue l'anim
+      }
+      this._scoreShown = this.points;
+      this.dom.score.textContent = this.points;
+    }
     if (this.dom.best) this.dom.best.textContent = this.best;
     if (this.dom.startBest) this.dom.startBest.textContent = this.best;
   };
