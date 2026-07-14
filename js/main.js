@@ -130,6 +130,7 @@
   const lbBlock = document.querySelector('#overScreen .lb');
   const overStatsEl = document.getElementById('overStats');
   const defiBtn = document.getElementById('defiBtn');
+  const shareBtn = document.getElementById('shareBtn');
   const defiBox = document.getElementById('defiBox');
   // Animation « compteur » du score sur l'écran de fin : le score défile de 0 → total (easeOut).
   // setInterval (fiable même onglet en arrière-plan) ; jamais sous prefers-reduced-motion.
@@ -161,10 +162,12 @@
       if (overStatsEl) overStatsEl.innerHTML = t('over.versus', { a: game.batteries, b: game.score2 });
       if (lbBlock) lbBlock.classList.add('hidden');
       if (defiBtn) defiBtn.classList.add('hidden');
+      if (shareBtn) shareBtn.classList.add('hidden');   // duel non scoré → pas de carte de score
       return;
     }
     if (lbBlock) lbBlock.classList.remove('hidden');
     if (defiBtn) defiBtn.classList.remove('hidden');
+    if (shareBtn) shareBtn.classList.remove('hidden');
     // titre : défi relevé/manqué · temps écoulé (chrono) · défaite classique
     if (overTitle) {
       overTitle.textContent = game.challenge ? (game.challengeWon ? t('over.title.cwon') : t('over.title.clost'))
@@ -732,6 +735,80 @@
       if (CT.QR && defiQrEl) CT.QR.render(defiQrEl, url, { px: 220, quiet: 3, dark: '#04161a' });
       defiBoxEl.classList.remove('hidden');
     } catch (e) { console.warn('QR défi indisponible', e); }
+  });
+
+  // ---- Carte de score partageable (image PNG brandée → partage social / marketing viral) ----
+  function rrPath(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+  }
+  function renderScoreCard(canvas) {
+    const W = 640, H = 800, ctx = canvas.getContext('2d');
+    canvas.width = W; canvas.height = H;
+    const TH = CT.CONFIG.theme;
+    // fond teal + halo
+    const bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, TH.bg1); bg.addColorStop(1, TH.bg0);
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+    const rg = ctx.createRadialGradient(W / 2, H * 0.32, 20, W / 2, H * 0.32, W * 0.78);
+    rg.addColorStop(0, 'rgba(43,240,216,0.16)'); rg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = rg; ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = 'rgba(43,240,216,0.35)'; ctx.lineWidth = 3;
+    rrPath(ctx, 14, 14, W - 28, H - 28, 26); ctx.stroke();
+
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const F = "-apple-system, system-ui, sans-serif";
+    // titre bicolore (dégradé cyan→glow)
+    const tg = ctx.createLinearGradient(W * 0.16, 0, W * 0.84, 0);
+    tg.addColorStop(0, TH.cyan); tg.addColorStop(1, TH.glow);
+    ctx.fillStyle = tg; ctx.font = '800 44px ' + F;
+    ctx.fillText('SNAKE CRYPTOTEM', W / 2, 82);
+    // score
+    ctx.fillStyle = 'rgba(200,240,240,0.6)'; ctx.font = '700 26px ' + F;
+    ctx.fillText(t('share.scoreLabel'), W / 2, 190);
+    ctx.fillStyle = TH.glow; ctx.shadowColor = TH.glow; ctx.shadowBlur = 26;
+    ctx.font = '900 112px ' + F;
+    ctx.fillText(String(game.points | 0), W / 2, 272);
+    ctx.shadowBlur = 0;
+    // niveau · batteries (icônes → neutre)
+    ctx.fillStyle = TH.amber; ctx.font = '700 30px ' + F;
+    ctx.fillText('🏆 ' + game.levelNum + '     🔋 ' + game.score, W / 2, 372);
+    // tagline
+    ctx.fillStyle = 'rgba(232,251,251,0.92)'; ctx.font = '700 30px ' + F;
+    ctx.fillText(t('share.tagline'), W / 2, 448);
+    // QR vers la borne Cryptotem
+    let qh = 0;
+    try {
+      const qc = document.createElement('canvas');
+      CT.QR.render(qc, CT.CONFIG.cryptotemUrl, { px: 200, quiet: 2, dark: '#04161a' });
+      qh = qc.height;
+      ctx.drawImage(qc, W / 2 - qc.width / 2, 508);
+    } catch (e) { qh = 200; }
+    ctx.fillStyle = 'rgba(200,240,240,0.85)'; ctx.font = '600 23px ' + F;
+    ctx.fillText(t('share.findStation'), W / 2, 508 + qh + 34);
+    ctx.fillStyle = 'rgba(150,205,205,0.6)'; ctx.font = '600 19px ' + F;
+    ctx.fillText((CT.CONFIG.cryptotemUrl || '').replace(/^https?:\/\//, ''), W / 2, 508 + qh + 64);
+  }
+
+  let shareCanvas = null;
+  const shareBtnEl = document.getElementById('shareBtn');
+  if (shareBtnEl) shareBtnEl.addEventListener('click', () => {
+    CT.Audio.ui();
+    try {
+      if (!shareCanvas) shareCanvas = document.createElement('canvas');
+      renderScoreCard(shareCanvas);
+      shareCanvas.toBlob((blob) => {
+        if (!blob) return;
+        const file = new File([blob], 'snake-cryptotem.png', { type: 'image/png' });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          navigator.share({ files: [file], title: 'Snake Cryptotem', text: t('share.text', { score: game.points | 0 }) }).catch(() => {});
+        } else {   // repli : téléchargement du PNG
+          const a = document.createElement('a');
+          a.href = shareCanvas.toDataURL('image/png'); a.download = 'snake-cryptotem.png'; a.click();
+        }
+      }, 'image/png');
+    } catch (e) { console.warn('partage indisponible', e); }
   });
 
   // Lien de défi ouvert (?defi=1&s=&p=&n=) → prépare la partie « relever le défi »

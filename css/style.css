@@ -292,6 +292,8 @@ html, body {
 
 /* Défi d'un ami (QR sur l'écran de fin) */
 .btn-ghost.defi-btn { border-color: rgba(255, 194, 75, 0.5); color: var(--amber); }
+.btn-ghost.share-btn { border-color: rgba(38, 224, 224, 0.5); color: var(--cyan); }
+.btn-ghost.share-btn:hover { border-color: var(--cyan); color: var(--glow); box-shadow: 0 10px 26px rgba(38, 224, 224, 0.26); }
 .defi-box {
   display: flex; flex-direction: column; align-items: center; gap: 8px;
   background: #fff; border-radius: 14px; padding: 12px; margin: 4px auto; max-width: 260px;

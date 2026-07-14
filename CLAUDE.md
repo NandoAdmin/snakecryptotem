@@ -807,6 +807,16 @@ Le **QR code** est généré par `CT.QR` (voir ci-dessous) à partir de
 remplacer par l'URL exacte fournie par le client (site / page « trouver une
 borne » / lien de campagne avec tracking).
 
+### Carte de score partageable (`#shareBtn` → `renderScoreCard` dans main.js)
+Bouton **« 📸 Partager mon score »** sur l'écran de fin (cyan, `.btn-ghost.share-btn` ;
+masqué en duel non scoré). Au clic, `renderScoreCard(canvas)` dessine une **image PNG
+brandée 640×800** (fond teal, titre « SNAKE CRYPTOTEM » dégradé, **score géant**, 🏆 niveau ·
+🔋 batteries, tagline, **QR vers la borne** via `CT.QR`, URL `cryptotemUrl`), puis `toBlob` →
+**`navigator.share({files})`** si supporté (mobile) sinon **téléchargement** du PNG (repli
+desktop). But **marketing viral** : les joueurs partagent leur score sur les réseaux → visibilité
+Cryptotem. i18n `btn.share` / `share.scoreLabel` / `share.tagline` / `share.findStation` /
+`share.text` (FR/EN/ES ; `{score}` substitué dans le texte de partage).
+
 ### Générateur de QR code (`js/qrcode.js` → `CT.QR`)
 Encodeur QR **autonome, zéro dépendance** (mode octet UTF-8, niveau de correction
 d'erreur **M**, versions 1→10 — large pour une URL). `CT.QR.generate(text)` →
