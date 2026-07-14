@@ -37,6 +37,7 @@ CT.Cinematic = function (ctx) {
       case 'galaxie':  return { accent: T.cyan,   title: 'VORTEX NÉON',          from: 'zoom'   };
       case 'comete':   return { accent: T.glow,   title: 'PLUIE DE COMÈTES',     from: 'right'  };
       case 'constellation': return { accent: T.glow, title: 'CONSTELLATION D’ÉNERGIE', from: 'top' };
+      case 'equaliseur': return { accent: T.violet, title: 'ÉGALISEUR NÉON', from: 'bottom' };
       case 'express':
       default:         return { accent: T.blue,   title: 'RECHARGE EXPRESS',  from: 'left'   };
     }
@@ -378,6 +379,26 @@ CT.Cinematic = function (ctx) {
         }
       }
       ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+    } else if (this.variant === 'equaliseur') {   // égaliseur : barres de musique qui montent avec la charge (thème bar/disco)
+      const litFrac = U.clamp((t - P.connectEnd) / (P.chargeEnd - P.connectEnd), 0, 1);
+      const N = 22, bw = W / N;
+      ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < N; i++) {
+        // hauteur : oscillation par barre (phases variées) + montée globale avec la charge
+        const osc = 0.35 + 0.65 * Math.abs(Math.sin(t * (2.2 + (i % 5) * 0.35) + i * 0.7));
+        const h = H * (0.06 + (0.12 + 0.42 * litFrac) * osc);
+        const x = i * bw + bw * 0.15, w = bw * 0.7, y = H - h;
+        const grad = ctx.createLinearGradient(0, y, 0, H);
+        grad.addColorStop(0, acc); grad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.globalAlpha = 0.16 + 0.34 * litFrac; ctx.fillStyle = grad;
+        ctx.fillRect(x, y, w, h);
+        // capuchon lumineux en tête de barre
+        ctx.globalAlpha = 0.3 + 0.5 * litFrac;
+        ctx.fillStyle = acc; ctx.shadowColor = acc; ctx.shadowBlur = 10;
+        ctx.fillRect(x, y, w, 3);
+      }
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1; ctx.shadowBlur = 0;
     }
     ctx.restore();
   };
