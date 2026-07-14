@@ -40,6 +40,7 @@
         <h1 class="title">SNAKE <span>CRYPTOTEM</span></h1>
         <p class="tagline" data-i18n="home.tagline">Rechargez la ville. Attrapez les batteries. ⚡</p>
       </div>
+      <p id="venueBadge" class="venue-badge hidden"></p>
       <div id="challengeBanner" class="challenge-banner hidden"></div>
       <button id="playBtn" class="btn-primary" data-i18n="btn.play">JOUER</button>
       <button id="dailyBtn" class="btn-ghost daily-btn"><span data-i18n="btn.daily">📅 DÉFI DU JOUR</span> <span id="dailyGhostHint"></span></button>
@@ -151,6 +152,26 @@
         </div>
       </div>
       <button id="optionsCloseBtn" class="btn-primary" data-i18n="btn.back">RETOUR</button>
+    </div>
+
+    <!-- Mode opérateur (config borne — accès via ?operator=1, réservé à l'installation) -->
+    <div id="operatorScreen" class="overlay hidden">
+      <h2 class="overlay-title lab-title" data-i18n="operator.title">🛠️ MODE OPÉRATEUR</h2>
+      <p class="lab-intro" data-i18n="operator.intro">Configuration de cette borne. Le lien alimente le QR de fin de partie et la carte de score partagée.</p>
+      <div class="opt-list">
+        <div class="opt-row op-field">
+          <label class="opt-nm" for="opVenue" data-i18n="operator.venue">📍 Nom du lieu</label>
+          <input id="opVenue" class="op-input" type="text" maxlength="40" data-i18n-ph="operator.venuePh" placeholder="Bar des Sports" />
+        </div>
+        <div class="opt-row op-field">
+          <label class="opt-nm" for="opUrl" data-i18n="operator.url">🔗 Lien CTA (QR)</label>
+          <input id="opUrl" class="op-input" type="url" maxlength="300" placeholder="https://cryptotem.fr/…" />
+        </div>
+      </div>
+      <p id="opSaved" class="op-saved hidden" data-i18n="operator.saved">✓ Borne enregistrée</p>
+      <button id="opSaveBtn" class="btn-primary" data-i18n="operator.save">ENREGISTRER</button>
+      <button id="opResetBtn" class="btn-ghost" data-i18n="operator.reset">Réinitialiser la borne</button>
+      <button id="operatorCloseBtn" class="btn-ghost" data-i18n="btn.back">RETOUR</button>
     </div>
 
     <!-- Notification de succès débloqué -->

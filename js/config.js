@@ -349,3 +349,30 @@ CT.pickCinematic = function (lastVariant) {
   const pool = CT.CINEMATICS.filter((v) => v !== lastVariant);
   return pool[(Math.random() * pool.length) | 0];
 };
+
+/* ============================================================
+   Mode opérateur — configuration de la borne (installation en bar).
+   Persisté (localStorage `ct_operator`) : nom du lieu + URL CTA. L'URL ÉCRASE
+   `CONFIG.cryptotemUrl` dès le chargement (avant le rendu du QR / carte de partage)
+   → corrige le placeholder par lieu, permet un lien de campagne avec tracking.
+   Accès : ouvrir la borne avec `?operator=1` (câblé dans main.js). Réservé à l'install.
+   ============================================================ */
+CT.Operator = (function () {
+  const KEY = 'ct_operator';
+  function load() { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { return {}; } }
+  function persist(o) { try { localStorage.setItem(KEY, JSON.stringify(o)); } catch (e) {} }
+  const DEFAULT_URL = CT.CONFIG.cryptotemUrl;          // placeholder d'origine (avant tout override)
+  const saved = load();
+  if (saved.url) CT.CONFIG.cryptotemUrl = saved.url;   // applique la config de la borne au chargement
+  return {
+    get: load,
+    venue: function () { return (load().venue || '').trim(); },
+    save: function (venue, url) {
+      const o = { venue: (venue || '').slice(0, 40), url: (url || '').trim().slice(0, 300) };
+      persist(o);
+      CT.CONFIG.cryptotemUrl = o.url || DEFAULT_URL;   // applique tout de suite (re-render du QR à faire par l'appelant)
+      return o;
+    },
+    reset: function () { try { localStorage.removeItem(KEY); } catch (e) {} CT.CONFIG.cryptotemUrl = DEFAULT_URL; },
+  };
+})();

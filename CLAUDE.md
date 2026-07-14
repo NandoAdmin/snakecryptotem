@@ -805,7 +805,9 @@ Le **QR code** est généré par `CT.QR` (voir ci-dessous) à partir de
 `CONFIG.cryptotemUrl`.
 ⚠️ `CONFIG.cryptotemUrl` est un **placeholder** (`https://cryptotem.fr`) : le
 remplacer par l'URL exacte fournie par le client (site / page « trouver une
-borne » / lien de campagne avec tracking).
+borne » / lien de campagne avec tracking). **Sans toucher au code**, l'installateur
+peut le régler par borne via le **Mode opérateur** (`?operator=1`, voir ci-dessous)
+qui écrase `cryptotemUrl` (persisté `ct_operator`).
 
 ### Carte de score partageable (`#shareBtn` → `renderScoreCard` dans main.js)
 Bouton **« 📸 Partager mon score »** sur l'écran de fin (cyan, `.btn-ghost.share-btn` ;
@@ -816,6 +818,17 @@ brandée 640×800** (fond teal, titre « SNAKE CRYPTOTEM » dégradé, **score g
 desktop). But **marketing viral** : les joueurs partagent leur score sur les réseaux → visibilité
 Cryptotem. i18n `btn.share` / `share.scoreLabel` / `share.tagline` / `share.findStation` /
 `share.text` (FR/EN/ES ; `{score}` substitué dans le texte de partage).
+
+### Mode opérateur / config borne (`CT.Operator` dans config.js + `#operatorScreen`)
+Panneau d'**installation de la borne** (bar) : nom du lieu + **lien CTA**, persistés
+(`localStorage ct_operator`). L'**URL écrase `CONFIG.cryptotemUrl`** dès le chargement (module
+en fin de `config.js`, avant le rendu du QR / carte de partage) → **corrige le placeholder par
+lieu** et permet un **lien de campagne avec tracking** (ex. `?utm=kiosk`). Accès **installateur** :
+ouvrir la borne avec **`?operator=1`** (`main.js` : `openOperator`, jamais de bouton visible pour
+les joueurs). Le bouton **Enregistrer** re-dessine le QR de la CTA (`renderCtaQr`) et affiche un
+**badge « 📍 lieu »** sur l'accueil (`#venueBadge`, `updateVenueBadge`) ; **Réinitialiser** restaure
+l'URL par défaut (`CT.Operator.reset` → `DEFAULT_URL` capturé avant tout override). i18n `operator.*`
+(FR/EN/ES). Neutre pour le gameplay/anti-triche (config de déploiement).
 
 ### Générateur de QR code (`js/qrcode.js` → `CT.QR`)
 Encodeur QR **autonome, zéro dépendance** (mode octet UTF-8, niveau de correction

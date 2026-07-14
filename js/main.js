@@ -719,6 +719,58 @@
   document.getElementById('optionsBtn').addEventListener('click', () => { CT.Audio.unlock(); CT.Audio.ui(); openOptions(); });
   document.getElementById('optionsCloseBtn').addEventListener('click', () => { CT.Audio.ui(); closeOptions(); });
 
+  /* ---------------- Mode opérateur (config borne — accès ?operator=1) ---------------- */
+  const operatorScreenEl = document.getElementById('operatorScreen');
+  const opVenueEl = document.getElementById('opVenue');
+  const opUrlEl = document.getElementById('opUrl');
+  const opSavedEl = document.getElementById('opSaved');
+  const venueBadgeEl = document.getElementById('venueBadge');
+  function renderCtaQr() {   // (re)dessine le QR de la CTA avec l'URL courante (borne)
+    const qrCanvas = document.getElementById('ctaQr');
+    if (qrCanvas && CT.QR && CT.CONFIG.cryptotemUrl) {
+      try { CT.QR.render(qrCanvas, CT.CONFIG.cryptotemUrl, { px: 264, quiet: 3, dark: '#04161a' }); } catch (e) {}
+    }
+  }
+  function updateVenueBadge() {
+    if (!venueBadgeEl) return;
+    const v = CT.Operator ? CT.Operator.venue() : '';
+    venueBadgeEl.textContent = v ? '📍 ' + v : '';
+    venueBadgeEl.classList.toggle('hidden', !v);
+  }
+  function openOperator() {
+    overlays.start.classList.add('hidden');
+    operatorScreenEl.classList.remove('hidden');
+    const o = CT.Operator ? CT.Operator.get() : {};
+    if (opVenueEl) opVenueEl.value = o.venue || '';
+    if (opUrlEl) opUrlEl.value = o.url || '';
+    if (opSavedEl) opSavedEl.classList.add('hidden');
+  }
+  function closeOperator() {
+    operatorScreenEl.classList.add('hidden');
+    overlays.start.classList.remove('hidden');
+    renderStartBoard();
+  }
+  const opSaveBtn = document.getElementById('opSaveBtn');
+  if (opSaveBtn) opSaveBtn.addEventListener('click', () => {
+    if (CT.Operator) CT.Operator.save(opVenueEl ? opVenueEl.value : '', opUrlEl ? opUrlEl.value : '');
+    CT.Audio.ui();
+    renderCtaQr();          // le QR de fin de partie reflète la nouvelle URL de la borne
+    updateVenueBadge();
+    if (opSavedEl) opSavedEl.classList.remove('hidden');
+  });
+  const opResetBtn = document.getElementById('opResetBtn');
+  if (opResetBtn) opResetBtn.addEventListener('click', () => {
+    if (CT.Operator) CT.Operator.reset();
+    if (opVenueEl) opVenueEl.value = ''; if (opUrlEl) opUrlEl.value = '';
+    CT.Audio.ui();
+    renderCtaQr(); updateVenueBadge();
+    if (opSavedEl) opSavedEl.classList.add('hidden');
+  });
+  const operatorCloseBtn = document.getElementById('operatorCloseBtn');
+  if (operatorCloseBtn) operatorCloseBtn.addEventListener('click', () => { CT.Audio.ui(); closeOperator(); });
+  try { if (/[?&]operator=1(&|$)/.test(location.search)) openOperator(); } catch (e) {}   // accès installateur
+  updateVenueBadge();
+
   /* ---------------- Défi d'un ami (QR) ---------------- */
   // Génère le QR à l'écran de fin : lien vers le jeu avec la seed jouée + le score à battre.
   const defiBtnEl = document.getElementById('defiBtn');

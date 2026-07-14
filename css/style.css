@@ -512,6 +512,22 @@ html, body {
   text-align: center;
 }
 .lb-name input:focus { outline: none; border-color: var(--cyan); }
+
+/* Mode opérateur : formulaire de config borne */
+.op-field { display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
+.op-input {
+  width: 100%; box-sizing: border-box; padding: 10px 14px; border-radius: 10px;
+  border: 1px solid var(--glass-brd); background: rgba(2, 22, 26, 0.6);
+  color: var(--text); font-size: 14px; font-weight: 600; font-family: var(--font);
+}
+.op-input:focus { outline: none; border-color: var(--cyan); }
+.op-saved { color: var(--charge); font-weight: 800; margin: 2px 0; }
+/* badge du lieu (accueil), rempli par le mode opérateur */
+.venue-badge {
+  align-self: center; margin: -4px 0 2px; padding: 4px 12px; border-radius: 99px;
+  font-size: 12px; font-weight: 800; letter-spacing: 0.5px; color: var(--amber);
+  background: rgba(255, 194, 75, 0.1); border: 1px solid rgba(255, 194, 75, 0.4);
+}
 .lb-tabs { display: flex; gap: 6px; }
 .lb-tab {
   flex: 1; padding: 7px 6px; border-radius: 10px; cursor: pointer;
