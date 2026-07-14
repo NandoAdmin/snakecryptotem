@@ -786,6 +786,12 @@ rouges (`drawEffects`) pour les malus temporisés (court-circuit / brouillage / 
   purgé quand expiré) depuis la case mangée, sous le serpent. **Plus large et doré** (`T.amber`)
   quand le **combo ≥ 5** (sinon `T.glow`) → renforce visuellement le combo. Poussé dans `onEat`,
   **désactivé sous `prefers-reduced-motion`**. Cosmétique (n'affecte pas le déterministe).
+- **Éclat de mort** (`die`) : à la mort réelle (hors démo/réanimation), le serpent **éclate en
+  pixels** (motif « dissolution » signature — 5 particules `spawnFx` par segment, teinte danger +
+  couleur courante du serpent + blanc). Pour que l'éclat s'anime même après le passage en `over`,
+  `tick` appelle désormais `updateFx(dt)` **aussi dans la branche start/paused/over** (`renderWorld`
+  dessine déjà les fx quel que soit l'état) → les particules finissent leur course pendant la
+  transition vers l'écran de fin (overlay transparent). Réduit sous `prefers-reduced-motion`.
 - **Accessibilité** (`game.reduce`) : respecte `prefers-reduced-motion` de l'OS
   (écouté en direct) → **pas de screen-shake**, flash atténué, particules réduites
   (~35 %). Important pour un jeu public (confort / sensibilité au mouvement). Côté

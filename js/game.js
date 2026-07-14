@@ -1805,6 +1805,13 @@ window.CT = window.CT || {};
     this.shake = this.reduce ? 0 : 1;
     CT.Audio.gameover();
     this.haptic([0, 70, 50, 140]);
+    // éclat de mort : le serpent éclate en pixels (motif « dissolution » signature Cryptotem) ;
+    // animé même en état 'over' (updateFx tourne aussi hors 'playing', cf. tick).
+    if (this.snake && this.snake.length) {
+      const scol = this.snakeColorRgb ? 'rgb(' + this.snakeColorRgb.map((v) => Math.round(v)).join(',') + ')' : T.cyan;
+      // 5 pixels/segment (spawnFx réduit déjà sous prefers-reduced-motion)
+      for (let i = 0; i < this.snake.length; i++) this.spawnFx(this.snake[i].x, this.snake[i].y, [T.danger, scol, '#ffffff'], 5);
+    }
     const isRecord = this.points >= this.best && this.points > 0;
 
     // soumission au classement (métadonnées pour validation serveur)
@@ -2078,6 +2085,7 @@ window.CT = window.CT || {};
       }
     } else {
       // start / paused / over : board statique en fond
+      this.updateFx(dt);   // laisse les particules (ex. éclat de mort) finir leur animation hors 'playing'
       this.renderWorld();
     }
 
