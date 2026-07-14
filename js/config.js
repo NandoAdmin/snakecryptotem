@@ -262,7 +262,7 @@ CT.getLevel = function (n) {
   const last = L[L.length - 1];
   const extra = n - L.length;            // nb de niveaux au-delà du tableau
   // les niveaux procéduraux alternent les motifs (variété en jeu prolongé, au lieu de « maze » partout)
-  const procPatterns = ['corners', 'bars', 'cross', 'pillars', 'diamond', 'maze'];
+  const procPatterns = ['corners', 'bars', 'cross', 'pillars', 'diamond', 'maze', 'clusters'];
   return {
     index: n,
     needed: last.needed + extra,   // +1 batterie par niveau (objectif doux : 10, 11, 12…)

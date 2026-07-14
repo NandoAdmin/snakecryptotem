@@ -1017,6 +1017,11 @@ window.CT = window.CT || {};
         const gy = 2 + 3 * ((this.rng() * Math.floor((ROWS - 4) / 3)) | 0);
         add(gx, gy);
         if ((gx + gy) % 2 === 0) add(gx + 1, gy); else add(gx, gy + 1);
+      } else if (pattern === 'clusters') {
+        // amas compacts 2×2 → obstacles « blocs » chunky (distincts des piliers 1 case)
+        const x = 2 + ((this.rng() * (COLS - 5)) | 0);
+        const y = 2 + ((this.rng() * (ROWS - 5)) | 0);
+        add(x, y); add(x + 1, y); add(x, y + 1); add(x + 1, y + 1);
       } else if (pattern === 'cross') {
         // croix « + » : bandes centrale verticale/horizontale, centre dégagé (spawn protégé)
         const cx = (COLS / 2) | 0, cy = (ROWS / 2) | 0, clear = 4;

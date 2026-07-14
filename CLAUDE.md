@@ -420,10 +420,11 @@ seul le fantôme n'est pas transmis (trop volumineux pour un QR → « bats mon 
   d'obstacles, **tous visuellement distincts** : `none`, `corners` (amas dans les
   coins), `bars` (segments aléatoires), `cross` (croix « + » centrée, centre dégagé),
   `pillars` (cases éparses), `diamond` (anneau en losange), `maze` (murs courts sur une
-  grille pas-3 → allure labyrinthe).
+  grille pas-3 → allure labyrinthe), `clusters` (amas compacts 2×2 → blocs « chunky »,
+  distincts des piliers 1 case).
 - `CT.getLevel(n)` : renvoie le niveau `n` (génère proceduralement au-delà du
   tableau — objectif/obstacles ↑, `step` ↓ ; le **motif alterne** sur les niveaux
-  procéduraux — `corners`/`bars`/`cross`/`pillars`/`diamond`/`maze` — pour la variété).
+  procéduraux — `corners`/`bars`/`cross`/`pillars`/`diamond`/`maze`/`clusters` — pour la variété).
 - **Anti-blocage** : après placement, `ensureConnected()` vérifie par flood-fill
   toroïdal (`floodFree`) que **toutes** les cases libres sont accessibles depuis
   le spawn ; sinon `openNear` retire un obstacle frontière jusqu'à connexité.
