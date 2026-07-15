@@ -220,6 +220,18 @@ html, body {
 .lab-gain { display: inline-block; margin-top: 8px; color: var(--charge); font-weight: 700; font-size: 14px; }
 .lab-gain small { color: var(--text-dim); font-weight: 600; }
 
+/* Récompense au bar (mode opérateur) : carte débloquée à l'écran de fin */
+.reward-card {
+  width: 100%; max-width: 420px; margin: 12px 0; padding: 16px 18px; border-radius: 16px;
+  background: linear-gradient(160deg, rgba(255,194,75,0.16), rgba(8,38,44,0.55));
+  border: 1px solid rgba(255,194,75,0.5); box-shadow: 0 10px 30px rgba(255,194,75,0.22);
+  text-align: center;
+}
+.reward-card .rw-title { font-size: 13px; font-weight: 900; letter-spacing: 1.5px; color: var(--amber); }
+.reward-card .rw-reward { font-size: 22px; font-weight: 800; color: var(--text); margin: 6px 0 4px; }
+.reward-card .rw-meta { font-size: 12px; font-weight: 700; color: var(--text-dim); }
+.reward-card .rw-staff { font-size: 12px; font-weight: 700; color: var(--charge); margin-top: 8px; }
+
 .howto {
   list-style: none; display: flex; flex-direction: column; gap: 8px;
   color: var(--text-dim); font-size: 14px; max-width: 360px;

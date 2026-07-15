@@ -859,6 +859,13 @@ les joueurs). Le bouton **Enregistrer** re-dessine le QR de la CTA (`renderCtaQr
 **badge « 📍 lieu »** sur l'accueil (`#venueBadge`, `updateVenueBadge`) ; **Réinitialiser** restaure
 l'URL par défaut (`CT.Operator.reset` → `DEFAULT_URL` capturé avant tout override). i18n `operator.*`
 (FR/EN/ES). Neutre pour le gameplay/anti-triche (config de déploiement).
+- **Récompense au bar (opt-in)** : l'opérateur peut aussi régler un **texte de récompense** +
+  un **score-seuil** (`rewardText` / `rewardScore` dans `ct_operator`). À l'écran de fin, si
+  `points >= rewardScore` (et une récompense configurée), une **carte dorée** « 🎁 RÉCOMPENSE
+  DÉBLOQUÉE ! » (`#rewardCard`, `renderReward` dans main.js) affiche la récompense + 📍 lieu · 📅
+  date + « Montre cet écran au staff ». Purement opt-in (rien si non configuré ; masquée en duel).
+  Validation légère (date/lieu à l'écran) — c'est une promo bar, pas un système sécurisé.
+  i18n `operator.reward` / `operator.rewardScore` / `reward.unlocked` / `reward.showStaff`.
 
 ### Générateur de QR code (`js/qrcode.js` → `CT.QR`)
 Encodeur QR **autonome, zéro dépendance** (mode octet UTF-8, niveau de correction

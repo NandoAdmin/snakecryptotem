@@ -367,8 +367,16 @@ CT.Operator = (function () {
   return {
     get: load,
     venue: function () { return (load().venue || '').trim(); },
-    save: function (venue, url) {
-      const o = { venue: (venue || '').slice(0, 40), url: (url || '').trim().slice(0, 300) };
+    // récompense au bar (opt-in) : score-seuil + texte de la récompense (débloquée à l'écran de fin)
+    rewardScore: function () { return (load().rewardScore | 0) || 0; },
+    rewardText: function () { return (load().rewardText || '').trim(); },
+    save: function (venue, url, rewardScore, rewardText) {
+      const o = {
+        venue: (venue || '').slice(0, 40),
+        url: (url || '').trim().slice(0, 300),
+        rewardScore: Math.max(0, (rewardScore | 0) || 0),
+        rewardText: (rewardText || '').slice(0, 60),
+      };
       persist(o);
       CT.CONFIG.cryptotemUrl = o.url || DEFAULT_URL;   // applique tout de suite (re-render du QR à faire par l'appelant)
       return o;

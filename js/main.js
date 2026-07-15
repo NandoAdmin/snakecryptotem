@@ -155,6 +155,25 @@
     }, stepMs);
   }
 
+  // Récompense au bar (opt-in mode opérateur) : débloquée si le score atteint le seuil configuré.
+  const rewardCardEl = document.getElementById('rewardCard');
+  function renderReward() {
+    if (!rewardCardEl) return;
+    const rScore = CT.Operator ? CT.Operator.rewardScore() : 0;
+    const rText = CT.Operator ? CT.Operator.rewardText() : '';
+    const unlocked = rText && rScore > 0 && (game.points | 0) >= rScore;
+    if (!unlocked) { rewardCardEl.classList.add('hidden'); rewardCardEl.textContent = ''; return; }
+    rewardCardEl.innerHTML = '';
+    const venue = CT.Operator.venue();
+    const title = document.createElement('div'); title.className = 'rw-title'; title.textContent = '🎁 ' + t('reward.unlocked');
+    const rw = document.createElement('div'); rw.className = 'rw-reward'; rw.textContent = rText;   // texte opérateur → textContent (sûr)
+    const meta = document.createElement('div'); meta.className = 'rw-meta';
+    meta.textContent = (venue ? '📍 ' + venue + '   ·   ' : '') + '📅 ' + new Date().toLocaleDateString();
+    const staff = document.createElement('div'); staff.className = 'rw-staff'; staff.textContent = t('reward.showStaff');
+    rewardCardEl.append(title, rw, meta, staff);
+    rewardCardEl.classList.remove('hidden');
+  }
+
   function showOver() {
     overlays.over.classList.remove('hidden');
     if (defiBox) defiBox.classList.add('hidden');   // QR replié à chaque ouverture
@@ -166,6 +185,7 @@
       if (lbBlock) lbBlock.classList.add('hidden');
       if (defiBtn) defiBtn.classList.add('hidden');
       if (shareBtn) shareBtn.classList.add('hidden');   // duel non scoré → pas de carte de score
+      if (rewardCardEl) rewardCardEl.classList.add('hidden');
       return;
     }
     if (lbBlock) lbBlock.classList.remove('hidden');
@@ -181,6 +201,7 @@
     setScope(game.chrono ? 'chrono' : game.daily ? 'daily' : 'weekly');
     renderLeaderboard();
     animateOverScore();   // compteur du score qui défile
+    renderReward();       // récompense au bar (si le score atteint le seuil de la borne)
   }
 
   document.querySelectorAll('.lb-tab').forEach((btn) => {
@@ -730,6 +751,8 @@
   const operatorScreenEl = document.getElementById('operatorScreen');
   const opVenueEl = document.getElementById('opVenue');
   const opUrlEl = document.getElementById('opUrl');
+  const opRewardTextEl = document.getElementById('opRewardText');
+  const opRewardScoreEl = document.getElementById('opRewardScore');
   const opSavedEl = document.getElementById('opSaved');
   const venueBadgeEl = document.getElementById('venueBadge');
   function renderCtaQr() {   // (re)dessine le QR de la CTA avec l'URL courante (borne)
@@ -750,6 +773,8 @@
     const o = CT.Operator ? CT.Operator.get() : {};
     if (opVenueEl) opVenueEl.value = o.venue || '';
     if (opUrlEl) opUrlEl.value = o.url || '';
+    if (opRewardTextEl) opRewardTextEl.value = o.rewardText || '';
+    if (opRewardScoreEl) opRewardScoreEl.value = o.rewardScore ? o.rewardScore : '';
     if (opSavedEl) opSavedEl.classList.add('hidden');
   }
   function closeOperator() {
@@ -759,7 +784,10 @@
   }
   const opSaveBtn = document.getElementById('opSaveBtn');
   if (opSaveBtn) opSaveBtn.addEventListener('click', () => {
-    if (CT.Operator) CT.Operator.save(opVenueEl ? opVenueEl.value : '', opUrlEl ? opUrlEl.value : '');
+    if (CT.Operator) CT.Operator.save(
+      opVenueEl ? opVenueEl.value : '', opUrlEl ? opUrlEl.value : '',
+      opRewardScoreEl ? opRewardScoreEl.value : 0, opRewardTextEl ? opRewardTextEl.value : ''
+    );
     CT.Audio.ui();
     renderCtaQr();          // le QR de fin de partie reflète la nouvelle URL de la borne
     updateVenueBadge();
@@ -769,6 +797,7 @@
   if (opResetBtn) opResetBtn.addEventListener('click', () => {
     if (CT.Operator) CT.Operator.reset();
     if (opVenueEl) opVenueEl.value = ''; if (opUrlEl) opUrlEl.value = '';
+    if (opRewardTextEl) opRewardTextEl.value = ''; if (opRewardScoreEl) opRewardScoreEl.value = '';
     CT.Audio.ui();
     renderCtaQr(); updateVenueBadge();
     if (opSavedEl) opSavedEl.classList.add('hidden');

@@ -179,6 +179,14 @@
           <label class="opt-nm" for="opUrl" data-i18n="operator.url">🔗 Lien CTA (QR)</label>
           <input id="opUrl" class="op-input" type="url" maxlength="300" placeholder="https://cryptotem.fr/…" />
         </div>
+        <div class="opt-row op-field">
+          <label class="opt-nm" for="opRewardText" data-i18n="operator.reward">🎁 Récompense au bar (option)</label>
+          <input id="opRewardText" class="op-input" type="text" maxlength="60" data-i18n-ph="operator.rewardPh" placeholder="Ex : Recharge offerte" />
+        </div>
+        <div class="opt-row op-field">
+          <label class="opt-nm" for="opRewardScore" data-i18n="operator.rewardScore">🎯 Score à atteindre</label>
+          <input id="opRewardScore" class="op-input" type="number" min="0" step="100" placeholder="2000" />
+        </div>
       </div>
       <p id="opSaved" class="op-saved hidden" data-i18n="operator.saved">✓ Borne enregistrée</p>
       <button id="opSaveBtn" class="btn-primary" data-i18n="operator.save">ENREGISTRER</button>
@@ -206,6 +214,7 @@
     <div id="overScreen" class="overlay hidden">
       <h2 class="overlay-title danger">BATTERIE DÉCHARGÉE</h2>
       <p id="overStats" class="over-stats"></p>
+      <div id="rewardCard" class="reward-card hidden"></div>
 
       <div class="lb">
         <div class="lb-name">
