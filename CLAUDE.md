@@ -377,9 +377,11 @@ Sélecteur **FR/EN/ES** dans l'écran Options.
 À la **toute première partie normale** sur l'appareil (drapeau `localStorage ct_seen`, posé
 au démarrage du tuto → une seule fois), `this.tutorial = true` (jamais en chrono/versus/daily/
 défi). `drawTutorial` (appelé dans `renderWorld`, hors intro) affiche un **bandeau d'aide** en
-bas + un **halo pulsé sur la 1ʳᵉ batterie**, avec un message qui évolue : 0 batterie → « Dirige
-la batterie : flèches, WASD ou swipe » ; 1-2 → « Fonce dans un bord : tu ressors en face ! » ;
-à 3 batteries le tuto s'éteint (`this.tutorial = false`). Non bloquant (le jeu se joue normalement).
+bas + un **halo pulsé sur la 1ʳᵉ batterie**, avec un message qui évolue : 0 batterie → indice
+de déplacement **adapté au schéma tactile courant** (`tuto.move.<scheme>` selon `CT.Input.getScheme()`
+— glisser / zones / joystick / D-pad, + clavier ; repli `tuto.move`), utile car le D-pad n'est plus
+affiché par défaut ; 1-2 → « Fonce dans un bord : tu ressors en face ! » ; à 3 batteries le tuto
+s'éteint (`this.tutorial = false`). Non bloquant (le jeu se joue normalement).
 
 ### Mode 2 joueurs — DUEL (`CONFIG.versus`, bouton « 👥 2 JOUEURS »)
 Duel local sur la même tablette : **J1 (cyan, flèches/swipe/D-pad) vs J2 (rose, WASD/ZQSD)**.

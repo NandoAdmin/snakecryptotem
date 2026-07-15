@@ -2883,8 +2883,12 @@ window.CT = window.CT || {};
     if (!this.tutorial || this.demo || this.state !== 'playing') return;
     if (this.time < this.introUntil) return;           // attend la fin de l'annonce de niveau
     let msg;
-    if (this.batteries === 0) msg = t('tuto.move');
-    else if (this.batteries < 3) msg = t('tuto.border');
+    if (this.batteries === 0) {
+      // indice adapté au schéma de contrôle tactile courant (le D-pad n'est plus visible par défaut)
+      const scheme = (CT.Input && CT.Input.getScheme) ? CT.Input.getScheme() : 'swipe';
+      const k = 'tuto.move.' + scheme, m = t(k);
+      msg = (m && m !== k) ? m : t('tuto.move');
+    } else if (this.batteries < 3) msg = t('tuto.border');
     else { this.tutorial = false; return; }            // tutoriel terminé (3 batteries)
     const ctx = this.ctx, W = this.W, H = this.H, cell = this.cell;
     // halo pulsé sur la batterie (étape 1)
