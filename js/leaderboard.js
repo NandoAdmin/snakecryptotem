@@ -161,7 +161,11 @@ CT.Leaderboard = (function () {
       },
       boards(me) {
         flushPending();                                                 // tente de synchroniser au passage
-        const q = me ? '?name=' + encodeURIComponent(me.name || '') : '';
+        const params = [];
+        if (me && me.name) params.push('name=' + encodeURIComponent(me.name));
+        const venue = (window.CT && CT.Operator) ? CT.Operator.venue() : '';   // classement « ici » (mode opérateur)
+        if (venue) params.push('venue=' + encodeURIComponent(venue));
+        const q = params.length ? '?' + params.join('&') : '';
         return fetch(endpoint + '/boards' + q, { headers })
           .then((r) => r.json())
           .catch(() => local.boards(me));                               // serveur injoignable : classement local

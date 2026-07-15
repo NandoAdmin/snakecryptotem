@@ -518,8 +518,11 @@ L'écran de fin affiche le pseudo (modifiable), un classement à onglets Jour/Se
 **top 3 de la semaine** (mode attract) — OU, si la borne est configurée (Mode opérateur), le
 **« 🏆 Meilleurs à [lieu] »** : `boards()` renvoie un tableau `venue[]` = meilleurs scores tous
 temps (hors chrono) filtrés par `e.venue === CT.Operator.venue()` (`venueRank` aussi) ; l'entrée
-est taguée `venue` à la mort. ⚠️ Sur une borne unique tous les scores locaux partagent le lieu ;
-le vrai intérêt (chaîne multi-bornes) est **côté serveur** (à ajouter à `leaderboard-server.js`).
+est taguée `venue` à la mort. **Côté serveur aussi** (`leaderboard-server.js`) : colonne `venue`
+(SQLite, migrée par `ALTER TABLE` pour les bases existantes), POST stocke `body.venue`, et
+`GET /boards?venue=<lieu>` renvoie `venue[]` + `venueRank` filtrés → **vraie chaîne multi-bornes**
+(chaque borne envoie son lieu ; le remote client passe `venue=` dans la requête). Sur une borne
+unique en local, tous les scores partagent le lieu (l'intérêt est le multi-bornes serveur).
 **⚠️ Anti-triche :** le backend local (localStorage) **n'est pas** sécurisé — c'est un placeholder.
 La validation vit dans `js/scoring-rules.js` (`CT.ScoringRules.validate` / `maxPlausibleScore`),
 **partagée à l'identique** navigateur ↔ **serveur Node de référence** (`server/leaderboard-server.js`).
