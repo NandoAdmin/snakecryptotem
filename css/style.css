@@ -296,11 +296,11 @@ html, body {
 }
 .opt-toggle.on { background: linear-gradient(135deg, var(--cyan), var(--teal)); color: #022; border-color: transparent; }
 .opt-langs { display: flex; gap: 6px; flex: 0 0 auto; }
-.opt-lang, .opt-diff, .opt-ctrl {
+.opt-lang, .opt-diff, .opt-ctrl, .opt-sens, .opt-joy {
   min-width: 40px; padding: 8px 10px; border-radius: 10px; cursor: pointer; font-weight: 800;
   background: transparent; border: 1px solid var(--glass-brd); color: var(--text-dim);
 }
-.opt-lang.on, .opt-diff.on, .opt-ctrl.on { background: linear-gradient(135deg, var(--cyan), var(--teal)); color: #022; border-color: transparent; }
+.opt-lang.on, .opt-diff.on, .opt-ctrl.on, .opt-sens.on, .opt-joy.on { background: linear-gradient(135deg, var(--cyan), var(--teal)); color: #022; border-color: transparent; }
 .opt-controls { flex-wrap: wrap; justify-content: flex-end; }
 .opt-ctrl { font-size: 12px; }
 
@@ -658,13 +658,13 @@ button:focus-visible, input:focus-visible, a:focus-visible {
 /* Joystick flottant (schéma « joystick ») — apparaît sous le doigt, positionné en JS */
 #joystick { position: fixed; z-index: 26; pointer-events: none; width: 0; height: 0; }
 #joystick .joy-base {
-  position: absolute; left: 50%; top: 50%; width: 108px; height: 108px;
+  position: absolute; left: 50%; top: 50%; width: var(--jb, 108px); height: var(--jb, 108px);
   transform: translate(-50%, -50%); border-radius: 50%;
   border: 2px solid rgba(43, 240, 216, 0.5); background: rgba(2, 22, 26, 0.35); backdrop-filter: blur(4px);
   box-shadow: 0 0 24px rgba(43, 240, 216, 0.28);
 }
 #joystick .joy-knob {
-  position: absolute; left: 50%; top: 50%; width: 46px; height: 46px;
+  position: absolute; left: 50%; top: 50%; width: var(--jk, 46px); height: var(--jk, 46px);
   transform: translate(-50%, -50%); border-radius: 50%;
   background: radial-gradient(circle at 40% 35%, var(--glow), var(--teal));
   box-shadow: 0 0 18px rgba(43, 240, 216, 0.6);

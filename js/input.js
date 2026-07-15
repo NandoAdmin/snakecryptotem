@@ -25,10 +25,22 @@ CT.Input = (function () {
   function loadScheme() { try { const s = localStorage.getItem(CKEY); return SCHEMES.indexOf(s) >= 0 ? s : 'swipe'; } catch (e) { return 'swipe'; } }
   let scheme = loadScheme();
 
+  // Réglages de ressenti tactile (persistés `ct_touch`) : sensibilité (seuil de glissé) + taille du joystick.
+  const TKEY = 'ct_touch';
+  const SENS = ['low', 'med', 'high'], SENS_PX = { low: 34, med: 22, high: 14 };   // + sensible = seuil + petit
+  const JSIZE = ['small', 'med', 'large'], JOY_R_MAP = { small: 36, med: 46, large: 60 };
+  const JOY_BASE = { small: 84, med: 108, large: 140 }, JOY_KNOB = { small: 36, med: 46, large: 58 };
+  function loadTouch() {
+    let o = {}; try { o = JSON.parse(localStorage.getItem(TKEY)) || {}; } catch (e) {}
+    return { sens: SENS.indexOf(o.sens) >= 0 ? o.sens : 'med', joy: JSIZE.indexOf(o.joy) >= 0 ? o.joy : 'med' };
+  }
+  const touch = loadTouch();
+  function saveTouch() { try { localStorage.setItem(TKEY, JSON.stringify(touch)); } catch (e) {} }
+
   let dpadEl = null, joyEl = null, joyKnob = null;
-  const THRESH = 22;   // px de glissé avant de déclencher un virage (swipe / joystick)
-  const TAP_MAX = 16;  // px : en dessous = tap (zones)
-  const JOY_R = 46;    // rayon max du knob du joystick
+  let THRESH = SENS_PX[touch.sens];   // px de glissé avant de déclencher un virage (swipe / joystick)
+  const TAP_MAX = 16;                 // px : en dessous = tap (zones)
+  let JOY_R = JOY_R_MAP[touch.joy];   // rayon max du knob du joystick
 
   function onKey(e) {
     // Ne pas capturer les touches quand l'utilisateur saisit du texte (champs pseudo / opérateur).
@@ -102,6 +114,10 @@ CT.Input = (function () {
     if (dpadEl) dpadEl.classList.toggle('hidden', scheme !== 'dpad');
     if (joyEl) joyEl.classList.add('hidden');
   }
+  function applyJoySize() {   // dimensionne base + knob du joystick (variables CSS) selon le réglage
+    JOY_R = JOY_R_MAP[touch.joy];
+    if (joyEl) { joyEl.style.setProperty('--jb', JOY_BASE[touch.joy] + 'px'); joyEl.style.setProperty('--jk', JOY_KNOB[touch.joy] + 'px'); }
+  }
 
   return {
     init(opts) {
@@ -117,7 +133,7 @@ CT.Input = (function () {
         canvas.addEventListener('touchmove', onMove, { passive: true });
         canvas.addEventListener('touchend', onEnd, { passive: true });
       }
-      applyScheme();
+      applyScheme(); applyJoySize();
     },
     getScheme() { return scheme; },
     setScheme(s) {
@@ -126,6 +142,11 @@ CT.Input = (function () {
       try { localStorage.setItem(CKEY, s); } catch (e) {}
       applyScheme();
     },
-    SCHEMES,
+    // réglages de ressenti tactile
+    getSensitivity() { return touch.sens; },
+    setSensitivity(level) { if (SENS.indexOf(level) < 0) return; touch.sens = level; THRESH = SENS_PX[level]; saveTouch(); },
+    getJoySize() { return touch.joy; },
+    setJoySize(level) { if (JSIZE.indexOf(level) < 0) return; touch.joy = level; applyJoySize(); saveTouch(); },
+    SCHEMES, SENS, JSIZE,
   };
 })();

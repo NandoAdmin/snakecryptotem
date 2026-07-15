@@ -719,6 +719,8 @@
   const langBtns = optionsScreenEl.querySelectorAll('.opt-lang');
   const diffBtns = optionsScreenEl.querySelectorAll('.opt-diff');
   const ctrlBtns = optionsScreenEl.querySelectorAll('.opt-ctrl');
+  const sensBtns = optionsScreenEl.querySelectorAll('.opt-sens');
+  const joyBtns = optionsScreenEl.querySelectorAll('.opt-joy');
   function renderOptions() {
     const setBtn = (btn, on) => { btn.textContent = on ? t('word.on') : t('word.off'); btn.classList.toggle('on', on); btn.setAttribute('aria-checked', on ? 'true' : 'false'); };
     if (CT.Access) { setBtn(optColorblind, CT.Access.isColorblind()); setBtn(optContrast, CT.Access.isContrast()); }
@@ -728,6 +730,10 @@
     diffBtns.forEach((b) => b.classList.toggle('on', b.dataset.diff === curDiff));
     const curCtrl = CT.Input && CT.Input.getScheme ? CT.Input.getScheme() : 'swipe';
     ctrlBtns.forEach((b) => b.classList.toggle('on', b.dataset.ctrl === curCtrl));
+    const curSens = CT.Input && CT.Input.getSensitivity ? CT.Input.getSensitivity() : 'med';
+    sensBtns.forEach((b) => b.classList.toggle('on', b.dataset.sens === curSens));
+    const curJoy = CT.Input && CT.Input.getJoySize ? CT.Input.getJoySize() : 'med';
+    joyBtns.forEach((b) => b.classList.toggle('on', b.dataset.joy === curJoy));
   }
   function openOptions() {
     overlays.start.classList.add('hidden');
@@ -744,6 +750,8 @@
   langBtns.forEach((b) => b.addEventListener('click', () => { if (CT.i18n) CT.i18n.setLang(b.dataset.lang); CT.Audio.ui(); renderOptions(); }));
   diffBtns.forEach((b) => b.addEventListener('click', () => { if (CT.setDifficulty) CT.setDifficulty(b.dataset.diff); CT.Audio.ui(); renderOptions(); }));
   ctrlBtns.forEach((b) => b.addEventListener('click', () => { if (CT.Input && CT.Input.setScheme) CT.Input.setScheme(b.dataset.ctrl); CT.Audio.ui(); renderOptions(); }));
+  sensBtns.forEach((b) => b.addEventListener('click', () => { if (CT.Input && CT.Input.setSensitivity) CT.Input.setSensitivity(b.dataset.sens); CT.Audio.ui(); renderOptions(); }));
+  joyBtns.forEach((b) => b.addEventListener('click', () => { if (CT.Input && CT.Input.setJoySize) CT.Input.setJoySize(b.dataset.joy); CT.Audio.ui(); renderOptions(); }));
   document.getElementById('optionsBtn').addEventListener('click', () => { CT.Audio.unlock(); CT.Audio.ui(); openOptions(); });
   document.getElementById('optionsCloseBtn').addEventListener('click', () => { CT.Audio.ui(); closeOptions(); });
 

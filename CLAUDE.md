@@ -118,6 +118,10 @@ les écouteurs tactiles sont posés **une fois** sur le canvas et **branchent se
 Le canvas a `touch-action: none` (pas de scroll/zoom pendant le pilotage). Le clavier
 (flèches / WASD-ZQSD) reste toujours actif. i18n `options.controls` + `ctrl.dpad|swipe|zones|joystick`
 (FR/EN/ES).
+**Réglages de ressenti** (Options, persistés `ct_touch`) : **sensibilité** (`setSensitivity` → seuil
+`THRESH` 34/22/14 px pour Faible/Moyenne/Élevée : + sensible = seuil + petit, affecte swipe/joystick)
+et **taille du joystick** (`setJoySize` → `JOY_R` + variables CSS `--jb`/`--jk` sur `#joystick`,
+Petit/Moyen/Grand). i18n `options.sens` / `sens.*` / `options.joysize` / `size.*`.
 
 ### Vitesse
 `stepInterval = max(minStep, level.step - batteriesRamassées * speedupPerBattery)`.
