@@ -327,6 +327,15 @@ CT.util = {
     for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
     return h >>> 0;
   },
+  /* Clé de la semaine « W-YYYY-MM-DD » = date du LUNDI courant (stable lundi→dimanche). */
+  weekStr() {
+    const d = new Date();
+    const back = (d.getDay() + 6) % 7;        // 0 = lundi
+    d.setDate(d.getDate() - back);
+    return 'W-' + d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  },
+  /* Seed du Défi de la semaine (FNV-1a de la clé de semaine → même map pour tous cette semaine). */
+  weekSeed(str) { return CT.util.dailySeed(str || CT.util.weekStr()); },
   /* Tracé d'un rectangle arrondi (fallback si roundRect absent). */
   rr(ctx, x, y, w, h, r) {
     if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); return; }

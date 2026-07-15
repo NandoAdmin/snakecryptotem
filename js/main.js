@@ -99,9 +99,11 @@
     ).then(({ b, sub }) => {
       persoBest.textContent = b.personal;
       const list = lbScope === 'daily' ? (b.daily || [])
+        : lbScope === 'weekChallenge' ? (b.weekChallenge || [])
         : lbScope === 'chrono' ? (b.chrono || [])
         : lbScope === 'weekly' ? b.weekly : b.global;
       const rank = lbScope === 'daily' ? (b.dailyRank || 0)
+        : lbScope === 'weekChallenge' ? (b.weekChallengeRank || 0)
         : lbScope === 'chrono' ? (b.chronoRank || 0)
         : lbScope === 'weekly' ? b.weeklyRank : b.globalRank;
       lbList.innerHTML = '';
@@ -198,7 +200,7 @@
     }
     nameInput.value = CT.Leaderboard.getName();
     // après un Défi du jour → onglet Jour ; après un Chrono → onglet Chrono
-    setScope(game.chrono ? 'chrono' : game.daily ? 'daily' : 'weekly');
+    setScope(game.chrono ? 'chrono' : game.daily ? 'daily' : game.weekChallenge ? 'weekChallenge' : 'weekly');
     renderLeaderboard();
     animateOverScore();   // compteur du score qui défile
     renderReward();       // récompense au bar (si le score atteint le seuil de la borne)
@@ -266,7 +268,8 @@
   function begin() {
     CT.Audio.unlock();
     CT.Audio.ui();
-    game.startRun(runMode === 'daily' ? CT.util.dailySeed() : undefined, runMode);
+    const seed = runMode === 'daily' ? CT.util.dailySeed() : runMode === 'weekly' ? CT.util.weekSeed() : undefined;
+    game.startRun(seed, runMode);
   }
   function nextLevel() {
     CT.Audio.ui();
@@ -288,6 +291,7 @@
   // JOUER relève le défi d'un ami si un lien ?defi a été ouvert, sinon partie normale
   document.getElementById('playBtn').addEventListener('click', () => { runMode = game.pendingChallenge ? 'challenge' : 'normal'; begin(); });
   document.getElementById('dailyBtn').addEventListener('click', () => { runMode = 'daily'; begin(); });
+  document.getElementById('weeklyBtn').addEventListener('click', () => { runMode = 'weekly'; begin(); });
   document.getElementById('chronoBtn').addEventListener('click', () => { runMode = 'chrono'; begin(); });
   document.getElementById('versusBtn').addEventListener('click', () => { runMode = 'versus'; begin(); });
   document.getElementById('retryBtn').addEventListener('click', begin);   // garde le mode courant

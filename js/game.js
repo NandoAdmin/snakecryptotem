@@ -112,6 +112,7 @@ window.CT = window.CT || {};
     this.seed = (Math.random() * 4294967295) >>> 0;  // graine de partie
     this.rng = CT.util.makeRng(this.seed);           // aléa gameplay déterministe
     this.daily = false;      // Défi du jour (seed de la date → même map pour tous)
+    this.weekChallenge = false;  // Défi de la semaine (seed de la semaine → même map pour tous)
     this.ghost = null;       // fantôme à battre (meilleure course du jour) — { score, frames }
     this.ghostRec = null;    // enregistrement de la course en cours (Défi du jour)
     this.ghostIdx = 0;       // curseur de lecture du fantôme (t monotone)
@@ -244,6 +245,7 @@ window.CT = window.CT || {};
     this.runStart = this.time;
     this.chrono = mode === 'chrono';
     this.versus = mode === 'versus';
+    this.weekChallenge = mode === 'weekly';   // Défi de la SEMAINE (même map/seed pour tous la semaine)
     const isChallenge = mode === 'challenge';
     // DÉFI D'UN AMI (QR) : rejoue la map de l'ami (seed) avec son score à battre
     if (isChallenge && this.pendingChallenge) {
@@ -254,8 +256,8 @@ window.CT = window.CT || {};
       };
       seed = this.challenge.seed;
     }
-    this.daily = !this.chrono && !this.versus && !isChallenge && seed != null;
-    this.seed = (this.daily || isChallenge) ? (seed >>> 0) : (Math.random() * 4294967295) >>> 0;
+    this.daily = !this.chrono && !this.versus && !this.weekChallenge && !isChallenge && seed != null;
+    this.seed = (this.daily || this.weekChallenge || isChallenge) ? (seed >>> 0) : (Math.random() * 4294967295) >>> 0;
     this.rng = CT.util.makeRng(this.seed);   // (re)graine pour la partie scorée
     this.bonusCount = 0;
     // fantôme (Défi du jour uniquement — même seed = même map, la course est comparable)
@@ -273,7 +275,7 @@ window.CT = window.CT || {};
       }
     }
     // ONBOARDING : première partie NORMALE jamais vue → tutoriel guidé (une seule fois)
-    this.tutorial = !this.chrono && !this.versus && !this.daily && !isChallenge && !this._seen();
+    this.tutorial = !this.chrono && !this.versus && !this.daily && !this.weekChallenge && !isChallenge && !this._seen();
     if (this.tutorial) this._markSeen();
     // Labo « Seconde chance » : réanimations disponibles pour cette partie
     this.revivesLeft = (this.mods && this.mods.revives) || 0;
@@ -306,7 +308,7 @@ window.CT = window.CT || {};
     // garder les maps partagées identiques et les classements dédiés équitables).
     this.speedup = CT.CONFIG.speedupPerBattery;
     this.diffId = 'normal';
-    if (!this.demo && !this.chrono && !this.daily && !this.challenge && CT.getDifficulty) {
+    if (!this.demo && !this.chrono && !this.daily && !this.weekChallenge && !this.challenge && CT.getDifficulty) {
       const dm = CT.getDifficulty();
       this.diffId = CT.getDifficultyId();
       this.level = Object.assign({}, this.level, {
@@ -1830,6 +1832,7 @@ window.CT = window.CT || {};
       durationMs: Math.max(0, Math.round((this.time - this.runStart) * 1000)),
       seed: this.seed,
       daily: this.daily,                               // Défi du jour → classement « Jour »
+      week: this.weekChallenge,                        // Défi de la semaine → classement dédié
       chrono: this.chrono,                             // Mode Chrono → classement « ⏱ Chrono »
       diff: this.diffId,                               // difficulté appliquée (easy/normal/hard)
       steps: this.stepCount,                           // nb de pas (rejeu déterministe)
@@ -2669,6 +2672,10 @@ window.CT = window.CT || {};
         ctx.fillStyle = T.amber; ctx.shadowColor = T.amber; ctx.shadowBlur = 12;
         ctx.font = '800 ' + Math.round(S * 0.038) + 'px -apple-system, system-ui, sans-serif';
         ctx.fillText(t('intro.daily') + (this.ghost ? t('intro.daily.ghost', { score: this.ghost.score }) : ''), 0, -S * 0.115);
+      } else if (this.weekChallenge) {                 // badge Défi de la semaine (map partagée)
+        ctx.fillStyle = T.amber; ctx.shadowColor = T.amber; ctx.shadowBlur = 12;
+        ctx.font = '800 ' + Math.round(S * 0.038) + 'px -apple-system, system-ui, sans-serif';
+        ctx.fillText(t('intro.week'), 0, -S * 0.115);
       } else if (this.challenge) {                     // badge Défi d'un ami (QR)
         ctx.fillStyle = T.amber; ctx.shadowColor = T.amber; ctx.shadowBlur = 12;
         ctx.font = '800 ' + Math.round(S * 0.036) + 'px -apple-system, system-ui, sans-serif';

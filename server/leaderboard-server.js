@@ -67,16 +67,17 @@ function makeStore() {
     const { DatabaseSync } = require('node:sqlite');
     const file = wantDb.endsWith('.db') ? wantDb : wantDb + '.db';
     const db = new DatabaseSync(file);
-    db.exec('CREATE TABLE IF NOT EXISTS scores (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, score INTEGER, level INTEGER, batteries INTEGER, bonuses INTEGER, durationMs INTEGER, seed INTEGER, daily INTEGER, chrono INTEGER, diff TEXT, steps INTEGER, journal TEXT, venue TEXT, ts INTEGER)');
+    db.exec('CREATE TABLE IF NOT EXISTS scores (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, score INTEGER, level INTEGER, batteries INTEGER, bonuses INTEGER, durationMs INTEGER, seed INTEGER, daily INTEGER, week INTEGER, chrono INTEGER, diff TEXT, steps INTEGER, journal TEXT, venue TEXT, ts INTEGER)');
     try { db.exec('ALTER TABLE scores ADD COLUMN venue TEXT'); } catch (e) { /* déjà présente (base fraîche) */ }   // migre les bases existantes
+    try { db.exec('ALTER TABLE scores ADD COLUMN week INTEGER'); } catch (e) { /* idem — Défi de la semaine */ }
     db.exec('CREATE INDEX IF NOT EXISTS idx_ts ON scores(ts)');
     db.exec('CREATE INDEX IF NOT EXISTS idx_score ON scores(score)');
-    const ins = db.prepare('INSERT INTO scores (name,score,level,batteries,bonuses,durationMs,seed,daily,chrono,diff,steps,journal,venue,ts) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+    const ins = db.prepare('INSERT INTO scores (name,score,level,batteries,bonuses,durationMs,seed,daily,week,chrono,diff,steps,journal,venue,ts) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
     const sel = db.prepare('SELECT * FROM scores');
     return {
       kind: 'sqlite:' + file,
-      add(e) { ins.run(e.name, e.score, e.level, e.batteries, e.bonuses, e.durationMs, e.seed, e.daily ? 1 : 0, e.chrono ? 1 : 0, e.diff, e.steps | 0, e.journal || '', e.venue || '', e.ts); },
-      all() { return sel.all().map((r) => Object.assign({}, r, { daily: !!r.daily, chrono: !!r.chrono })); },
+      add(e) { ins.run(e.name, e.score, e.level, e.batteries, e.bonuses, e.durationMs, e.seed, e.daily ? 1 : 0, e.week ? 1 : 0, e.chrono ? 1 : 0, e.diff, e.steps | 0, e.journal || '', e.venue || '', e.ts); },
+      all() { return sel.all().map((r) => Object.assign({}, r, { daily: !!r.daily, week: !!r.week, chrono: !!r.chrono })); },
     };
   } catch (e) { /* pas de node:sqlite → repli JSON */ }
 
@@ -161,6 +162,7 @@ function handler(req, res) {
     const norm = all.filter((e) => !e.chrono);   // les scores chrono ont leur classement dédié
     const week = sorted(norm.filter((e) => e.ts >= ws));
     const day = sorted(norm.filter((e) => e.daily && e.ts >= ds));
+    const weekCh = sorted(norm.filter((e) => e.week && e.ts >= ws));   // Défi de la semaine
     const glob = sorted(norm);
     const chrono = sorted(all.filter((e) => e.chrono));
     // classement « ici » : meilleurs scores tous temps (hors chrono) du lieu de la borne demandée
@@ -169,9 +171,10 @@ function handler(req, res) {
     const personal = mine.reduce((m, e) => Math.max(m, e.score), 0);
     return send(res, 200, {
       personal,
-      daily: day.slice(0, 5), weekly: week.slice(0, 5), global: glob.slice(0, 5), chrono: chrono.slice(0, 5),
+      daily: day.slice(0, 5), weekChallenge: weekCh.slice(0, 5), weekly: week.slice(0, 5), global: glob.slice(0, 5), chrono: chrono.slice(0, 5),
       venue: venue.slice(0, 5),
       dailyRank: personal ? rankOf(day, personal) : 0,
+      weekChallengeRank: personal ? rankOf(weekCh, personal) : 0,
       weeklyRank: personal ? rankOf(week, personal) : 0,
       globalRank: personal ? rankOf(glob, personal) : 0,
       chronoRank: personal ? rankOf(chrono, personal) : 0,
@@ -208,6 +211,7 @@ function handler(req, res) {
         durationMs: body.durationMs | 0,
         seed: body.seed >>> 0,
         daily: !!body.daily,                           // (prod : vérifier seed == seed du jour)
+        week: !!body.week,                             // Défi de la semaine (prod : vérifier seed == seed de la semaine)
         chrono: !!body.chrono,
         diff: String(body.diff || 'normal').slice(0, 8),
         steps: body.steps | 0,

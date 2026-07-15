@@ -88,6 +88,7 @@ CT.Leaderboard = (function () {
       const norm = all.filter((e) => !e.chrono);
       const week = sorted(norm.filter((e) => e.ts >= ws));
       const day = sorted(norm.filter((e) => e.daily && e.ts >= ds));   // Défi du jour uniquement
+      const weekCh = sorted(norm.filter((e) => e.week && e.ts >= ws));  // Défi de la semaine uniquement
       const glob = sorted(norm);
       const chrono = sorted(all.filter((e) => e.chrono));
       // classement « ici » : meilleurs scores (tous temps, hors chrono) de la borne du lieu courant
@@ -98,11 +99,13 @@ CT.Leaderboard = (function () {
       return Promise.resolve({
         personal: mine.reduce((m, e) => Math.max(m, e.score), 0),
         daily: day.slice(0, 5),
+        weekChallenge: weekCh.slice(0, 5),
         weekly: week.slice(0, 5),
         global: glob.slice(0, 5),
         chrono: chrono.slice(0, 5),
         venue: venue.slice(0, 5),
         dailyRank: rankOf(day, me),
+        weekChallengeRank: rankOf(weekCh, me),
         weeklyRank: rankOf(week, me),
         globalRank: rankOf(glob, me),
         chronoRank: rankOf(chrono, me),

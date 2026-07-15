@@ -232,6 +232,17 @@ remplace l'objectif batteries : **pas de batterie à ramasser** (`food = null`),
   score boss reste **sous le plafond anti-triche** (le plafond suppose déjà une batterie max-combo
   à chaque pas → large marge).
 
+### Défi de la semaine (`CT.util.weekSeed` — miroir du Défi du jour, hebdo)
+Bouton doré **« 📆 DÉFI DE LA SEMAINE »** sur l'accueil (`#weeklyBtn`, `main.js` runMode `'weekly'`) :
+`startRun(CT.util.weekSeed(), 'weekly')` = **FNV-1a de la clé de semaine** (`weekStr()` = date du
+**lundi** courant, stable lundi→dimanche) → **même map/spawns pour tous cette semaine**. `game.weekChallenge
+= true` (distinct de `daily`) : badge d'intro `intro.week`, entrée taguée `week: true`, **classement dédié**
+« 📆 Défi sem. » (`boards()` local **et** serveur renvoient `weekChallenge[]` + `weekChallengeRank`, filtre
+`e.week && e.ts >= débutSemaine` ; onglet activé par défaut après un défi hebdo). Pas de fantôme (contrairement
+au jour). Mêmes gardes que le daily (pas de difficulté par joueur ni de tutoriel → map partagée équitable).
+Côté serveur : colonne `week` (SQLite, migrée par `ALTER TABLE`). i18n `btn.weekly` / `tab.weekChallenge` /
+`intro.week` (FR/EN/ES).
+
 ### Défi du jour & fantôme (`CT.util.dailySeed` + `js/ghost.js`)
 Bouton doré **« 📅 DÉFI DU JOUR »** sur l'accueil (`#dailyBtn`, `main.js` : `dailyMode` — REJOUER/
 RECOMMENCER gardent le mode) : la partie démarre avec `startRun(CT.util.dailySeed())` = **FNV-1a de
