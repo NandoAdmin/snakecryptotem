@@ -739,21 +739,27 @@ window.CT = window.CT || {};
   // serpent unique ; en versus, 'p2' pilote le 2ᵉ serpent (WASD contre les flèches).
   G.setDir = function (name, group) {
     if (this.state !== 'playing') return;
-    const nd = DIRS[name];
-    if (!nd) return;
     const p2 = this.versus && group === 'p2';
     const queue = p2 ? this.dirQueue2 : this.dirQueue;
     const cur = p2 ? this.dir2 : this.dir;
     // référence = dernier virage en file (sinon la direction courante) → permet d'enchaîner
     // deux quarts de tour serrés (ex. ↑ puis ←) sans que le 2ᵉ soit rejeté à tort comme demi-tour
     const ref = queue.length ? queue[queue.length - 1] : cur;
+    // rotation RELATIVE (zones tactiles) : 'cw' = tourner à droite, 'ccw' = à gauche (autour de la réf.)
+    let nd;
+    if (name === 'cw') nd = { x: -ref.y, y: ref.x };
+    else if (name === 'ccw') nd = { x: ref.y, y: -ref.x };
+    else nd = DIRS[name];
+    if (!nd) return;
     if (nd.x === -ref.x && nd.y === -ref.y) return;   // interdit le demi-tour (relatif à la file)
     if (nd.x === ref.x && nd.y === ref.y) return;     // déjà cette direction → ignore
     if (queue.length >= 2) return;                    // file courte = réactivité (max 2 virages)
     queue.push(nd);
-    // journal d'inputs (rejeu déterministe) : virage du JOUEUR en partie scorée
+    // journal d'inputs (rejeu déterministe) : encode la direction ABSOLUE résultante (cohérent
+    // quel que soit le mode d'entrée — flèche, swipe, joystick ou rotation relative des zones)
     if (!p2 && !this.demo && CT.SimCore && this.journal.length < CT.SimCore.MAX_TURNS) {
-      this.journal.push([this.stepCount, CT.SimCore.DIR_CODE[name]]);
+      const jn = nd.y < 0 ? 'up' : nd.y > 0 ? 'down' : nd.x < 0 ? 'left' : 'right';
+      this.journal.push([this.stepCount, CT.SimCore.DIR_CODE[jn]]);
     }
     CT.Audio.turn();
   };

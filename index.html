@@ -138,6 +138,18 @@
         </div>
         <div class="opt-row">
           <div class="opt-tx">
+            <div class="opt-nm" data-i18n="options.controls">🎮 Contrôles tactiles</div>
+            <div class="opt-ds" data-i18n="options.controls.desc">Sur mobile : comment diriger le serpent.</div>
+          </div>
+          <div class="opt-langs opt-controls">
+            <button class="opt-ctrl" data-ctrl="swipe" data-i18n="ctrl.swipe">Glisser</button>
+            <button class="opt-ctrl" data-ctrl="zones" data-i18n="ctrl.zones">Zones</button>
+            <button class="opt-ctrl" data-ctrl="joystick" data-i18n="ctrl.joystick">Joystick</button>
+            <button class="opt-ctrl" data-ctrl="dpad" data-i18n="ctrl.dpad">D-pad</button>
+          </div>
+        </div>
+        <div class="opt-row">
+          <div class="opt-tx">
             <div class="opt-nm" data-i18n="options.cb">👁️ Mode daltonien</div>
             <div class="opt-ds" data-i18n="options.cb.desc">Le rouge de danger devient orange (plus distinct du vert).</div>
           </div>
@@ -243,6 +255,8 @@
       <button class="dpad-btn right" data-dir="right" aria-label="Droite">▶</button>
       <button class="dpad-btn down" data-dir="down" aria-label="Bas">▼</button>
     </div>
+    <!-- Joystick flottant (schéma de contrôle « joystick ») -->
+    <div id="joystick" class="hidden" aria-hidden="true"><div class="joy-base"></div><div class="joy-knob"></div></div>
   </div>
 
   <!-- Ordre de chargement important (namespace window.CT) -->

@@ -284,11 +284,13 @@ html, body {
 }
 .opt-toggle.on { background: linear-gradient(135deg, var(--cyan), var(--teal)); color: #022; border-color: transparent; }
 .opt-langs { display: flex; gap: 6px; flex: 0 0 auto; }
-.opt-lang, .opt-diff {
+.opt-lang, .opt-diff, .opt-ctrl {
   min-width: 40px; padding: 8px 10px; border-radius: 10px; cursor: pointer; font-weight: 800;
   background: transparent; border: 1px solid var(--glass-brd); color: var(--text-dim);
 }
-.opt-lang.on, .opt-diff.on { background: linear-gradient(135deg, var(--cyan), var(--teal)); color: #022; border-color: transparent; }
+.opt-lang.on, .opt-diff.on, .opt-ctrl.on { background: linear-gradient(135deg, var(--cyan), var(--teal)); color: #022; border-color: transparent; }
+.opt-controls { flex-wrap: wrap; justify-content: flex-end; }
+.opt-ctrl { font-size: 12px; }
 
 /* Défi d'un ami (QR sur l'écran de fin) */
 .btn-ghost.defi-btn { border-color: rgba(255, 194, 75, 0.5); color: var(--amber); }
@@ -640,6 +642,20 @@ button:focus-visible, input:focus-visible, a:focus-visible {
   z-index: 25;
   display: grid; grid-template-columns: repeat(3, 56px); grid-template-rows: repeat(3, 56px);
   gap: 6px; opacity: 0.85;
+}
+/* Joystick flottant (schéma « joystick ») — apparaît sous le doigt, positionné en JS */
+#joystick { position: fixed; z-index: 26; pointer-events: none; width: 0; height: 0; }
+#joystick .joy-base {
+  position: absolute; left: 50%; top: 50%; width: 108px; height: 108px;
+  transform: translate(-50%, -50%); border-radius: 50%;
+  border: 2px solid rgba(43, 240, 216, 0.5); background: rgba(2, 22, 26, 0.35); backdrop-filter: blur(4px);
+  box-shadow: 0 0 24px rgba(43, 240, 216, 0.28);
+}
+#joystick .joy-knob {
+  position: absolute; left: 50%; top: 50%; width: 46px; height: 46px;
+  transform: translate(-50%, -50%); border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, var(--glow), var(--teal));
+  box-shadow: 0 0 18px rgba(43, 240, 216, 0.6);
 }
 .dpad-btn {
   border: 1px solid var(--glass-brd);
