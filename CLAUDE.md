@@ -351,9 +351,13 @@ chaque tranche de **3 niveaux** prend le décor d'un de ces lieux (`CT.getBiome(
 `⌊(n-1)/3⌋` modulo la liste). `this.biome` est fixé dans `setupLevel`. Un biome = `{ id, name,
 icon, tint (clé de theme, rebrandable), motif }`. Le fond de `renderWorld` est **teinté** par
 `mix(bg1, theme[tint], 0.3)`, et `drawBiome(tint)` dessine un **motif décoratif** subtil
-(basse opacité, derrière la grille, fixe) : `skyline` (immeubles + fenêtres, bar), `film`
-(bandes de pellicule sur les côtés, ciné), `lanes` (pistes en perspective, bowling), `disco`
-(rayons balayants + violet), `laser` (faisceaux diagonaux croisés). L'intro « normale » affiche
+(basse opacité, derrière la grille, fixe) : `bar` (comptoir à arête néon + bouteilles et verres
+à cocktail), `film` (bandes de pellicule sur les côtés, ciné), `lanes` (pistes en perspective,
+bowling), `disco` (rayons balayants + violet), `laser` (faisceaux diagonaux croisés). ⚠️ Le motif
+du bar doit **rester un bar** : c'est le décor des niveaux 1-3, donc celui de la **démo attract**
+(cycle 1→3) — c'est le décor le plus vu du jeu. (Il a longtemps été un `skyline` de ville, ce qui
+donnait l'impression que le jeu n'avait qu'un seul décor, urbain et hors sujet.) La skyline reste
+la cinématique `ville`, où elle est voulue. L'intro « normale » affiche
 un **badge du lieu** (icône + nom) au-dessus de « NIVEAU X » (sauf en Défi du jour / défi d'ami,
 qui ont leur propre badge). Purement cosmétique — aucun impact gameplay.
 

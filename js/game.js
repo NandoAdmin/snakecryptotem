@@ -2762,15 +2762,36 @@ window.CT = window.CT || {};
     const b = this.biome; if (!b) return;
     const ctx = this.ctx, W = this.W, H = this.H, motif = b.motif;
     ctx.save();
-    if (motif === 'skyline') {                         // 🍸 bar : immeubles + fenêtres allumées
-      let x = 0, i = 0;
-      while (x < W) {
-        const bw = W * 0.08 + (i % 3) * W * 0.02, bh = H * (0.12 + 0.06 * ((i * 7) % 5));
-        ctx.globalAlpha = 0.18; ctx.fillStyle = mix(T.bg0, tint, 0.4);
-        ctx.fillRect(x, H - bh, bw * 0.92, bh);
-        ctx.globalAlpha = 0.10; ctx.fillStyle = tint;
-        for (let wy = H - bh + 8; wy < H - 8; wy += 14) for (let wx = x + 6; wx < x + bw * 0.92 - 6; wx += 12) ctx.fillRect(wx, wy, 5, 6);
-        x += bw; i++;
+    if (motif === 'bar') {                             // 🍸 bar : comptoir + bouteilles et verres
+      const top = H * 0.86;                            // ligne du comptoir
+      ctx.globalAlpha = 0.20; ctx.fillStyle = mix(T.bg0, tint, 0.45);
+      ctx.fillRect(0, top, W, H - top);                // plateau du comptoir
+      ctx.globalAlpha = 0.12; ctx.fillStyle = tint;
+      ctx.fillRect(0, top, W, 2);                      // arête lumineuse (néon du bar)
+      let x = W * 0.03, i = 0;
+      while (x < W * 0.95) {
+        const bw = W * 0.028 + (i % 3) * W * 0.007;    // largeur (variée, déterministe)
+        if (i % 4 === 3) {                             // un verre à cocktail de temps en temps
+          const gh = H * 0.075, gw = bw * 1.6, gx = x + gw / 2;
+          ctx.globalAlpha = 0.20; ctx.strokeStyle = mix(T.bg0, tint, 0.75); ctx.lineWidth = 1.5;
+          ctx.beginPath();                             // coupe (triangle) + pied + base
+          ctx.moveTo(gx - gw / 2, top - gh); ctx.lineTo(gx + gw / 2, top - gh); ctx.lineTo(gx, top - gh * 0.42);
+          ctx.closePath(); ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(gx, top - gh * 0.42); ctx.lineTo(gx, top);
+          ctx.moveTo(gx - gw * 0.28, top); ctx.lineTo(gx + gw * 0.28, top);
+          ctx.stroke();
+          x += gw * 1.5; i++; continue;
+        }
+        const bh = H * (0.10 + 0.035 * ((i * 7) % 4)); // hauteur de la bouteille
+        const nw = bw * 0.34, nh = bh * 0.32;          // goulot
+        const bodyY = top - bh + nh;
+        ctx.globalAlpha = 0.18; ctx.fillStyle = mix(T.bg0, tint, 0.55);
+        U.rr(ctx, x, bodyY, bw, top - bodyY, bw * 0.24); ctx.fill();   // corps
+        ctx.fillRect(x + (bw - nw) / 2, top - bh, nw, nh);             // goulot
+        ctx.globalAlpha = 0.11; ctx.fillStyle = tint;                  // étiquette lumineuse
+        ctx.fillRect(x + bw * 0.16, bodyY + (top - bodyY) * 0.34, bw * 0.68, (top - bodyY) * 0.24);
+        x += bw * 1.75; i++;
       }
     } else if (motif === 'film') {                     // 🎬 ciné : bandes de pellicule sur les côtés
       const sw = W * 0.06;

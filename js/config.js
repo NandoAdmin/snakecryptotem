@@ -195,7 +195,7 @@ CT.CONFIG = {
      discothèques et laser games. Chaque tranche de niveaux prend le décor d'un de ces lieux
      (fond + motif). `tint` = clé de `theme` (rebrandable), `motif` = décor dessiné (drawBiome). */
   biomes: [
-    { id: 'bar',     name: 'BAR',          icon: '🍸', tint: 'teal',   motif: 'skyline' },
+    { id: 'bar',     name: 'BAR',          icon: '🍸', tint: 'teal',   motif: 'bar'     },
     { id: 'cine',    name: 'CINÉMA',       icon: '🎬', tint: 'violet', motif: 'film'    },
     { id: 'bowling', name: 'BOWLING',      icon: '🎳', tint: 'amber',  motif: 'lanes'   },
     { id: 'disco',   name: 'DISCOTHÈQUE',  icon: '🪩', tint: 'pink',   motif: 'disco'   },
