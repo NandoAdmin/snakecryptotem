@@ -317,9 +317,11 @@ niveau boss ; jamais en démo/chrono), le Snakator est remplacé par le **GLOUTO
 `drawHostile`, prioritaire sur `CT.BossSkins`) qui **chasse la BATTERIE** au lieu du joueur
 (branche `e.race` de `stepSnake` : glouton vers `this.food`, imprévu `race.turnChance`).
 - **Vol** (`rivalEats`, testé après chaque pas du rival) : s'il atteint la batterie, il la
-  mange → **`batteries − 1`** (l'objectif recule), il **grandit** de `race.grow` bloc(s)
-  (plafond `malus.maxEnemyLen`), toast « 😋 BATTERIE VOLÉE ! » + son malus, la batterie
-  réapparaît ailleurs.
+  mange → il **grandit** de `race.grow` bloc(s) (plafond `malus.maxEnemyLen`), toast
+  « 😋 BATTERIE VOLÉE ! » + son malus, la batterie réapparaît ailleurs. ⚠️ Le vol **ne
+  décompte PAS** les batteries déjà ramassées (l'objectif ne recule jamais) : sinon un
+  Glouton rapide peut rendre le niveau **infinissable**. La sanction est le rival qui
+  grandit + la batterie à re-chasser.
 - Mortel au contact hors bouclier (mécanique Snakator inchangée) ; **sous bouclier on le
   mord** — tête-à-tête = destruction (« 💥 GLOUTON DÉTRUIT »)… mais il **revient** après
   `race.respawn` = 6 s (`rivalRespawnAt`, réarmé dans `biteSnake`, respawn dans `step()`
@@ -1011,8 +1013,9 @@ complet : Reed-Solomon GF(256), sélection de masque par pénalité, BCH format/
       déterministes (1→2 paires), direction conservée, hostiles téléportés aussi, câble coupé
       à la traversée (pas d'interpolation sur un saut).
 - [x] **Niveau COURSE** (`CONFIG.race`, niveaux 7, 12, 17…) : le GLOUTON doré chasse la
-      batterie — chaque vol recule l'objectif et le fait grandir ; destructible sous bouclier
-      mais revient après 6 s ; intro « 🏁 COURSE » dédiée.
+      batterie — chaque vol le fait grandir et renvoie la batterie ailleurs (sans jamais
+      décompter l'objectif) ; destructible sous bouclier mais revient après 6 s ; intro
+      « 🏁 COURSE » dédiée.
 - [x] **Missions de partie** (`CONFIG.missions` + `MISSION_POOL`) : 3 objectifs secondaires
       par run (déterministes par seed), récompense ⚡ versée au Labo (jamais au score) ;
       affichées à l'intro niv. 1, en pause et au récap de fin.

@@ -1268,7 +1268,9 @@ window.CT = window.CT || {};
       e.body.push({ x: t2.x, y: t2.y });
       if (e.prev) e.prev.push({ x: t2.x, y: t2.y });
     }
-    this.batteries = Math.max(0, this.batteries - 1);   // l'objectif recule
+    // Le vol ne DÉCOMPTE PAS les batteries déjà ramassées (sinon le niveau peut
+    // devenir infinissable) : la sanction est le Glouton qui grandit + la batterie
+    // qui repart ailleurs.
     this.spawnFx(f.x, f.y, [T.amber, T.danger, '#ffffff'], 16);
     this.spawnToast('😋 BATTERIE VOLÉE !', f.x, f.y);
     this.flash = Math.max(this.flash, 0.45); this.flashColor = T.amber;
